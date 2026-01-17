@@ -157,6 +157,25 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       } catch (e) {
         debugPrint('데이터 로드 실패: $e');
       }
+    } else {
+      // [신규 플레이어 지원] 데이터가 없는 경우 초기 무기 지급
+      setState(() {
+        Item starterWeapon = Item(
+          id: 'starter_${DateTime.now().millisecondsSinceEpoch}',
+          name: '모험가의 목검',
+          type: ItemType.weapon,
+          grade: ItemGrade.common,
+          mainStat: 100, // 리빌딩된 1티어 무기 공격력 (상향)
+          subOptions: [],
+          enhanceLevel: 0,
+          durability: 100,
+          maxDurability: 100,
+          isNew: false,
+        );
+        player.equipItem(starterWeapon);
+        playerCurrentHp = player.maxHp; // 무기 장착 후 HP 갱신
+        _addLog('환영합니다! 모험을 시작하기 위해 [모험가의 목검]을 지급했습니다.', LogType.event);
+      });
     }
   }
 
@@ -368,7 +387,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           _stageKills = 0;
           _currentStage += (1 + jump); // 점프 적용
           _zoneStages[_currentZone.id] = _currentStage;
-          _addLog('스테이지 클리어! [${_currentZone.name}-$_currentStage] 진입 ${jump > 0 ? "($jump단계 점프!)" : ""}', LogType.event);
+          _addLog('스테이지 클리어! [${_currentZone.name}-${Monster.getDisplayStage(_currentStage)}] 진입 ${jump > 0 ? "($jump단계 점프!)" : ""}', LogType.event);
         } else {
           _stageKills = _targetKills - 1; // 꽉 찬 상태 유지 (또는 0으로 리셋 후 반복)
         }
@@ -413,9 +432,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   void _handlePlayerDeath() {
-    _addLog('사망... 마을에서 부활 중', LogType.event);
-    playerCurrentHp = player.maxHp;
-    currentMonster = null;
+    _addLog('사망... 마을에서 부활 중 (스테이지 하락!)', LogType.event);
+    
+    setState(() {
+      // 5스테이지 하락 (최소 1스테이지)
+      _currentStage = max(1, _currentStage - 5);
+      _zoneStages[_currentZone.id] = _currentStage;
+      _stageKills = 0; // 진행도 초기화
+      
+      playerCurrentHp = player.maxHp;
+      currentMonster = null;
+    });
+
     // 부활 대기 시간을 0.5초로 단축
     Timer(const Duration(milliseconds: 500), () { if (mounted) _spawnMonster(); });
   }
@@ -735,7 +763,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               _buildShadowText('STAGE', fontSize: 10, color: Colors.white38),
-                              _buildShadowText('$stage', color: zone.color, fontWeight: FontWeight.bold, fontSize: 24),
+                              _buildShadowText('${Monster.getDisplayStage(stage)}', color: zone.color, fontWeight: FontWeight.bold, fontSize: 24),
                               const SizedBox(height: 10),
                               Container(
                                 padding: const EdgeInsets.all(8),
@@ -1159,55 +1187,64 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildEquippedSlots() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: ItemType.values.map((type) {
-            final item = player.equipment[type];
-            bool isEmpty = item == null;
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 아이콘 크기를 적절히 고정하고 간격을 좁힙니다.
+          double slotSize = 52.0; 
 
-            return Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: isEmpty 
-                ? SizedBox(
-                    width: 62, height: 62,
-                    child: _buildGlassContainer(
-                      borderRadius: 16,
-                      color: Colors.black26,
-                      border: Border.all(color: Colors.white10),
-                      child: Center(child: _getEmptyIcon(type)),
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center, // 중앙으로 밀집
+            children: ItemType.values.map((type) {
+              final item = player.equipment[type];
+              bool isEmpty = item == null;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2), // 좌우 2px씩, 총 4px 간격
+                child: isEmpty 
+                  ? SizedBox(
+                      width: slotSize, 
+                      height: slotSize,
+                      child: _buildGlassContainer(
+                        borderRadius: 12,
+                        color: Colors.black26,
+                        border: Border.all(color: Colors.white10),
+                        child: Center(
+                          child: Opacity(
+                            opacity: 0.5,
+                            child: _getEmptyIcon(type, size: slotSize * 0.5)
+                          )
+                        ),
+                      ),
+                    )
+                  : _buildPremiumItemSlot(
+                      item, 
+                      size: slotSize,
+                      onTap: () {
+                        final equipList = ItemType.values.map((t) => player.equipment[t]).whereType<Item>().toList();
+                        _showItemDetail(item, contextList: equipList);
+                      },
                     ),
-                  )
-                : _buildPremiumItemSlot(
-                    item, 
-                    size: 62,
-                    onTap: () {
-                      final equipList = ItemType.values.map((t) => player.equipment[t]).whereType<Item>().toList();
-                      _showItemDetail(item, contextList: equipList);
-                    },
-                  ),
-            );
-          }).toList(),
-        ),
+              );
+            }).toList(),
+          );
+        },
       ),
     );
   }
 
   // 빈 슬롯용 흐릿한 실루엣 아이콘
-  Widget _getEmptyIcon(ItemType t) {
-    IconData safeIcon = Icons.help_outline;
+  Widget _getEmptyIcon(ItemType t, {double size = 20}) {
+    IconData icon;
     switch (t) {
-      case ItemType.weapon: safeIcon = Icons.token_outlined; break;
-      case ItemType.helmet: safeIcon = Icons.smart_toy_outlined; break;
-      case ItemType.armor: safeIcon = Icons.shield_outlined; break;
-      case ItemType.boots: safeIcon = Icons.directions_run; break;
-      case ItemType.ring: safeIcon = Icons.radio_button_unchecked; break;
-      case ItemType.necklace: safeIcon = Icons.all_out; break;
+      case ItemType.weapon: icon = Icons.skateboarding; break;
+      case ItemType.helmet: icon = Icons.smart_toy; break;
+      case ItemType.armor: icon = Icons.shield; break;
+      case ItemType.boots: icon = Icons.not_started; break;
+      case ItemType.ring: icon = Icons.adjust; break;
+      case ItemType.necklace: icon = Icons.all_out; break;
     }
-    return Icon(safeIcon, size: 20, color: Colors.white10);
+    return Icon(icon, color: Colors.white24, size: size);
   }
 
   // 스킬 전용 아이콘 빌더
@@ -1230,7 +1267,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             child: Row(
               children: [
                 _buildFilterChip(null, '전체'),
-                ...ItemType.values.map((t) => _buildFilterChip(t, _getTypeName(t))),
+                ...ItemType.values.map((t) => _buildFilterChip(t, t.nameKr)),
               ],
             ),
           ),
@@ -1543,28 +1580,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _saveGameData(); // 분해 결과 저장
   }
 
-  // 헬퍼 함수
-  String _getTypeName(ItemType t) {
-    switch (t) {
-      case ItemType.weapon: return '무기';
-      case ItemType.helmet: return '투구';
-      case ItemType.armor: return '갑옷';
-      case ItemType.boots: return '신발';
-      case ItemType.ring: return '반지';
-      case ItemType.necklace: return '목걸이';
-    }
-  }
-
-  String _getMainStatName(ItemType t) {
-    switch (t) {
-      case ItemType.weapon: return '공격력';
-      case ItemType.helmet: return '방어력';
-      case ItemType.armor: return '방어력';
-      case ItemType.boots: return '방어력';
-      case ItemType.ring: return '치명타 확률';
-      case ItemType.necklace: return '치명타 피해';
-    }
-  }
 
   Widget _getItemIcon(ItemType t, {double size = 20, Color? color}) {
     String iconStr;
@@ -1735,7 +1750,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Divider(color: Colors.white12, height: 1),
                               ),
-                              _buildCompareStat(_getMainStatName(currentItem.type), currentItem.effectiveMainStat.toDouble(), currentEquip.effectiveMainStat.toDouble()),
+                              _buildCompareStat(currentItem.mainStatName, currentItem.effectiveMainStat.toDouble(), currentEquip.effectiveMainStat.toDouble()),
                               
                               // 부가 옵션 비교
                               ...() {
@@ -1767,11 +1782,27 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: Colors.blueAccent.withOpacity(0.3))
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
                           children: [
-                            Text('${_getMainStatName(currentItem.type)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
-                            Text('${currentItem.effectiveMainStat}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('${currentItem.mainStatName}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                                Text('${currentItem.effectiveMainStat}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+                              ],
+                            ),
+                            // 반지/목걸이 전용: 고정 체력 옵션 표시
+                            if (currentItem.type == ItemType.ring || currentItem.type == ItemType.necklace)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('체력', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                                    Text('${(40 * currentItem.getEnhanceFactor()).toInt()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -1786,9 +1817,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         ),
                       
                       const SizedBox(height: 20),
-                      const Text('부가 옵션', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70)),
-                      const SizedBox(height: 8),
-                      ...currentItem.subOptions.map((opt) => Padding(
+                      ...currentItem.subOptions.where((opt) {
+                        // 반지/목걸이의 경우 상단에 표시된 '체력' 옵션은 리스트에서 제외
+                        if (currentItem.type == ItemType.ring || currentItem.type == ItemType.necklace) {
+                          return opt.name != '체력';
+                        }
+                        return true;
+                      }).map((opt) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
                         child: Text('• $opt', style: const TextStyle(color: Colors.white70, fontSize: 13)),
                       )).toList(),
@@ -2038,7 +2073,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               Row(
                 children: [
                   _buildShadowText('${_currentZone.name}-', fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
-                  _buildShadowText('스테이지 $_currentStage', fontSize: 13, color: Colors.white70),
+                  _buildShadowText('스테이지 ${Monster.getDisplayStage(_currentStage)}', fontSize: 13, color: Colors.white70),
                   const SizedBox(width: 12),
                   _buildShadowText('${_formatNumber(player.gold)} Gold', fontSize: 16, color: Colors.amber, fontWeight: FontWeight.w900),
                 ],
@@ -3987,7 +4022,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               borderRadius: const BorderRadius.only(bottomRight: Radius.circular(8)),
             ),
             child: Text(
-              'T${item.grade.index + 1}',
+              'T${item.tier}',
               style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white70),
             ),
           ),

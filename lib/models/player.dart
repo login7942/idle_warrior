@@ -92,9 +92,9 @@ class Player {
     this.exp = 0,
     this.maxExp = 100,
     this.gold = 1000,
-    this.baseHp = 100,
-    this.baseAttack = 10,
-    this.baseDefense = 5,
+    this.baseHp = 250,
+    this.baseAttack = 30,
+    this.baseDefense = 0,
   });
 
   int get combatPower {
@@ -103,47 +103,61 @@ class Player {
 
   double _getSkillValue(String id) {
     try {
-      return skills.firstWhere((s) => s.id == id).currentValue;
+      final skill = skills.firstWhere((s) => s.id == id);
+      return skill.isUnlocked ? skill.currentValue : 0.0;
     } catch (_) {
       return 0.0;
     }
   }
 
   int get maxHp {
-    double bonus = 1.0 + (petHpBonus / 100);
+    double petBonus = 1.0 + (petHpBonus / 100);
     int flat = 0;
+
     equipment.values.forEach((item) {
       if (item == null) return;
-      int itemMainStat = item.effectiveMainStat;
-      if (item.type == ItemType.armor) flat += itemMainStat;
+      double factor = item.getEnhanceFactor();
+      
+      // 장비 주 능력치가 체력인 경우
+      if (item.mainStatName == '체력') {
+        flat += (item.mainStat * factor).toInt();
+      }
+
+      // 부가 옵션에 체력이 있는 경우 (반지, 목걸이 등)
       for (var opt in item.subOptions) {
-        if (opt.name == '생명력') {
-          if (opt.isPercentage) bonus += opt.value / 100;
-          else flat += opt.value.toInt();
+        if (opt.name == '체력') {
+          flat += (opt.value * factor).toInt();
         }
       }
     });
-    return (baseHp * bonus).toInt() + flat;
+
+    return (baseHp * petBonus).toInt() + flat;
   }
 
   int get attack {
-    double bonus = 1.0 + (petAtkBonus / 100);
-    int flat = _getSkillValue('pas_1').toInt();
-    double finalMultiplier = 1.0 + (getPetCompanionValue('용의 분노') / 100);
+    double petBonus = 1.0 + (petAtkBonus / 100);
+    int flat = _getSkillValue('pas_1').toInt(); // 패시브 스킬 보너스
+    double activePetMultiplier = 1.0 + (getPetCompanionValue('용의 분노') / 100);
     
     equipment.values.forEach((item) {
       if (item == null) return;
-      int itemMainStat = item.effectiveMainStat;
-      if (item.type == ItemType.weapon) flat += itemMainStat;
+      double factor = item.getEnhanceFactor();
+
+      // 장비 주 능력치가 공격력인 경우
+      if (item.mainStatName == '공격력') {
+        flat += (item.mainStat * factor).toInt();
+      }
+
+      // 부가 옵션에 공격력이 있는 경우
       for (var opt in item.subOptions) {
         if (opt.name == '공격력') {
-          if (opt.isPercentage) bonus += opt.value / 100;
-          else flat += opt.value.toInt();
+          flat += (opt.value * factor).toInt();
         }
       }
     });
-    int total = (baseAttack * bonus).toInt() + flat;
-    return (total * finalMultiplier).toInt();
+
+    int totalAtk = (baseAttack * petBonus).toInt() + flat;
+    return (totalAtk * activePetMultiplier).toInt();
   }
 
   int get defense {
@@ -152,7 +166,7 @@ class Player {
     equipment.values.forEach((item) {
       if (item == null) return;
       int itemMainStat = item.effectiveMainStat;
-      if (item.type == ItemType.helmet || item.type == ItemType.boots) flat += itemMainStat;
+      if (item.mainStatName == '방어력') flat += itemMainStat; // 현재 방어력이 주 능력치인 1티어 장비는 없으나 확장성 유지
       for (var opt in item.subOptions) {
         if (opt.name == '방어력') {
           if (opt.isPercentage) bonus += opt.value / 100;
@@ -273,10 +287,17 @@ class Player {
       exp: json['exp'] ?? 0,
       maxExp: json['maxExp'] ?? 100,
       gold: json['gold'] ?? 1000,
-      baseHp: json['baseHp'] ?? 100,
-      baseAttack: json['baseAttack'] ?? 10,
-      baseDefense: json['baseDefense'] ?? 5,
+      baseHp: json['baseHp'] ?? 250,
+      baseAttack: json['baseAttack'] ?? 30,
+      baseDefense: json['baseDefense'] ?? 0,
     );
+
+    // --- [데이터 보정] 기존 플레이어 기초 스탯 상향 반영 ---
+    // 기존 1레벨 기초(100/10)보다 낮은 경우 새로운 기초(250/30)로 보정
+    int lvBonusHp = (p.level - 1) * 30;
+    int lvBonusAtk = (p.level - 1) * 2;
+    if (p.baseHp < 250 + lvBonusHp) p.baseHp = 250 + lvBonusHp;
+    if (p.baseAttack < 30 + lvBonusAtk) p.baseAttack = 30 + lvBonusAtk;
 
     p.powder = json['powder'] ?? 0;
     p.enhancementStone = json['enhancementStone'] ?? 0;

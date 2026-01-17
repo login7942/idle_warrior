@@ -3,6 +3,34 @@ import 'package:flutter/material.dart';
 
 enum ItemType { weapon, helmet, armor, boots, ring, necklace }
 
+extension ItemTypeExtension on ItemType {
+  String get nameKr {
+    switch (this) {
+      case ItemType.weapon: return '무기';
+      case ItemType.helmet: return '투구';
+      case ItemType.armor: return '갑옷';
+      case ItemType.boots: return '신발';
+      case ItemType.ring: return '반지';
+      case ItemType.necklace: return '목걸이';
+    }
+  }
+
+  String get mainStatName {
+    switch (this) {
+      case ItemType.weapon:
+      case ItemType.ring:
+      case ItemType.necklace:
+        return '공격력';
+      case ItemType.helmet:
+      case ItemType.armor:
+      case ItemType.boots:
+        return '체력';
+      default:
+        return '공격력';
+    }
+  }
+}
+
 enum ItemGrade { common, uncommon, rare, epic, legendary, mythic }
 
 extension ItemGradeExtension on ItemGrade {
@@ -99,14 +127,13 @@ class Item {
     required this.name,
     required this.type,
     required this.grade,
-    required this.tier,
     required this.mainStat,
     required this.subOptions,
     this.enhanceLevel = 0,
     this.durability = 100,
     this.maxDurability = 100,
     this.isNew = true,
-  });
+  }) : this.tier = grade.index + 1; // Tier는 항상 Grade Index + 1과 동일 (A안 적용)
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -123,7 +150,6 @@ class Item {
       };
 
   factory Item.fromJson(Map<String, dynamic> json) {
-    // 안전한 Enum 변환을 위한 헬퍼
     ItemType type = ItemType.values.firstWhere(
       (e) => e.name == json['type'],
       orElse: () => ItemType.weapon,
@@ -133,14 +159,33 @@ class Item {
       orElse: () => ItemGrade.common,
     );
 
+    // --- [데이터 보정 로직] 불러올 때 1티어 고정 수치 강제 적용 ---
+    int fixedMainStat = json['mainStat'];
+    List<ItemOption> fixedSubOptions = (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList();
+
+    // 1티어 고정 스탯 테이블에 따라 보정
+    switch (type) {
+      case ItemType.weapon: fixedMainStat = 100; break;
+      case ItemType.helmet: fixedMainStat = 300; break;
+      case ItemType.armor: fixedMainStat = 500; break;
+      case ItemType.boots: fixedMainStat = 200; break;
+      case ItemType.ring:
+        fixedMainStat = 20;
+        _updateHpOption(fixedSubOptions, 100);
+        break;
+      case ItemType.necklace:
+        fixedMainStat = 30;
+        _updateHpOption(fixedSubOptions, 150);
+        break;
+    }
+
     return Item(
       id: json['id'],
       name: json['name'],
       type: type,
       grade: grade,
-      tier: json['tier'],
-      mainStat: json['mainStat'],
-      subOptions: (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList(),
+      mainStat: fixedMainStat,
+      subOptions: fixedSubOptions,
       enhanceLevel: json['enhanceLevel'],
       durability: json['durability'],
       maxDurability: json['maxDurability'],
@@ -150,78 +195,69 @@ class Item {
 
   bool get isBroken => durability <= 0;
 
-  // DOC_GAME_DESIGN.md 6.4 아이템 생성 정밀 수식 반영
-  // 강화 복리: 1~17강(12%), 18~20강(6%) 복리 증가
-  // 파손 페널티: 파손 시 최종 스탯 20% 감소 (0.8배)
+  // 장비 리빌딩: 강화 수식 적용 (기본수치 * (1 + level * 0.05))
   int get effectiveMainStat {
-    double stat = mainStat.toDouble();
-    
-    // 1~17강: 12% 복리
-    int levelTo17 = min(enhanceLevel, 17);
-    for (int i = 0; i < levelTo17; i++) {
-      stat *= 1.12;
-    }
-    
-    // 18강 이후: 6% 복리
-    if (enhanceLevel > 17) {
-      int levelAbove17 = enhanceLevel - 17;
-      for (int i = 0; i < levelAbove17; i++) {
-        stat *= 1.06;
-      }
-    }
+    double factor = 1 + (enhanceLevel * 0.05);
+    double stat = mainStat * factor;
 
-    // 파손 페널티 적용
-    if (isBroken) {
-      stat *= 0.8;
-    }
-
+    if (isBroken) stat *= 0.8;
     return stat.toInt();
   }
 
-  // 드롭 아이템 생성기
+  // 장비 리빌딩: 주 능력치 이름 규칙
+  String get mainStatName => type.mainStatName;
+
+  // 부가 옵션도 동일한 강화 계수 적용 여부 (반지/목걸이 HP 용)
+  double getEnhanceFactor() => 1 + (enhanceLevel * 0.05);
+
+  // 드롭 아이템 생성기 (1티어 리빌딩 및 가중치 시스템 반영)
   factory Item.generate(int playerLevel) {
     final rand = Random();
     final id = DateTime.now().millisecondsSinceEpoch.toString() + rand.nextInt(1000).toString();
     
-    // 티어 결정 (일시 제외, 1로 고정)
-    int tier = 1;
-
-    // 등급 결정 확률 상향 조정
-    double gradeRand = rand.nextDouble();
-    ItemGrade grade;
-    if (gradeRand < 0.03) grade = ItemGrade.mythic; // 3%
-    else if (gradeRand < 0.10) grade = ItemGrade.legendary; // 7%
-    else if (gradeRand < 0.25) grade = ItemGrade.epic; // 15%
-    else if (gradeRand < 0.50) grade = ItemGrade.rare; // 25%
-    else if (gradeRand < 0.75) grade = ItemGrade.uncommon; // 25%
-    else grade = ItemGrade.common;
-
-    // 종류 결정
+    // --- [A안] 티어/등급 통합 시스템 적용 ---
+    // 현재는 오직 1티어(Common)만 드랍되도록 설정
+    ItemGrade grade = ItemGrade.common;
     ItemType type = ItemType.values[rand.nextInt(ItemType.values.length)];
+    // --------------------------------------
 
-    // 이름 규칙
-    String prefix = _getGradeName(grade);
-    String typeName = _getTypeName(type);
-    String name = '$prefix $typeName';
-
-    // 주 능력치 (레벨 및 등급 보정)
-    int baseStat = (playerLevel * 5) + (grade.index * 10);
-    int mainStat = baseStat + rand.nextInt(baseStat ~/ 5 + 1);
-
-    // 부가 옵션 (등급에 따라 개수 차이)
+    int mStat = 0;
     List<ItemOption> options = [];
-    int optionCount = grade.index; // common: 0, ..., mythic: 5
-    for (int i = 0; i < optionCount; i++) {
-      options.add(_generateRandomOption(rand));
+
+    // ① 1티어 장비 기본 능력치 (수치 고정)
+    switch (type) {
+      case ItemType.weapon:
+        mStat = 100; // 무기: 공격+100
+        break;
+      case ItemType.helmet:
+        mStat = 300; // 투구: HP+300
+        break;
+      case ItemType.armor:
+        mStat = 500; // 갑옷: HP+500
+        break;
+      case ItemType.boots:
+        mStat = 200; // 신발: HP+200
+        break;
+      case ItemType.ring:
+        mStat = 20; // 반지: 공격+20
+        options.add(ItemOption(name: '체력', value: 100, isPercentage: false)); // 체력+100
+        break;
+      case ItemType.necklace:
+        mStat = 30; // 목걸이: 공격+30
+        options.add(ItemOption(name: '체력', value: 150, isPercentage: false)); // 체력+150
+        break;
     }
+
+    String prefix = _getGradeName(grade);
+    String typeName = type.nameKr;
+    String name = '$prefix $typeName';
 
     return Item(
       id: id,
       name: name,
       type: type,
       grade: grade,
-      tier: tier,
-      mainStat: mainStat,
+      mainStat: mStat,
       subOptions: options,
       enhanceLevel: 0,
       durability: 100,
@@ -230,14 +266,13 @@ class Item {
     );
   }
 
-  // 강화 성공 확률 계산 (표준 방치형 기준)
+  // 강화 성공 확률 리빌딩
   double get successChance {
-    if (enhanceLevel < 5) return 1.0;     // 0~4강: 100%
-    if (enhanceLevel < 10) return 0.8;    // 5~9강: 80%
-    if (enhanceLevel < 15) return 0.5;    // 10~14강: 50%
-    if (enhanceLevel < 18) return 0.25;   // 15~17강: 25%
-    if (enhanceLevel < 20) return 0.1;    // 18~19강: 10%
-    return 0.05;                          // 20강 이상: 5%
+    if (enhanceLevel < 5) return 1.0;     // 1~5강: 100%
+    if (enhanceLevel < 8) return 0.95;    // 6~8강: 95%
+    if (enhanceLevel == 8) return 0.90;   // 9강(이전레벨 8): 90%
+    if (enhanceLevel == 9) return 0.85;   // 10강(이전레벨 9): 85%
+    return 0.30;                          // 11~20강: 30% 고정
   }
 
   // 강화 비용 계산 (골드)
@@ -318,16 +353,7 @@ class Item {
     }
   }
 
-  static String _getTypeName(ItemType type) {
-    switch (type) {
-      case ItemType.weapon: return '검';
-      case ItemType.helmet: return '투구';
-      case ItemType.armor: return '갑옷';
-      case ItemType.boots: return '신발';
-      case ItemType.ring: return '반지';
-      case ItemType.necklace: return '목걸이';
-    }
-  }
+  static String _getTypeName(ItemType type) => type.nameKr;
 
   static ItemOption _generateRandomOption(Random rand) {
     List<String> pool = ['공격력', '방어력', '생명력', '치명타 확률', '치명타 피해', '공격 속도', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭'];
@@ -348,4 +374,16 @@ class Item {
 
   // 기존 gradeColor getter는 유지하거나 필요없으면 제거 가능
   Color get gradeColor => grade.color;
+
+  // 헬퍼: 체력 옵션 업데이트/추가
+  static void _updateHpOption(List<ItemOption> options, double value) {
+    bool hasHp = options.any((o) => o.name == '체력');
+    if (!hasHp) {
+      options.add(ItemOption(name: '체력', value: value, isPercentage: false));
+    } else {
+      for (var o in options) {
+        if (o.name == '체력') o.value = value;
+      }
+    }
+  }
 }

@@ -32,35 +32,35 @@ class Monster {
     
     // 지역별 몬스터 이름 무작위 선택
     String species = zone.monsterNames[rand.nextInt(zone.monsterNames.length)];
-    int totalLevel = (zone.minLevel + stage);
+    int totalLevel = (zone.minLevel + stage - 1);
 
-    // DOC_GAME_DESIGN.md 3.3. 몬스터 성장 공식 (Monster Scaling) 반영
-    // 스테이지(stage)를 S로 치환하여 계산
+    // --- [2026-01-17] 스테이지 가속 및 밸런스 개편 ---
+    // 파라미터 stage는 내부 '전투 단계(Combat Stage)'입니다.
     double s = stage.toDouble();
-    double multiplier;
-
-    if (s <= 200) {
-      // 1구간 (S ≤ 200): [선형] Multiplier = 1 + (S * 0.15)
-      multiplier = 1 + (s * 0.15);
-    } else if (s <= 1500) {
-      // 2구간 (200 < S ≤ 1500): [지수] Multiplier = 31 * Math.pow(1.065, (S - 200) / 10)
-      multiplier = 31 * pow(1.065, (s - 200) / 10).toDouble();
+    
+    // HP(stage) = 900 × stage^1.25 (11스테이지 기준) - 성취감을 위해 기존 1.15에서 1.25로 상향
+    double baseHp = (900 * pow(s, 1.25)).toDouble();
+    
+    // 초반 구간 체력 완화 로직 (Smoothing) 적용
+    double mHpFinal;
+    if (s <= 5) {
+      mHpFinal = baseHp * 0.15; // 1~5층: 15% 수준
+    } else if (s <= 10) {
+      mHpFinal = baseHp * 0.4;  // 6~10층: 40% 수준
     } else {
-      // 3구간 (S > 1500): [강한 지수 + 벽] 
-      // Multiplier = 85000 * Math.pow(1.1, (S - 1500) / 50) * (1 + Floor((S - 1500) / 100) * 0.5)
-      double baseMult = 85000 * pow(1.1, (s - 1500) / 50).toDouble();
-      double wallMult = 1 + ((s - 1500) / 100).floor() * 0.5;
-      multiplier = baseMult * wallMult;
+      mHpFinal = baseHp;        // 11층부터 온전한 위력
     }
+    int mHp = mHpFinal.toInt();
+    
+    // ATK(stage) = 90 × stage^1.1 - 가속된 표시 단계에 맞게 위력 상향
+    int mAtk = (90 * pow(s, 1.1)).toInt();
+    
+    // 방어력은 0으로 고정 (이전 설정 유지)
+    int mDef = 0;
 
-    // 최종 스탯 계산 (기본값에 구간별 multiplier 적용)
-    // 기본 수치도 디자인 문서의 의도에 맞게 조정 가능하나, 일단 multiplier 로직을 우선 적용
-    int mHp = (100 * multiplier).toInt();
-    int mAtk = (10 * multiplier).toInt();
-    int mDef = (5 * multiplier).toInt();
-
-    // 보상 배율: 스테이지 배율 * (1 + 층수 / 500)
-    double rewardMult = multiplier * (1 + s / 500);
+    // 보상 배율: 체력 성장에 비례하되 너무 가파르지 않게 조정 (기존 multiplier 개념 대체)
+    double growthFactor = mHp / 900.0;
+    double rewardMult = growthFactor * (1 + s / 500);
 
     return Monster(
       name: '$species (Lv.$totalLevel)',
@@ -71,9 +71,17 @@ class Monster {
       defense: mDef,
       expReward: (20 * rewardMult).toInt(),
       goldReward: (50 * rewardMult).toInt(),
-      itemDropChance: 0.15, // 디자인 문서 3.2 드랍 확률 반영
+      itemDropChance: 0.2, // 디자인 문서 리빌딩: 드랍 확률 20% 반영
     );
   }
 
   bool get isDead => hp <= 0;
+
+  /// 내부 전투 단계를 가속된 표시 단계로 변환하는 공식 (A안 가속 적용)
+  static int getDisplayStage(int combatStage) {
+    if (combatStage <= 1) return 1;
+    double s = combatStage.toDouble();
+    // 가속 공식: (S^1.6 + (S-1)*2).floor
+    return (pow(s, 1.6) + (s - 1) * 2).floor();
+  }
 }

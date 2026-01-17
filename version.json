@@ -1,6 +1,6 @@
 {
-  "version": "0.0.2",
-  "buildNumber": 2,
+  "version": "0.0.3",
+  "buildNumber": 3,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "v0.0.2 업데이트\n- 데이터 로드 시 Enum 변환 오류 수정\n- 모든 주요 액션(강화, 장착, 스킬 등) 시 자동 저장 보강\n- 안정성 개선"
+  "changelog": "장비 시스템 리빌딩 및 UI 최적화"
 }
