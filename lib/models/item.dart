@@ -122,19 +122,31 @@ class Item {
         'isNew': isNew,
       };
 
-  factory Item.fromJson(Map<String, dynamic> json) => Item(
-        id: json['id'],
-        name: json['name'],
-        type: ItemType.values.byName(json['type']),
-        grade: ItemGrade.values.byName(json['grade']),
-        tier: json['tier'],
-        mainStat: json['mainStat'],
-        subOptions: (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList(),
-        enhanceLevel: json['enhanceLevel'],
-        durability: json['durability'],
-        maxDurability: json['maxDurability'],
-        isNew: json['isNew'] ?? false,
-      );
+  factory Item.fromJson(Map<String, dynamic> json) {
+    // 안전한 Enum 변환을 위한 헬퍼
+    ItemType type = ItemType.values.firstWhere(
+      (e) => e.name == json['type'],
+      orElse: () => ItemType.weapon,
+    );
+    ItemGrade grade = ItemGrade.values.firstWhere(
+      (e) => e.name == json['grade'],
+      orElse: () => ItemGrade.common,
+    );
+
+    return Item(
+      id: json['id'],
+      name: json['name'],
+      type: type,
+      grade: grade,
+      tier: json['tier'],
+      mainStat: json['mainStat'],
+      subOptions: (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList(),
+      enhanceLevel: json['enhanceLevel'],
+      durability: json['durability'],
+      maxDurability: json['maxDurability'],
+      isNew: json['isNew'] ?? false,
+    );
+  }
 
   bool get isBroken => durability <= 0;
 

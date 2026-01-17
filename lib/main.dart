@@ -1540,6 +1540,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     } else {
       _addLog('해당 조건의 분해할 아이템이 없습니다.', LogType.event);
     }
+    _saveGameData(); // 분해 결과 저장
   }
 
   // 헬퍼 함수
@@ -1857,6 +1858,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                               setState(() {
                                 if (isEquipped) player.unequipItem(currentItem.type);
                                 else player.equipItem(currentItem);
+                                _saveGameData(); // 착용/해제 상태 저장
                               });
                               Navigator.pop(context);
                             },
@@ -2847,6 +2849,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       player.gold -= cost;
       skill.level++;
       _addLog('[스킬] ${skill.name} ${skill.level}레벨 달성!', LogType.event);
+      _saveGameData(); // 스킬 업글 후 저장
     });
   }
 
@@ -3484,6 +3487,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   setState(() {
                     if (isActive) player.activePet = null;
                     else player.activePet = pet;
+                    _saveGameData(); // 펫 동행 변경 후 저장
                   });
                 }
               ),
@@ -3531,6 +3535,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       }
     });
     setDialogState(() {}); // 다이얼로그 UI 즉시 갱신
+    _saveGameData(); // 강화 시도 후 결과 즉시 저장
   }
 
   void _summonPet(int count) {

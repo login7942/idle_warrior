@@ -1,6 +1,6 @@
 {
-  "version": "0.0.1",
-  "buildNumber": 1,
+  "version": "0.0.2",
+  "buildNumber": 2,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "새로운 시작! v0.0.1\n- 데이터 보존(세이브/로드) 시스템 구현\n- 관리자 모드 몬스터 방어력 조절 슬라이더 추가\n- 게임 밸런스 조정 및 버그 수정"
+  "changelog": "v0.0.2 업데이트\n- 데이터 로드 시 Enum 변환 오류 수정\n- 모든 주요 액션(강화, 장착, 스킬 등) 시 자동 저장 보강\n- 안정성 개선"
 }
