@@ -37,6 +37,10 @@ jobs:
 
       - name: Create Release and Upload
         run: |
-          gh release create ${{ github.ref_name }} build/app/outputs/flutter-apk/app-release.apk --title "Release ${{ github.ref_name }}" --generate-notes --clobber
+          # 1. 릴리즈가 없으면 생성 (이미 있으면 에러가 나지만 || true로 무시하고 넘어감)
+          gh release create ${{ github.ref_name }} --title "Release ${{ github.ref_name }}" --generate-notes || true
+          
+          # 2. 확실하게 파일을 업로드 (이미 있으면 덮어씀)
+          gh release upload ${{ github.ref_name }} build/app/outputs/flutter-apk/app-release.apk --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
