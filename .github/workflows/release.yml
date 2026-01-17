@@ -10,10 +10,13 @@ jobs:
     name: Build & Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 릴리즈 생성을 위한 필수 권한
+      contents: write # 릴리즈 생성 권한
+      packages: write # 패키지 권한 (혹시 몰라 추가)
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # 최신 버전으로 업그레이드
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 모든 기록을 확실히 가져옴
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -33,11 +36,8 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Release APK
-        uses: softprops/action-gh-release@v2 # 최신 버전으로 업그레이드
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: build/app/outputs/flutter-apk/app-release.apk
-          generate_release_notes: true # 깃허브가 자동으로 설명을 써주게 함
+      - name: Create Release and Upload
+        run: |
+          gh release create ${{ github.ref_name }} build/app/outputs/flutter-apk/app-release.apk --title "Release ${{ github.ref_name }}" --generate-notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
