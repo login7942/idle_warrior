@@ -3,20 +3,20 @@ name: Build and Release APK
 on:
   push:
     tags:
-      - 'v*' # v1.0.0, v1.0.1 등 v로 시작하는 태그 푸시 시 작동
+      - 'v*'
 
 jobs:
   build:
     name: Build & Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 이 부분이 로봇에게 파일을 올릴 수 있는 열쇠를 줍니다.
+      contents: write # 릴리즈 생성을 위한 필수 권한
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # 최신 버전으로 업그레이드
 
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -33,19 +33,11 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Extract Version Info
-        id: get_version
-        run: |
-          VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create Release and Upload APK
-        uses: softprops/action-gh-release@v1
+      - name: Release APK
+        uses: softprops/action-gh-release@v2 # 최신 버전으로 업그레이드
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ steps.get_version.outputs.version }}
-          draft: false
-          prerelease: false
           files: build/app/outputs/flutter-apk/app-release.apk
+          generate_release_notes: true # 깃허브가 자동으로 설명을 써주게 함
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
