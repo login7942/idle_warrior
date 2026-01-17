@@ -129,6 +129,8 @@ class Item {
   int durability;      // 현재 내구도
   int maxDurability;   // 최대 내구도
   bool isNew;          // 신규 획득 여부
+  int rerollCount;     // 옵션 재설정 횟수 (Max 5)
+  bool isLocked;       // 아이템 잠금 여부
 
   Item({
     required this.id,
@@ -142,6 +144,8 @@ class Item {
     this.durability = 100,
     this.maxDurability = 100,
     this.isNew = true,
+    this.rerollCount = 0,
+    this.isLocked = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -156,6 +160,8 @@ class Item {
         'durability': durability,
         'maxDurability': maxDurability,
         'isNew': isNew,
+        'rerollCount': rerollCount,
+        'isLocked': isLocked,
       };
 
   factory Item.fromJson(Map<String, dynamic> json) {
@@ -203,6 +209,8 @@ class Item {
       durability: json['durability'],
       maxDurability: json['maxDurability'],
       isNew: json['isNew'] ?? false,
+      rerollCount: json['rerollCount'] ?? 0,
+      isLocked: json['isLocked'] ?? false,
     );
   }
 
@@ -219,6 +227,45 @@ class Item {
 
   // 장비 리빌딩: 주 능력치 이름 규칙
   String get mainStatName => type.mainStatName;
+
+  // 아이템 전투력 계산 로직
+  int get combatPower {
+    double power = 0;
+
+    // 1. 주 능력치 점수
+    int mStat = effectiveMainStat;
+    if (mainStatName == '공격력') power += mStat * 2.0;
+    else if (mainStatName == '체력') power += mStat * 0.1;
+    else if (mainStatName == '방어력') power += mStat * 1.5;
+
+    // 2. 반지/목걸이 고정 체력 보너스 반영
+    if (type == ItemType.ring || type == ItemType.necklace) {
+      power += (40 * getEnhanceFactor()) * 0.1;
+    }
+
+    // 3. 보조 옵션 점수
+    for (var opt in subOptions) {
+      switch (opt.name) {
+        case '공격력': power += opt.value * 2.0; break;
+        case '체력': power += opt.value * 0.1; break;
+        case '방어력': 
+          if (opt.isPercentage) power += opt.value * 10; // 방어력 %는 임의 가중치
+          else power += opt.value * 1.5;
+          break;
+        case '치명타 확률': power += opt.value * 50.0; break;
+        case '치명타 피해': power += opt.value * 5.0; break;
+        case '공격 속도': power += opt.value * 500.0; break;
+        case 'HP 재생':
+        case '골드 획득':
+        case '경험치 획득':
+        case '아이템 드롭':
+          power += opt.value * 10.0;
+          break;
+      }
+    }
+
+    return power.toInt();
+  }
 
   // 부가 옵션도 동일한 강화 계수 적용 여부 (반지/목걸이 HP 용)
   double getEnhanceFactor() => 1 + (enhanceLevel * 0.05);
@@ -350,6 +397,8 @@ class Item {
 
   // 레벨업 시 마일스톤 보너스 및 메시지 생성
   String _applyLevelMilestone() {
+    /* 
+    // 차후 재구현을 위해 마일스톤 로직 일시 중단
     final rand = Random();
     String message = "";
 
@@ -372,7 +421,10 @@ class Item {
       message = "[폭주] 모든 부가 옵션의 잠재력이 폭발했습니다!";
     }
     
-    return message.isEmpty ? "강화 성공! (+${enhanceLevel})" : message;
+    if (message.isNotEmpty) return message;
+    */
+    
+    return "강화 성공! (+${enhanceLevel})";
   }
 
   static String _getGradeName(ItemGrade grade) {

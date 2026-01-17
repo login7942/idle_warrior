@@ -46,6 +46,83 @@ class Player {
   // 강화 계승 시스템: 티어별 저장된 강화 레벨 (70% 계승용)
   Map<int, int> enhancementSuccession = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}; 
 
+  // 장비 도감 시스템 (v0.0.35 추가)
+  // encyclopediaProgress: "Tier_Type" -> Max Level reached (e.g., "T1_weapon" -> 15)
+  Map<String, int> encyclopediaProgress = {};
+  // encyclopediaClaims: "Tier_Type" -> List of claimed levels (e.g., "T1_weapon" -> [0, 1, 2, 5])
+  Map<String, List<int>> encyclopediaClaims = {};
+
+  // 도감 보너스 계산 유틸리티
+  double get encyclopediaAtkBonus {
+    try {
+      double total = 0;
+      encyclopediaClaims.forEach((key, levels) {
+        String tierStr = key.split('_')[0].replaceAll('T', '');
+        int tier = int.tryParse(tierStr) ?? 1;
+        for (var level in levels) {
+          if (tier <= 4) {
+            total += pow(2, tier - 1).toDouble(); 
+          }
+        }
+      });
+      return total;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  double get encyclopediaAtkMultiplier {
+    try {
+      double multi = 0;
+      encyclopediaClaims.forEach((key, levels) {
+        String tierStr = key.split('_')[0].replaceAll('T', '');
+        int tier = int.tryParse(tierStr) ?? 1;
+        if (tier >= 5) {
+          double step = (tier == 5) ? 0.01 : 0.05;
+          multi += levels.length * step;
+        }
+      });
+      return multi / 100;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  double get encyclopediaHpBonus {
+    try {
+      double total = 0;
+      encyclopediaClaims.forEach((key, levels) {
+        String tierStr = key.split('_')[0].replaceAll('T', '');
+        int tier = int.tryParse(tierStr) ?? 1;
+        for (var level in levels) {
+          if (tier <= 4) {
+            total += pow(2, tier - 1).toDouble() * 10;
+          }
+        }
+      });
+      return total;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  double get encyclopediaHpMultiplier {
+    try {
+      double multi = 0;
+      encyclopediaClaims.forEach((key, levels) {
+        String tierStr = key.split('_')[0].replaceAll('T', '');
+        int tier = int.tryParse(tierStr) ?? 1;
+        if (tier >= 5) {
+          double step = (tier == 5) ? 0.01 : 0.05;
+          multi += levels.length * step;
+        }
+      });
+      return multi / 100;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
   // 기본 전투 스탯
   int baseHp;
   int baseAttack;
@@ -130,7 +207,7 @@ class Player {
       }
     });
 
-    return (baseHp * petBonus).toInt() + flat;
+    return (baseHp * petBonus * (1.0 + encyclopediaHpMultiplier)).toInt() + flat + encyclopediaHpBonus.toInt();
   }
 
   int get attack {
@@ -154,7 +231,7 @@ class Player {
       }
     });
 
-    int totalAtk = (baseAttack * petBonus).toInt() + flat;
+    int totalAtk = (baseAttack * petBonus * (1.0 + encyclopediaAtkMultiplier)).toInt() + flat + encyclopediaAtkBonus.toInt();
     return (totalAtk * activePetMultiplier).toInt();
   }
 
@@ -341,6 +418,8 @@ class Player {
     'skills': skills.map((s) => s.toJson()).toList(),
     'pets': pets.map((p) => p.toJson()).toList(),
     'activePetId': activePet?.id,
+    'encyclopediaProgress': encyclopediaProgress,
+    'encyclopediaClaims': encyclopediaClaims, // 이미 JSON 변환 가능한 형태이므로 직접 전달
   };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -378,7 +457,7 @@ class Player {
     
     if (json['enhancementSuccession'] != null) {
       var map = Map<String, dynamic>.from(json['enhancementSuccession']);
-      p.enhancementSuccession = map.map((k, v) => MapEntry(int.parse(k), v as int));
+      p.enhancementSuccession = map.map((k, v) => MapEntry(int.tryParse(k) ?? 1, v as int));
     }
 
     if (json['inventory'] != null) {
@@ -421,6 +500,20 @@ class Player {
       try {
         p.activePet = p.pets.firstWhere((pt) => pt.id == json['activePetId']);
       } catch (_) {}
+    }
+
+    if (json['encyclopediaProgress'] != null) {
+      p.encyclopediaProgress = Map<String, int>.from(json['encyclopediaProgress']);
+    }
+    if (json['encyclopediaClaims'] != null) {
+      var map = Map<String, dynamic>.from(json['encyclopediaClaims']);
+      p.encyclopediaClaims = map.map((k, v) {
+        try {
+          return MapEntry(k, List<int>.from(v));
+        } catch (e) {
+          return MapEntry(k, <int>[]);
+        }
+      });
     }
 
     return p;

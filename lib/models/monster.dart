@@ -56,8 +56,13 @@ class Monster {
     // 방어력은 0으로 고정
     int mDef = 0;
 
-    // 보상 배율: 성장에 비례 (100층당 약 10배 보상 상향)
-    double rewardMult = (pow(1.025, s) * (1 + s / 1000)).toDouble();
+    // --- 보상 공식 분리 (v0.0.39) ---
+    // 1. 경험치(EXP): 기존 지수(1.025) 유지하여 레벨업 속도 보존
+    double expMult = (pow(1.025, s) * (1 + s / 1000)).toDouble();
+    
+    // 2. 골드(Gold): 기초 수령액 상향(50->200) 및 후반 지수 억제(1.025->1.017)
+    // 환생 시스템 도입 전 인플레이션 방지를 위해 성장을 엄격하게 제한
+    double goldMult = pow(1.017, s).toDouble();
 
     return Monster(
       name: '$species (Lv.$totalLevel)',
@@ -66,19 +71,16 @@ class Monster {
       hp: mHp,
       attack: mAtk,
       defense: mDef,
-      expReward: (20 * rewardMult).toInt(),
-      goldReward: (50 * rewardMult).toInt(),
+      expReward: (20 * expMult).toInt(),
+      goldReward: (200 * goldMult).toInt(),
       itemDropChance: 0.2, // 디자인 문서 리빌딩: 드랍 확률 20% 반영
     );
   }
 
   bool get isDead => hp <= 0;
 
-  /// 내부 전투 단계를 가속된 표시 단계로 변환하는 공식 (A안 가속 적용)
+  /// 내부 전투 단계를 표시 단계로 변환 (가속 없이 1:1 매칭)
   static int getDisplayStage(int combatStage) {
-    if (combatStage <= 10) return combatStage; // 10단계까지는 정직하게 1:1 표시
-    double s = combatStage.toDouble();
-    // 10단계 이후부터 가속 적용 (공식 미세 조정으로 연속성 유지)
-    return (pow(s, 1.6) - pow(10, 1.6) + 10).floor();
+    return combatStage;
   }
 }
