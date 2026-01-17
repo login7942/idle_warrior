@@ -37,6 +37,6 @@ jobs:
 
       - name: Create Release and Upload
         run: |
-          gh release create ${{ github.ref_name }} build/app/outputs/flutter-apk/app-release.apk --title "Release ${{ github.ref_name }}" --generate-notes
+          gh release create ${{ github.ref_name }} build/app/outputs/flutter-apk/app-release.apk --title "Release ${{ github.ref_name }}" --generate-notes --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
