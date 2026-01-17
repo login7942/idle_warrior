@@ -50,7 +50,7 @@ class Player {
   int baseHp;
   int baseAttack;
   int baseDefense;
-  double baseAttackSpeed = 2.0; 
+  double baseAttackSpeed = 1.0; 
   double baseCritChance = 5.0; 
   double baseCritDamage = 150.0; // 기본 치명타 피해 150%
   double baseHpRegen = 1.0;    
@@ -116,17 +116,16 @@ class Player {
 
     equipment.values.forEach((item) {
       if (item == null) return;
-      double factor = item.getEnhanceFactor();
       
-      // 장비 주 능력치가 체력인 경우
+      // 장비 주 능력치가 체력인 경우 (강화 영향 받음)
       if (item.mainStatName == '체력') {
-        flat += (item.mainStat * factor).toInt();
+        flat += item.effectiveMainStat;
       }
 
-      // 부가 옵션에 체력이 있는 경우 (반지, 목걸이 등)
+      // 부가 옵션에 체력이 있는 경우 (강화 영향 안 받음)
       for (var opt in item.subOptions) {
         if (opt.name == '체력') {
-          flat += (opt.value * factor).toInt();
+          flat += opt.value.toInt();
         }
       }
     });
@@ -141,17 +140,16 @@ class Player {
     
     equipment.values.forEach((item) {
       if (item == null) return;
-      double factor = item.getEnhanceFactor();
 
-      // 장비 주 능력치가 공격력인 경우
+      // 장비 주 능력치가 공격력인 경우 (강화 영향 받음)
       if (item.mainStatName == '공격력') {
-        flat += (item.mainStat * factor).toInt();
+        flat += item.effectiveMainStat;
       }
 
-      // 부가 옵션에 공격력이 있는 경우
+      // 부가 옵션에 공격력이 있는 경우 (강화 영향 안 받음)
       for (var opt in item.subOptions) {
         if (opt.name == '공격력') {
-          flat += (opt.value * factor).toInt();
+          flat += opt.value.toInt();
         }
       }
     });
@@ -177,13 +175,78 @@ class Player {
     return (baseDefense * bonus).toInt() + flat;
   }
 
-  double get attackSpeed => baseAttackSpeed + (_getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100);
-  double get critChance => baseCritChance + getPetCompanionValue('예리한 통찰');
-  double get critDamage => baseCritDamage + _getSkillValue('pas_4');
-  double get hpRegen => baseHpRegen;
-  double get goldBonus => baseGoldBonus + _getSkillValue('pas_3') + petGoldBonus;
-  double get expBonus => 1.0 + (_getSkillValue('pas_4') / 100);
-  double get dropBonus => baseDropBonus + _getSkillValue('pas_3');
+  double get attackSpeed {
+    double itemBonus = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.name == '공격 속도') itemBonus += opt.value;
+      }
+    });
+    double total = baseAttackSpeed + (_getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + itemBonus;
+    return total.clamp(0.1, 10.0); // 최대 공격 속도를 10.0으로 캡 적용
+  }
+
+  double get critChance {
+    double itemBonus = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.name == '치명타 확률') itemBonus += opt.value;
+      }
+    });
+    return baseCritChance + getPetCompanionValue('예리한 통찰') + itemBonus;
+  }
+
+  double get critDamage {
+    double itemBonus = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.name == '치명타 피해') itemBonus += opt.value;
+      }
+    });
+    return baseCritDamage + _getSkillValue('pas_4') + itemBonus;
+  }
+
+  double get hpRegen {
+    double itemBonus = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.name == 'HP 재생') itemBonus += opt.value;
+      }
+    });
+    return baseHpRegen + itemBonus;
+  }
+
+  double get goldBonus {
+    double itemBonusPerc = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.name == '골드 획득') itemBonusPerc += opt.value;
+      }
+    });
+    return goldBonusBase + _getSkillValue('pas_3') + petGoldBonus + itemBonusPerc;
+  }
+
+  double get goldBonusBase => baseGoldBonus;
+
+  double get expBonus {
+    double itemBonusPerc = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.name == '경험치 획득') itemBonusPerc += opt.value;
+      }
+    });
+    return 100.0 + (_getSkillValue('pas_4') / 100) + itemBonusPerc; // 기본 100% 기준
+  }
+
+  double get dropBonus {
+    double itemBonusPerc = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.name == '아이템 드롭') itemBonusPerc += opt.value;
+      }
+    });
+    return baseDropBonus + _getSkillValue('pas_3') + itemBonusPerc;
+  }
   double get offEfficiency => baseOffEfficiency;
   double get cdr => baseCdr + _getSkillValue('pas_6');
   double get lifesteal => _getSkillValue('pas_5');

@@ -88,25 +88,33 @@ extension ItemGradeExtension on ItemGrade {
 
 class ItemOption {
   final String name;
-  double value; // 가변으로 변경
+  double value;
   final bool isPercentage;
+  bool isLocked; // 잠금 상태 추가
 
-  ItemOption({required this.name, required this.value, this.isPercentage = false});
+  ItemOption({
+    required this.name, 
+    required this.value, 
+    this.isPercentage = false,
+    this.isLocked = false,
+  });
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'value': value,
         'isPercentage': isPercentage,
+        'isLocked': isLocked,
       };
 
   factory ItemOption.fromJson(Map<String, dynamic> json) => ItemOption(
         name: json['name'],
         value: json['value'].toDouble(),
         isPercentage: json['isPercentage'],
+        isLocked: json['isLocked'] ?? false,
       );
 
   @override
-  String toString() => '$name +${isPercentage ? '${value.toStringAsFixed(1)}%' : value.toInt()}';
+  String toString() => '$name +${isPercentage ? '${value.toStringAsFixed(1)}%' : value.toInt()}${isLocked ? ' 🔒' : ''}';
 }
 
 class Item {
@@ -115,7 +123,7 @@ class Item {
   final ItemType type;
   final ItemGrade grade;
   final int tier; 
-  final int mainStat; 
+  int mainStat; // 가변으로 변경
   final List<ItemOption> subOptions;
   int enhanceLevel;    // 강화 레벨 (+0, +1...)
   int durability;      // 현재 내구도
@@ -127,13 +135,14 @@ class Item {
     required this.name,
     required this.type,
     required this.grade,
+    required this.tier,
     required this.mainStat,
     required this.subOptions,
     this.enhanceLevel = 0,
     this.durability = 100,
     this.maxDurability = 100,
     this.isNew = true,
-  }) : this.tier = grade.index + 1; // Tier는 항상 Grade Index + 1과 동일 (A안 적용)
+  });
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -159,24 +168,27 @@ class Item {
       orElse: () => ItemGrade.common,
     );
 
-    // --- [데이터 보정 로직] 불러올 때 1티어 고정 수치 강제 적용 ---
+    // --- [데이터 보정 로직] 1티어 아이템만 고정 수치 강제 적용 ---
     int fixedMainStat = json['mainStat'];
     List<ItemOption> fixedSubOptions = (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList();
+    int currentTier = json['tier'] ?? 1;
 
-    // 1티어 고정 스탯 테이블에 따라 보정
-    switch (type) {
-      case ItemType.weapon: fixedMainStat = 100; break;
-      case ItemType.helmet: fixedMainStat = 300; break;
-      case ItemType.armor: fixedMainStat = 500; break;
-      case ItemType.boots: fixedMainStat = 200; break;
-      case ItemType.ring:
-        fixedMainStat = 20;
-        _updateHpOption(fixedSubOptions, 100);
-        break;
-      case ItemType.necklace:
-        fixedMainStat = 30;
-        _updateHpOption(fixedSubOptions, 150);
-        break;
+    // 티어 1인 경우에만 구버전 데이터 보정 수행
+    if (currentTier == 1) {
+      switch (type) {
+        case ItemType.weapon: fixedMainStat = 100; break;
+        case ItemType.helmet: fixedMainStat = 300; break;
+        case ItemType.armor: fixedMainStat = 500; break;
+        case ItemType.boots: fixedMainStat = 200; break;
+        case ItemType.ring:
+          fixedMainStat = 20;
+          _updateHpOption(fixedSubOptions, 100);
+          break;
+        case ItemType.necklace:
+          fixedMainStat = 30;
+          _updateHpOption(fixedSubOptions, 150);
+          break;
+      }
     }
 
     return Item(
@@ -184,6 +196,7 @@ class Item {
       name: json['name'],
       type: type,
       grade: grade,
+      tier: currentTier,
       mainStat: fixedMainStat,
       subOptions: fixedSubOptions,
       enhanceLevel: json['enhanceLevel'],
@@ -210,53 +223,73 @@ class Item {
   // 부가 옵션도 동일한 강화 계수 적용 여부 (반지/목걸이 HP 용)
   double getEnhanceFactor() => 1 + (enhanceLevel * 0.05);
 
-  // 드롭 아이템 생성기 (1티어 리빌딩 및 가중치 시스템 반영)
-  factory Item.generate(int playerLevel) {
+  // 드롭 아이템 생성기 (스테이지에 따라 티어 및 등급 결정)
+  factory Item.generate(int playerLevel, {int stage = 1}) {
     final rand = Random();
     final id = DateTime.now().millisecondsSinceEpoch.toString() + rand.nextInt(1000).toString();
     
-    // --- [A안] 티어/등급 통합 시스템 적용 ---
-    // 현재는 오직 1티어(Common)만 드랍되도록 설정
-    ItemGrade grade = ItemGrade.common;
+    // 티어 및 등급 결정 (100스테이지 단위로 도약)
+    // 1-100: T1(Common), 101-200: T2(Uncommon), 201-300: T3(Rare) ...
+    int dropTier = ((stage - 1) ~/ 100 + 1).clamp(1, 6);
+    ItemGrade grade = ItemGrade.values[dropTier - 1];
     ItemType type = ItemType.values[rand.nextInt(ItemType.values.length)];
-    // --------------------------------------
+
+    // ② 보조 옵션 개수 결정 (티어별 차등)
+    int minOpts = (dropTier <= 2) ? 1 : (dropTier == 3) ? 2 : (dropTier <= 5) ? 3 : 4;
+    int maxOpts = (dropTier <= 2) ? 2 : (dropTier == 3) ? 3 : (dropTier <= 5) ? 4 : 5;
+    int optCount = minOpts + rand.nextInt(maxOpts - minOpts + 1);
 
     int mStat = 0;
     List<ItemOption> options = [];
 
-    // ① 1티어 장비 기본 능력치 (수치 고정)
+    // ① 기본 능력치 설정 (10배수 성장 모델)
+    // T1: 1x, T2: 10x, T3: 100x ... T6: 100,000x
+    double tierMult = pow(10, dropTier - 1).toDouble();
+
     switch (type) {
       case ItemType.weapon:
-        mStat = 100; // 무기: 공격+100
+        mStat = (100 * tierMult).toInt(); 
         break;
       case ItemType.helmet:
-        mStat = 300; // 투구: HP+300
+        mStat = (300 * tierMult).toInt();
         break;
       case ItemType.armor:
-        mStat = 500; // 갑옷: HP+500
+        mStat = (500 * tierMult).toInt();
         break;
       case ItemType.boots:
-        mStat = 200; // 신발: HP+200
+        mStat = (200 * tierMult).toInt();
         break;
       case ItemType.ring:
-        mStat = 20; // 반지: 공격+20
-        options.add(ItemOption(name: '체력', value: 100, isPercentage: false)); // 체력+100
+        mStat = (20 * tierMult).toInt();
+        // 장신구 전용 체력 옵션 (슬롯 0번에 우선 배치)
+        options.add(ItemOption(name: '체력', value: 100 * tierMult, isPercentage: false));
         break;
       case ItemType.necklace:
-        mStat = 30; // 목걸이: 공격+30
-        options.add(ItemOption(name: '체력', value: 150, isPercentage: false)); // 체력+150
+        mStat = (30 * tierMult).toInt();
+        options.add(ItemOption(name: '체력', value: 150 * tierMult, isPercentage: false));
         break;
+    }
+
+    // ② 랜덤 보조 옵션 생성 (중복 방지)
+    Set<String> usedNames = options.map((e) => e.name).toSet();
+    while (options.length < optCount) {
+      ItemOption newOpt = _generateRandomOption(rand, dropTier);
+      if (!usedNames.contains(newOpt.name)) {
+        options.add(newOpt);
+        usedNames.add(newOpt.name);
+      }
     }
 
     String prefix = _getGradeName(grade);
     String typeName = type.nameKr;
-    String name = '$prefix $typeName';
+    String name = '$prefix $typeName T$dropTier'; // 이름 뒤에 티어 명시
 
     return Item(
       id: id,
       name: name,
       type: type,
       grade: grade,
+      tier: dropTier,
       mainStat: mStat,
       subOptions: options,
       enhanceLevel: 0,
@@ -329,7 +362,7 @@ class Item {
         message = "[성장] ${subOptions[idx].name} 수치가 대폭 상승했습니다!";
       }
     } else if (enhanceLevel == 5 || enhanceLevel == 8) {
-      ItemOption newOpt = _generateRandomOption(rand);
+      ItemOption newOpt = _generateRandomOption(rand, tier);
       subOptions.add(newOpt);
       message = "[개방] 새로운 옵션 '${newOpt.name}'이(가) 추가되었습니다!";
     } else if (enhanceLevel == 9 || enhanceLevel == 10) {
@@ -355,21 +388,58 @@ class Item {
 
   static String _getTypeName(ItemType type) => type.nameKr;
 
-  static ItemOption _generateRandomOption(Random rand) {
-    List<String> pool = ['공격력', '방어력', '생명력', '치명타 확률', '치명타 피해', '공격 속도', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭'];
+  static ItemOption _generateRandomOption(Random rand, int tier) {
+    List<String> pool = ['공격력', '방어력', '체력', '치명타 확률', '치명타 피해', '공격 속도', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭'];
     String name = pool[rand.nextInt(pool.length)];
-    bool isPerc = rand.nextBool() || name.contains('확률') || name.contains('획득') || name.contains('속도') || name.contains('드롭') || name.contains('피해');
     
-    double val;
-    if (isPerc) {
-      if (name == '공격 속도') val = (rand.nextDouble() * 3 + 1); // 1% ~ 4%
-      else if (name == '치명타 피해') val = (rand.nextDouble() * 10 + 5); // 5% ~ 15%
-      else val = (rand.nextDouble() * 5 + 1); // 1% ~ 6%
-    } else {
-      val = (rand.nextInt(20) + 5).toDouble();
+    double tierMult = pow(10, tier - 1).toDouble();
+    double val = 0.0;
+    bool isPerc = false;
+
+    switch (name) {
+      case '공격력':
+        val = (rand.nextInt(11) + 5).toDouble() * tierMult; // 5~15
+        break;
+      case '체력':
+        val = (rand.nextInt(101) + 50).toDouble() * tierMult; // 50~150
+        break;
+      case '방어력':
+        val = (rand.nextInt(6) + 2).toDouble() * tierMult; // 2~7
+        break;
+      case '치명타 확률':
+        isPerc = true;
+        val = (rand.nextDouble() * 2.0 + 1.0) + (tier * 0.5); // 1~3% + 티어보너스
+        break;
+      case '치명타 피해':
+        isPerc = true;
+        val = (rand.nextDouble() * 10.0 + 5.0) + (tier * 5.0); // 5~15% + 티어보너스
+        break;
+      case '공격 속도':
+        val = (rand.nextDouble() * 1.0 + 0.5); // 0.5~1.5 (대폭 상향)
+        break;
+      case 'HP 재생':
+        isPerc = true;
+        val = (rand.nextDouble() * 1.0 + 0.5); // 0.5~1.5%
+        break;
+      case '골드 획득':
+      case '경험치 획득':
+      case '아이템 드롭':
+        isPerc = true;
+        val = (rand.nextDouble() * 3.0 + 2.0) + (tier * 1.0); // 2~5% + 티어보너스
+        break;
     }
     
     return ItemOption(name: name, value: val, isPercentage: isPerc);
+  }
+
+  // 옵션 재설정 (리롤)
+  void rerollSubOptions(Random rand) {
+    for (int i = 0; i < subOptions.length; i++) {
+      if (!subOptions[i].isLocked) {
+        // 잠겨있지 않은 옵션만 새로 생성하여 교체
+        subOptions[i] = _generateRandomOption(rand, tier);
+      }
+    }
   }
 
   // 기존 gradeColor getter는 유지하거나 필요없으면 제거 가능

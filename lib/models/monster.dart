@@ -34,33 +34,30 @@ class Monster {
     String species = zone.monsterNames[rand.nextInt(zone.monsterNames.length)];
     int totalLevel = (zone.minLevel + stage - 1);
 
-    // --- [2026-01-17] 스테이지 가속 및 밸런스 개편 ---
-    // 파라미터 stage는 내부 '전투 단계(Combat Stage)'입니다.
+    // --- [2026-01-17] 밸런스 최적화: 아이템 티어(100층당 10배)에 맞춘 성장 모델 ---
     double s = stage.toDouble();
-    
-    // HP(stage) = 900 × stage^1.25 (11스테이지 기준) - 성취감을 위해 기존 1.15에서 1.25로 상향
-    double baseHp = (900 * pow(s, 1.25)).toDouble();
+    // HP(stage) = 900 × 1.025^stage (100층당 약 11.8배 성장하여 티어 상향과 조화)
+    double baseHp = (900 * pow(1.025, s)).toDouble();
     
     // 초반 구간 체력 완화 로직 (Smoothing) 적용
     double mHpFinal;
     if (s <= 5) {
-      mHpFinal = baseHp * 0.15; // 1~5층: 15% 수준
+      mHpFinal = baseHp * 0.15;
     } else if (s <= 10) {
-      mHpFinal = baseHp * 0.4;  // 6~10층: 40% 수준
+      mHpFinal = baseHp * 0.4;
     } else {
-      mHpFinal = baseHp;        // 11층부터 온전한 위력
+      mHpFinal = baseHp;
     }
     int mHp = mHpFinal.toInt();
     
-    // ATK(stage) = 90 × stage^1.1 - 가속된 표시 단계에 맞게 위력 상향
-    int mAtk = (90 * pow(s, 1.1)).toInt();
+    // ATK(stage) = 90 × 1.02^stage
+    int mAtk = (90 * pow(1.02, s)).toInt();
     
-    // 방어력은 0으로 고정 (이전 설정 유지)
+    // 방어력은 0으로 고정
     int mDef = 0;
 
-    // 보상 배율: 체력 성장에 비례하되 너무 가파르지 않게 조정 (기존 multiplier 개념 대체)
-    double growthFactor = mHp / 900.0;
-    double rewardMult = growthFactor * (1 + s / 500);
+    // 보상 배율: 성장에 비례 (100층당 약 10배 보상 상향)
+    double rewardMult = (pow(1.025, s) * (1 + s / 1000)).toDouble();
 
     return Monster(
       name: '$species (Lv.$totalLevel)',
@@ -79,9 +76,9 @@ class Monster {
 
   /// 내부 전투 단계를 가속된 표시 단계로 변환하는 공식 (A안 가속 적용)
   static int getDisplayStage(int combatStage) {
-    if (combatStage <= 1) return 1;
+    if (combatStage <= 10) return combatStage; // 10단계까지는 정직하게 1:1 표시
     double s = combatStage.toDouble();
-    // 가속 공식: (S^1.6 + (S-1)*2).floor
-    return (pow(s, 1.6) + (s - 1) * 2).floor();
+    // 10단계 이후부터 가속 적용 (공식 미세 조정으로 연속성 유지)
+    return (pow(s, 1.6) - pow(10, 1.6) + 10).floor();
   }
 }
