@@ -9,6 +9,8 @@ jobs:
   build:
     name: Build & Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 이 부분이 로봇에게 파일을 올릴 수 있는 열쇠를 줍니다.
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
