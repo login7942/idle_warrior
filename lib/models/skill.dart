@@ -38,7 +38,22 @@ class Skill {
     required this.baseValue,
     required this.valuePerLevel,
     required this.baseCooldown,
+    this.lastUsed,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'level': level,
+        'lastUsed': lastUsed?.toIso8601String(),
+      };
+
+  // 기존 스킬 리스트에서 정보를 매칭하여 업데이트하기 위해 Named Constructor 대신 업데이트 메서드 사용
+  void updateFromJson(Map<String, dynamic> json) {
+    level = json['level'] ?? 0;
+    if (json['lastUsed'] != null) {
+      lastUsed = DateTime.parse(json['lastUsed']);
+    }
+  }
 
   // CDR(CoolDown Reduction)이 적용된 최종 쿨타임 계산
   double getFinalCooldown(double cdrPercent) {

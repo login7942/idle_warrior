@@ -1,6 +1,6 @@
 {
-  "version": "9.9.9",
+  "version": "0.0.1",
   "buildNumber": 1,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "초기 배포 버전입니다.\n- 자동 업데이트 시스템 도입\n- 프리미엄 UI 개선"
+  "changelog": "새로운 시작! v0.0.1\n- 데이터 보존(세이브/로드) 시스템 구현\n- 관리자 모드 몬스터 방어력 조절 슬라이더 추가\n- 게임 밸런스 조정 및 버그 수정"
 }

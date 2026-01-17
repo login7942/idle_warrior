@@ -63,6 +63,17 @@ class Pet {
     this.star = 0,
   });
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'level': level,
+        'star': star,
+      };
+
+  void updateFromJson(Map<String, dynamic> json) {
+    level = json['level'] ?? 1;
+    star = json['star'] ?? 0;
+  }
+
   // 실제 적용되는 보유 효과 (레벨 및 성급 반영)
   double get currentAtkBonus => ownAtkMultiplier * (1 + (level - 1) * 0.1) * (1 + star * 0.5);
   double get currentHpBonus => ownHpMultiplier * (1 + (level - 1) * 0.1) * (1 + star * 0.5);

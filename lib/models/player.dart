@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'item.dart';
 import 'skill.dart';
@@ -58,7 +59,7 @@ class Player {
   double baseOffEfficiency = 0.3;
   double baseCdr = 0.0; // 기본 쿨타임 감소 0%
 
-  // 스킬 목록 (사용자 요청 기반 재구성)
+  // 스킬 목록
   List<Skill> skills = [
     Skill(id: 'act_1', name: '바람 베기', description: '초반 주력기 (3연타 공격)', type: SkillType.active, iconEmoji: '🌪️', unlockLevel: 5, unlockCost: 5000, baseUpgradeCost: 1000, costMultiplier: 1.5, baseValue: 300, valuePerLevel: 30, baseCooldown: 6),
     Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 15000, baseUpgradeCost: 3000, costMultiplier: 1.8, baseValue: 5, valuePerLevel: 2, baseCooldown: 0),
@@ -75,7 +76,7 @@ class Player {
 
   // 인벤토리 및 장비
   List<Item> inventory = [];
-  final int maxInventory = 100;
+  final int maxInventory = 500; // 사용자 요청에 따라 500으로 수정
   Map<ItemType, Item?> equipment = {
     ItemType.weapon: null,
     ItemType.helmet: null,
@@ -90,19 +91,16 @@ class Player {
     this.level = 1,
     this.exp = 0,
     this.maxExp = 100,
-    this.gold = 1000, // 초기 골드 약간 지급
+    this.gold = 1000,
     this.baseHp = 100,
     this.baseAttack = 10,
     this.baseDefense = 5,
-  }) {
-    // 초기 스킬 미오픈 (레벨 5부터 오픈)
-  }
+  });
 
   int get combatPower {
     return (attack * 2) + (defense * 1.5).toInt() + (maxHp ~/ 10);
   }
 
-  // 패시브 스킬 보너스 합산용 헬퍼
   double _getSkillValue(String id) {
     try {
       return skills.firstWhere((s) => s.id == id).currentValue;
@@ -112,7 +110,7 @@ class Player {
   }
 
   int get maxHp {
-    double bonus = 1.0 + (petHpBonus / 100); // 펫 보유 효과 반영
+    double bonus = 1.0 + (petHpBonus / 100);
     int flat = 0;
     equipment.values.forEach((item) {
       if (item == null) return;
@@ -129,10 +127,8 @@ class Player {
   }
 
   int get attack {
-    double bonus = 1.0 + (petAtkBonus / 100); // 펫 보유 효과 반영
-    int flat = _getSkillValue('pas_1').toInt(); // 패시브 공격력
-    
-    // 펫 동행 효과: 최종 데미지 증폭 (용의 분노 등)
+    double bonus = 1.0 + (petAtkBonus / 100);
+    int flat = _getSkillValue('pas_1').toInt();
     double finalMultiplier = 1.0 + (getPetCompanionValue('용의 분노') / 100);
     
     equipment.values.forEach((item) {
@@ -146,13 +142,12 @@ class Player {
         }
       }
     });
-    
     int total = (baseAttack * bonus).toInt() + flat;
     return (total * finalMultiplier).toInt();
   }
 
   int get defense {
-    double bonus = 1.0 + (_getSkillValue('pas_2') / 100); // 철벽 (DEF %)
+    double bonus = 1.0 + (_getSkillValue('pas_2') / 100);
     int flat = 0;
     equipment.values.forEach((item) {
       if (item == null) return;
@@ -168,90 +163,17 @@ class Player {
     return (baseDefense * bonus).toInt() + flat;
   }
 
-  double get attackSpeed {
-    double total = baseAttackSpeed + (_getSkillValue('pas_1') / 100); 
-    total += getPetCompanionValue('가속 점프') / 100; // 펫 토끼 동행 효과
-    equipment.values.forEach((item) {
-      if (item == null) return;
-      for (var opt in item.subOptions) {
-        if (opt.name == '공격 속도') total += opt.value / 100;
-      }
-    });
-    return total;
-  }
-
-  double get critChance {
-    double total = baseCritChance + getPetCompanionValue('예리한 통찰'); // 펫 올빼미 동행 효과
-    equipment.values.forEach((item) {
-      if (item == null) return;
-      for (var opt in item.subOptions) {
-        if (opt.name == '치명타 확률') total += opt.value;
-      }
-    });
-    return total;
-  }
-
-  double get critDamage {
-    double total = baseCritDamage + _getSkillValue('pas_4'); // 약점 노출 (CritDamage)
-    equipment.values.forEach((item) {
-      if (item == null) return;
-      for (var opt in item.subOptions) {
-        if (opt.name == '치명타 피해') total += opt.value;
-      }
-    });
-    return total;
-  }
-
-  double get hpRegen {
-    double total = baseHpRegen;
-    equipment.values.forEach((item) {
-      if (item == null) return;
-      for (var opt in item.subOptions) {
-        if (opt.name == 'HP 재생') total += opt.value;
-      }
-    });
-    return total;
-  }
-
-  double get goldBonus {
-    double total = baseGoldBonus + _getSkillValue('pas_3') + petGoldBonus; // 펫 보유 효과 반영
-    equipment.values.forEach((item) {
-      if (item == null) return;
-      for (var opt in item.subOptions) {
-        if (opt.name == '골드 획득') total += opt.value;
-      }
-    });
-    return total;
-  }
-
-  double get expBonus {
-    double bonus = 1.0 + (_getSkillValue('pas_4') / 100);
-    equipment.values.forEach((item) {
-      if (item == null) return;
-      for (var opt in item.subOptions) {
-        if (opt.name == '경험치 획득') bonus += opt.value / 100;
-      }
-    });
-    return bonus;
-  }
-
-  double get dropBonus {
-    double total = baseDropBonus + _getSkillValue('pas_3'); // 탐욕의 시선 (Item)
-    equipment.values.forEach((item) {
-      if (item == null) return;
-      for (var opt in item.subOptions) {
-        if (opt.name == '아이템 드롭') total += opt.value;
-      }
-    });
-    return total;
-  }
-
+  double get attackSpeed => baseAttackSpeed + (_getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100);
+  double get critChance => baseCritChance + getPetCompanionValue('예리한 통찰');
+  double get critDamage => baseCritDamage + _getSkillValue('pas_4');
+  double get hpRegen => baseHpRegen;
+  double get goldBonus => baseGoldBonus + _getSkillValue('pas_3') + petGoldBonus;
+  double get expBonus => 1.0 + (_getSkillValue('pas_4') / 100);
+  double get dropBonus => baseDropBonus + _getSkillValue('pas_3');
   double get offEfficiency => baseOffEfficiency;
+  double get cdr => baseCdr + _getSkillValue('pas_6');
+  double get lifesteal => _getSkillValue('pas_5');
 
-  double get cdr => baseCdr + _getSkillValue('pas_6'); // 신속 (CDR)
-  double get lifesteal => _getSkillValue('pas_5'); // 흡혈의 손길
-
-  // 인벤토리 관리
   bool addItem(Item item) {
     if (inventory.length >= maxInventory) return false;
     inventory.add(item);
@@ -260,9 +182,7 @@ class Player {
 
   void equipItem(Item item) {
     Item? current = equipment[item.type];
-    if (current != null) {
-      inventory.add(current);
-    }
+    if (current != null) inventory.add(current);
     equipment[item.type] = item;
     inventory.removeWhere((i) => i.id == item.id);
   }
@@ -280,48 +200,42 @@ class Player {
     while (exp >= maxExp) {
       exp -= maxExp;
       level++;
-      levelUp(); // 레벨업 시 스탯 증가 호출
-      maxExp = (maxExp * 1.15).toInt(); // 1.2 -> 1.15 (15% 복리 증가)
+      levelUp();
+      maxExp = (maxExp * 1.15).toInt();
     }
   }
 
-  // 업적 보상 수령 로직
+  void levelUp() {
+    baseHp += 30;
+    baseAttack += 2;
+    if (level % 2 == 0) baseDefense += 1;
+  }
+
   String? checkAchievement(String id, int currentProgress, int target, int reward) {
     int currentStep = achievementSteps[id] ?? 0;
     if (currentProgress >= target) {
       achievementSteps[id] = currentStep + 1;
-      // 보상 지급 (예: 다이아몬드 대신 모든 자원을 골고루 지급하거나 특정 자원 지급)
-      // 여기서는 예시로 강화석을 지급하도록 설정 (Achievement 모델에 따라 가변 가능)
       enhancementStone += reward; 
       return '업적 달성! [$id ${currentStep + 1}단계] 보상: 강화석 $reward개';
     }
     return null;
   }
 
-  // 오프라인 보상 계산 (최대 24시간)
   Map<String, dynamic> calculateOfflineRewards(DateTime lastTime, double goldMin, double expMin, double killsMin) {
     int minutes = DateTime.now().difference(lastTime).inMinutes;
-    if (minutes > 1440) minutes = 1440; // 최대 24시간 제한
+    if (minutes > 1440) minutes = 1440;
     if (minutes < 1) return {};
-
-    double efficiency = baseOffEfficiency; // 기본 30%
-    
+    double efficiency = baseOffEfficiency; 
     int totalGold = (minutes * goldMin * efficiency).toInt();
     int totalExp = (minutes * expMin * efficiency).toInt();
     int totalKills = (minutes * killsMin * efficiency).toInt();
-    
-    // 보너스 아이템 (강화석) - 킬당 5% 확률로 1개
     int bonusStones = 0;
     for (int i = 0; i < totalKills; i++) {
       if (Random().nextDouble() < 0.05) bonusStones++;
     }
-
     return {
-      'minutes': minutes,
-      'gold': totalGold,
-      'exp': totalExp,
-      'kills': totalKills,
-      'bonusStones': bonusStones,
+      'minutes': minutes, 'gold': totalGold, 'exp': totalExp,
+      'kills': totalKills, 'bonusStones': bonusStones,
     };
   }
 
@@ -333,17 +247,98 @@ class Player {
     totalKills += rewards['kills'] as int;
     totalGoldEarned += rewards['gold'] as int;
   }
-  void levelUp() {
-    // DOC_GAME_DESIGN.md 3.3 기준
-    // 공격력(ATK): +2
-    // 체력(HP): +30
-    // 방어력(DEF): +0.5
-    baseHp += 30;
-    baseAttack += 2;
-    // baseDefense는 int이므로 2레벨마다 1씩 증가하도록 처리하거나 double로 관리 필요
-    // 여기서는 간단하게 level이 짝수일 때 1씩 증가시키는 방식으로 0.5 구현
-    if (level % 2 == 0) {
-      baseDefense += 1;
+
+  // --- JSON 직렬화 및 역직렬화 ---
+
+  Map<String, dynamic> toJson() => {
+    'name': name, 'level': level, 'exp': exp, 'maxExp': maxExp, 'gold': gold,
+    'powder': powder, 'enhancementStone': enhancementStone, 'rerollStone': rerollStone,
+    'protectionStone': protectionStone, 'cube': cube,
+    'totalKills': totalKills, 'totalGoldEarned': totalGoldEarned,
+    'totalItemsFound': totalItemsFound, 'totalSkillsUsed': totalSkillsUsed,
+    'achievementSteps': achievementSteps,
+    'enhancementSuccession': enhancementSuccession.map((k, v) => MapEntry(k.toString(), v)),
+    'baseHp': baseHp, 'baseAttack': baseAttack, 'baseDefense': baseDefense,
+    'inventory': inventory.map((i) => i.toJson()).toList(),
+    'equipment': equipment.map((k, v) => MapEntry(k.name, v?.toJson())),
+    'skills': skills.map((s) => s.toJson()).toList(),
+    'pets': pets.map((p) => p.toJson()).toList(),
+    'activePetId': activePet?.id,
+  };
+
+  factory Player.fromJson(Map<String, dynamic> json) {
+    var p = Player(
+      name: json['name'] ?? '전웅',
+      level: json['level'] ?? 1,
+      exp: json['exp'] ?? 0,
+      maxExp: json['maxExp'] ?? 100,
+      gold: json['gold'] ?? 1000,
+      baseHp: json['baseHp'] ?? 100,
+      baseAttack: json['baseAttack'] ?? 10,
+      baseDefense: json['baseDefense'] ?? 5,
+    );
+
+    p.powder = json['powder'] ?? 0;
+    p.enhancementStone = json['enhancementStone'] ?? 0;
+    p.rerollStone = json['rerollStone'] ?? 0;
+    p.protectionStone = json['protectionStone'] ?? 0;
+    p.cube = json['cube'] ?? 0;
+    p.totalKills = json['totalKills'] ?? 0;
+    p.totalGoldEarned = json['totalGoldEarned'] ?? 0;
+    p.totalItemsFound = json['totalItemsFound'] ?? 0;
+    p.totalSkillsUsed = json['totalSkillsUsed'] ?? 0;
+    
+    if (json['achievementSteps'] != null) {
+      p.achievementSteps = Map<String, int>.from(json['achievementSteps']);
     }
+    
+    if (json['enhancementSuccession'] != null) {
+      var map = Map<String, dynamic>.from(json['enhancementSuccession']);
+      p.enhancementSuccession = map.map((k, v) => MapEntry(int.parse(k), v as int));
+    }
+
+    if (json['inventory'] != null) {
+      p.inventory = (json['inventory'] as List).map((i) => Item.fromJson(i)).toList();
+    }
+
+    if (json['equipment'] != null) {
+      var equipMap = Map<String, dynamic>.from(json['equipment']);
+      equipMap.forEach((k, v) {
+        if (v != null) {
+          p.equipment[ItemType.values.byName(k)] = Item.fromJson(v);
+        }
+      });
+    }
+
+    if (json['skills'] != null) {
+      var savedSkills = json['skills'] as List;
+      for (var sJson in savedSkills) {
+        try {
+          var skill = p.skills.firstWhere((s) => s.id == sJson['id']);
+          skill.updateFromJson(sJson);
+        } catch (_) {}
+      }
+    }
+
+    if (json['pets'] != null) {
+      var savedPets = json['pets'] as List;
+      var initialPool = PetData.getInitialPets();
+      p.pets = [];
+      for (var pJson in savedPets) {
+        try {
+          var pet = initialPool.firstWhere((pt) => pt.id == pJson['id']);
+          pet.updateFromJson(pJson);
+          p.pets.add(pet);
+        } catch (_) {}
+      }
+    }
+
+    if (json['activePetId'] != null) {
+      try {
+        p.activePet = p.pets.firstWhere((pt) => pt.id == json['activePetId']);
+      } catch (_) {}
+    }
+
+    return p;
   }
 }

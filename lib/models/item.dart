@@ -65,6 +65,18 @@ class ItemOption {
 
   ItemOption({required this.name, required this.value, this.isPercentage = false});
 
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'value': value,
+        'isPercentage': isPercentage,
+      };
+
+  factory ItemOption.fromJson(Map<String, dynamic> json) => ItemOption(
+        name: json['name'],
+        value: json['value'].toDouble(),
+        isPercentage: json['isPercentage'],
+      );
+
   @override
   String toString() => '$name +${isPercentage ? '${value.toStringAsFixed(1)}%' : value.toInt()}';
 }
@@ -95,6 +107,34 @@ class Item {
     this.maxDurability = 100,
     this.isNew = true,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'type': type.name,
+        'grade': grade.name,
+        'tier': tier,
+        'mainStat': mainStat,
+        'subOptions': subOptions.map((o) => o.toJson()).toList(),
+        'enhanceLevel': enhanceLevel,
+        'durability': durability,
+        'maxDurability': maxDurability,
+        'isNew': isNew,
+      };
+
+  factory Item.fromJson(Map<String, dynamic> json) => Item(
+        id: json['id'],
+        name: json['name'],
+        type: ItemType.values.byName(json['type']),
+        grade: ItemGrade.values.byName(json['grade']),
+        tier: json['tier'],
+        mainStat: json['mainStat'],
+        subOptions: (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList(),
+        enhanceLevel: json['enhanceLevel'],
+        durability: json['durability'],
+        maxDurability: json['maxDurability'],
+        isNew: json['isNew'] ?? false,
+      );
 
   bool get isBroken => durability <= 0;
 

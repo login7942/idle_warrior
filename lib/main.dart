@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -97,6 +98,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   
   // 관리자 모드
   bool _isAdminAuthenticated = false;
+  double _monsterDefenseMultiplier = 1.0; // 몬스터 방어력 배율 (0.0 ~ 1.0)
 
   @override
   void initState() {
@@ -112,8 +114,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _uiTickerController.addListener(() {
       _updateParticles(); // 매 프레임 파티클 리스트 정기 청소
     });
-    _spawnMonster();
-    _startBattleLoop();
+    
+    // 데이터 먼저 불러오기
+    _loadGameData().then((_) {
+      _spawnMonster();
+      _startBattleLoop();
+    });
 
     // 1초마다 효율 갱신
     _efficiencyTimer = Timer.periodic(const Duration(seconds: 10), (t) => _updateEfficiency());
@@ -124,6 +130,34 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       // 자동 업데이트 체크
       UpdateService.checkUpdate(context);
     });
+  }
+
+  Future<void> _saveGameData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('player_save_data', jsonEncode(player.toJson()));
+    // 스테이지 정보도 별도 저장
+    await prefs.setInt('current_stage', _currentStage);
+    await prefs.setString('current_zone_id', _currentZone.id.name);
+  }
+
+  Future<void> _loadGameData() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? data = prefs.getString('player_save_data');
+    if (data != null) {
+      try {
+        setState(() {
+          player = Player.fromJson(jsonDecode(data));
+          playerCurrentHp = player.maxHp;
+          _currentStage = prefs.getInt('current_stage') ?? 1;
+          String? zoneName = prefs.getString('current_zone_id');
+          if (zoneName != null) {
+            _currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
+          }
+        });
+      } catch (e) {
+        debugPrint('데이터 로드 실패: $e');
+      }
+    }
   }
 
   Future<void> _checkOfflineRewards() async {
@@ -209,8 +243,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     setState(() {
       // DOC_GAME_DESIGN.md 3.1 데미지 및 방어력 공식 적용
       // 1. 방어 상산 방식 (Soft Cap): 데미지 배율 = 100 / (100 + 실질 방어력)
-      // 2. 실질 방어력: 몬스터 방어력 * (1 - 방어 관통 %) -> 현재 방관 0으로 가정
-      double defenseRating = 100 / (100 + currentMonster!.defense);
+      // 2. 실질 방어력: (몬스터 방어력 * 관리자 배율) * (1 - 방어 관통 %) -> 현재 방관 0으로 가정
+      double effectiveDefense = currentMonster!.defense * _monsterDefenseMultiplier;
+      double defenseRating = 100 / (100 + effectiveDefense);
       
       // 3. 최종 데미지: 공격력 * 데미지 배율 (단, 공격력의 최소 10% 보장)
       double rawDamage = player.attack * defenseRating;
@@ -342,6 +377,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
     // 즉시 다음 몬스터 생성 (리스폰 공백 제거)
     _spawnMonster();
+    
+    // 자동 저장 실행
+    _saveGameData(); 
   }
 
   void _dropMaterials(int monsterLevel) {
@@ -3616,6 +3654,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 const SizedBox(height: 12),
                 _buildAdminResourceCard('잠재의 큐브', player.cube, (v) => setState(() => player.cube += v)),
                 const SizedBox(height: 30),
+                _buildAdminSliderCard(
+                  label: "몬스터 방어력 배율",
+                  value: _monsterDefenseMultiplier,
+                  onChanged: (val) => setState(() => _monsterDefenseMultiplier = val),
+                ),
+                const SizedBox(height: 30),
                 _buildPopBtn('모든 재화 1억 추가', Colors.amber, () {
                   setState(() {
                     player.gold += 100000000;
@@ -3658,6 +3702,46 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               _buildPopBtn('+10만', Colors.white12, () => onAdd(100000)),
               _buildPopBtn('+100만', Colors.white24, () => onAdd(1000000)),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminSliderCard({required String label, required double value, required Function(double) onChanged}) {
+    return _buildGlassContainer(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      color: Colors.blueAccent.withOpacity(0.05),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              _buildShadowText('${(value * 100).toInt()}%', color: Colors.cyanAccent, fontWeight: FontWeight.bold),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Colors.cyanAccent,
+              inactiveTrackColor: Colors.white12,
+              thumbColor: Colors.white,
+              overlayColor: Colors.cyanAccent.withOpacity(0.2),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: value,
+              min: 0.0,
+              max: 1.0,
+              onChanged: onChanged,
+            ),
+          ),
+          const Text(
+            '0% 설정 시 몬스터의 방어력이 무시됩니다. (데미지 체감 테스트용)',
+            style: TextStyle(color: Colors.white38, fontSize: 10),
           ),
         ],
       ),
