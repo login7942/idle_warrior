@@ -27,8 +27,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.10.7'
-          channel: 'stable'
+          channel: 'stable' # 버전을 특정하지 않고 최신 안정 버전을 사용합니다.
 
       - name: Install dependencies
         run: flutter pub get
