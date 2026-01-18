@@ -1,6 +1,6 @@
 {
-  "version": "0.0.52",
-  "buildNumber": 52,
+  "version": "0.0.53",
+  "buildNumber": 53,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "컴파일 오류 수정 (ImageFilter, PointerDeviceKind 참조 오류 해결)"
+  "changelog": "사냥터 카테고리화, 무한의탑 시퀀스(카운트다운, 결과처리) 고도화 및 아이템 상세창 UI 개선"
 }

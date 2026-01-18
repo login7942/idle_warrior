@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-enum ZoneId { grassland, forest, mine, dungeon, volcano, snowfield, abyss }
+enum ZoneId { grassland, forest, mine, dungeon, volcano, snowfield, abyss, tower }
+enum ZoneType { general, special }
 
 class HuntingZone {
   final ZoneId id;
@@ -10,6 +11,7 @@ class HuntingZone {
   final int minLevel;
   final List<String> monsterNames;
   final List<String> keyDrops; // UI 표시용
+  final ZoneType type; // 일반/특별 구분
 
   HuntingZone({
     required this.id,
@@ -19,6 +21,7 @@ class HuntingZone {
     required this.minLevel,
     required this.monsterNames,
     required this.keyDrops,
+    this.type = ZoneType.general,
   });
 }
 
@@ -86,6 +89,17 @@ class HuntingZoneData {
       minLevel: 281,
       monsterNames: ['그림자 군단', '어둠의 화신', '공허의 수호자'],
       keyDrops: ['신화의 정수', '빛나는 강화석', '심연의 파편'],
+    ),
+    // --- 특별 사냥터 ---
+    HuntingZone(
+      id: ZoneId.tower,
+      name: '무한의탑',
+      description: '매 층 강력한 수호자가 기다리는 도전형 콘텐츠',
+      color: Colors.amber[900]!,
+      minLevel: 1,
+      monsterNames: ['탑의 수호자', '심판자', '고대 병기'],
+      keyDrops: ['고급 잠재의 큐브', '전설 강화석', '영혼석'],
+      type: ZoneType.special,
     ),
   ];
 }

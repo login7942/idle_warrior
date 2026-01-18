@@ -178,10 +178,39 @@ class Player {
     return (attack * 2) + (defense * 1.5).toInt() + (maxHp ~/ 10);
   }
 
-  double _getSkillValue(String id) {
+  // --- [잠재능력 보너스 게터] ---
+  int get potentialSkillBonus {
+    int bonus = 0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      if (item!.potential?.name == '모든 스킬 레벨') bonus += item.potential!.value.toInt();
+    });
+    return bonus;
+  }
+
+  double get potentialFinalDamageMult {
+    double mult = 1.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      if (item!.potential?.name == '최종 피해량 증폭') mult += item.potential!.value / 100;
+    });
+    return mult;
+  }
+
+  double get potentialCdr {
+    double cdr = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      if (item!.potential?.name == '쿨타임 감소') cdr += item.potential!.value;
+    });
+    return cdr;
+  }
+
+  double getSkillValue(String id) {
     try {
       final skill = skills.firstWhere((s) => s.id == id);
-      return skill.isUnlocked ? skill.currentValue : 0.0;
+      if (!skill.isUnlocked) return 0.0;
+      
+      // 잠재능력 스킬 레벨 보너스 적용
+      int effectiveLevel = skill.level + potentialSkillBonus;
+      return skill.baseValue + (effectiveLevel * skill.valuePerLevel);
     } catch (_) {
       return 0.0;
     }
@@ -199,11 +228,21 @@ class Player {
         flat += item.effectiveMainStat;
       }
 
-      // 부가 옵션에 체력이 있는 경우 (강화 영향 안 받음)
+      // 부가 옵션에 체력이 있는 경우
       for (var opt in item.subOptions) {
         if (opt.name == '체력') {
-          flat += opt.value.toInt();
+          // [수정] 장신구(반지/목걸이)의 고정 체력 보너스는 강화 계수를 적용 (0번 인덱스 가정)
+          if ((item.type == ItemType.ring || item.type == ItemType.necklace) && item.subOptions.indexOf(opt) == 0) {
+            flat += (opt.value * item.getEnhanceFactor()).toInt();
+          } else {
+            flat += opt.value.toInt();
+          }
         }
+      }
+
+      // 잠재능력 체력 반영
+      if (item.potential?.name == '체력') {
+        flat += item.potential!.value.toInt();
       }
     });
 
@@ -212,7 +251,7 @@ class Player {
 
   int get attack {
     double petBonus = 1.0 + (petAtkBonus / 100);
-    int flat = _getSkillValue('pas_1').toInt(); // 패시브 스킬 보너스
+    int flat = getSkillValue('pas_1').toInt(); // 패시브 스킬 보너스
     double activePetMultiplier = 1.0 + (getPetCompanionValue('용의 분노') / 100);
     
     equipment.values.forEach((item) {
@@ -229,6 +268,11 @@ class Player {
           flat += opt.value.toInt();
         }
       }
+
+      // 잠재능력 공격력 반영
+      if (item.potential?.name == '공격력') {
+        flat += item.potential!.value.toInt();
+      }
     });
 
     int totalAtk = (baseAttack * petBonus * (1.0 + encyclopediaAtkMultiplier)).toInt() + flat + encyclopediaAtkBonus.toInt();
@@ -236,7 +280,7 @@ class Player {
   }
 
   int get defense {
-    double bonus = 1.0 + (_getSkillValue('pas_2') / 100);
+    double bonus = 1.0 + (getSkillValue('pas_2') / 100);
     int flat = 0;
     equipment.values.forEach((item) {
       if (item == null) return;
@@ -248,6 +292,11 @@ class Player {
           else flat += opt.value.toInt();
         }
       }
+      // 잠재능력 방어력 반영
+      if (item.potential?.name == '방어력') {
+        if (item.potential!.isPercentage) bonus += item.potential!.value / 100;
+        else flat += item.potential!.value.toInt();
+      }
     });
     return (baseDefense * bonus).toInt() + flat;
   }
@@ -258,8 +307,9 @@ class Player {
       for (var opt in item!.subOptions) {
         if (opt.name == '공격 속도') itemBonus += opt.value;
       }
+      if (item.potential?.name == '공격 속도') itemBonus += item.potential!.value;
     });
-    double total = baseAttackSpeed + (_getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + itemBonus;
+    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + itemBonus;
     return total.clamp(0.1, 10.0); // 최대 공격 속도를 10.0으로 캡 적용
   }
 
@@ -269,6 +319,7 @@ class Player {
       for (var opt in item!.subOptions) {
         if (opt.name == '치명타 확률') itemBonus += opt.value;
       }
+      if (item.potential?.name == '치명타 확률') itemBonus += item.potential!.value;
     });
     return baseCritChance + getPetCompanionValue('예리한 통찰') + itemBonus;
   }
@@ -279,8 +330,9 @@ class Player {
       for (var opt in item!.subOptions) {
         if (opt.name == '치명타 피해') itemBonus += opt.value;
       }
+      if (item.potential?.name == '치명타 피해') itemBonus += item.potential!.value;
     });
-    return baseCritDamage + _getSkillValue('pas_4') + itemBonus;
+    return baseCritDamage + getSkillValue('pas_4') + itemBonus;
   }
 
   double get hpRegen {
@@ -289,6 +341,7 @@ class Player {
       for (var opt in item!.subOptions) {
         if (opt.name == 'HP 재생') itemBonus += opt.value;
       }
+      if (item.potential?.name == 'HP 재생') itemBonus += item.potential!.value;
     });
     return baseHpRegen + itemBonus;
   }
@@ -299,8 +352,9 @@ class Player {
       for (var opt in item!.subOptions) {
         if (opt.name == '골드 획득') itemBonusPerc += opt.value;
       }
+      if (item.potential?.name == '골드 획득') itemBonusPerc += item.potential!.value;
     });
-    return goldBonusBase + _getSkillValue('pas_3') + petGoldBonus + itemBonusPerc;
+    return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc;
   }
 
   double get goldBonusBase => baseGoldBonus;
@@ -311,8 +365,9 @@ class Player {
       for (var opt in item!.subOptions) {
         if (opt.name == '경험치 획득') itemBonusPerc += opt.value;
       }
+      if (item.potential?.name == '경험치 획득') itemBonusPerc += item.potential!.value;
     });
-    return 100.0 + (_getSkillValue('pas_4') / 100) + itemBonusPerc; // 기본 100% 기준
+    return 100.0 + (getSkillValue('pas_4') / 100) + itemBonusPerc; // 기본 100% 기준
   }
 
   double get dropBonus {
@@ -321,12 +376,13 @@ class Player {
       for (var opt in item!.subOptions) {
         if (opt.name == '아이템 드롭') itemBonusPerc += opt.value;
       }
+      if (item.potential?.name == '아이템 드롭') itemBonusPerc += item.potential!.value;
     });
-    return baseDropBonus + _getSkillValue('pas_3') + itemBonusPerc;
+    return baseDropBonus + getSkillValue('pas_3') + itemBonusPerc;
   }
   double get offEfficiency => baseOffEfficiency;
-  double get cdr => baseCdr + _getSkillValue('pas_6');
-  double get lifesteal => _getSkillValue('pas_5');
+  double get cdr => baseCdr + getSkillValue('pas_6') + potentialCdr;
+  double get lifesteal => getSkillValue('pas_5');
 
   bool addItem(Item item) {
     if (inventory.length >= maxInventory) return false;

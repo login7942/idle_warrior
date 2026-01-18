@@ -90,13 +90,19 @@ class ItemOption {
   final String name;
   double value;
   final bool isPercentage;
-  bool isLocked; // 잠금 상태 추가
+  bool isLocked; // 잠금 상태 복구
+  bool isSpecial; // 특별 옵션 (잠재능력 전용) 여부
+  int stars; // 옵션 등급 (1~5)
+  double maxValue; // 해당 티어의 최대값
 
   ItemOption({
     required this.name, 
     required this.value, 
     this.isPercentage = false,
     this.isLocked = false,
+    this.isSpecial = false,
+    this.stars = 1,
+    this.maxValue = 0,
   });
 
   Map<String, dynamic> toJson() => {
@@ -104,6 +110,9 @@ class ItemOption {
         'value': value,
         'isPercentage': isPercentage,
         'isLocked': isLocked,
+        'isSpecial': isSpecial,
+        'stars': stars,
+        'maxValue': maxValue,
       };
 
   factory ItemOption.fromJson(Map<String, dynamic> json) => ItemOption(
@@ -111,10 +120,20 @@ class ItemOption {
         value: json['value'].toDouble(),
         isPercentage: json['isPercentage'],
         isLocked: json['isLocked'] ?? false,
+        isSpecial: json['isSpecial'] ?? false,
+        stars: json['stars'] ?? 1,
+        maxValue: (json['maxValue'] ?? 0).toDouble(),
       );
 
   @override
-  String toString() => '$name +${isPercentage ? '${value.toStringAsFixed(1)}%' : value.toInt()}${isLocked ? ' 🔒' : ''}';
+  String toString() {
+    final valStr = isPercentage 
+        ? '${value.toStringAsFixed(1)}%' 
+        : (name == '공격 속도' ? value.toStringAsFixed(1) : value.toInt().toString());
+    
+    String prefix = isSpecial ? '[특별] ' : '';
+    return '$prefix$name +$valStr${isLocked ? ' 🔒' : ''}';
+  }
 }
 
 class Item {
@@ -131,6 +150,7 @@ class Item {
   bool isNew;          // 신규 획득 여부
   int rerollCount;     // 옵션 재설정 횟수 (Max 5)
   bool isLocked;       // 아이템 잠금 여부
+  ItemOption? potential; // 잠재능력 (v0.0.50 추가)
 
   Item({
     required this.id,
@@ -146,6 +166,7 @@ class Item {
     this.isNew = true,
     this.rerollCount = 0,
     this.isLocked = false,
+    this.potential,
   });
 
   Map<String, dynamic> toJson() => {
@@ -162,6 +183,7 @@ class Item {
         'isNew': isNew,
         'rerollCount': rerollCount,
         'isLocked': isLocked,
+        'potential': potential?.toJson(),
       };
 
   factory Item.fromJson(Map<String, dynamic> json) {
@@ -211,6 +233,7 @@ class Item {
       isNew: json['isNew'] ?? false,
       rerollCount: json['rerollCount'] ?? 0,
       isLocked: json['isLocked'] ?? false,
+      potential: json['potential'] != null ? ItemOption.fromJson(json['potential']) : null,
     );
   }
 
@@ -238,9 +261,11 @@ class Item {
     else if (mainStatName == '체력') power += mStat * 0.1;
     else if (mainStatName == '방어력') power += mStat * 1.5;
 
-    // 2. 반지/목걸이 고정 체력 보너스 반영
+    // 2. 반지/목걸이 고정 체력 보너스 반영 (강화 영향 포함)
     if (type == ItemType.ring || type == ItemType.necklace) {
-      power += (40 * getEnhanceFactor()) * 0.1;
+      if (subOptions.isNotEmpty && subOptions[0].name == '체력') {
+        power += (subOptions[0].value * getEnhanceFactor()) * 0.1;
+      }
     }
 
     // 3. 보조 옵션 점수
@@ -261,6 +286,24 @@ class Item {
         case '아이템 드롭':
           power += opt.value * 10.0;
           break;
+      }
+    }
+
+    // 4. 잠재능력 점수 합산
+    if (potential != null) {
+      switch (potential!.name) {
+        case '모든 스킬 레벨': power += 5000; break;
+        case '최종 피해량 증폭': power += 3000; break;
+        case '쿨타임 감소': power += 2000; break;
+        default:
+          // 일반 옵션과 동일 루틴
+          if (potential!.name == '공격력') power += potential!.value * 2.0;
+          else if (potential!.name == '체력') power += potential!.value * 0.1;
+          else if (potential!.name == '방어력') power += potential!.value * 1.5;
+          else if (potential!.name == '치명타 확률') power += potential!.value * 50.0;
+          else if (potential!.name == '치명타 피해') power += potential!.value * 5.0;
+          else if (potential!.name == '공격 속도') power += potential!.value * 500.0;
+          else power += potential!.value * 10.0;
       }
     }
 
@@ -383,7 +426,8 @@ class Item {
 
     // ② 랜덤 보조 옵션 생성 (중복 방지)
     Set<String> usedNames = options.map((e) => e.name).toSet();
-    while (options.length < optCount) {
+    final int targetCount = options.length + optCount; // 고정 옵션 외에 추가로 optCount만큼 생성
+    while (options.length < targetCount) {
       ItemOption newOpt = _generateRandomOption(rand, dropTier);
       if (!usedNames.contains(newOpt.name)) {
         options.add(newOpt);
@@ -393,7 +437,7 @@ class Item {
 
     String prefix = _getGradeName(grade);
     String typeName = type.nameKr;
-    String name = '$prefix $typeName T$dropTier'; // 이름 뒤에 티어 명시
+    String name = '$prefix $typeName'; // 이름 뒤의 티어 명시 제거
 
     return Item(
       id: id,
@@ -510,42 +554,62 @@ class Item {
     
     double tierMult = pow(10, tier - 1).toDouble();
     double val = 0.0;
+    double minVal = 0.0;
+    double maxVal = 0.0;
     bool isPerc = false;
 
     switch (name) {
       case '공격력':
-        val = (rand.nextInt(11) + 5).toDouble() * tierMult; // 5~15
+        minVal = 5.0 * tierMult;
+        maxVal = 15.0 * tierMult;
+        val = (rand.nextInt(11) + 5).toDouble() * tierMult;
         break;
       case '체력':
-        val = (rand.nextInt(101) + 50).toDouble() * tierMult; // 50~150
+        minVal = 50.0 * tierMult;
+        maxVal = 150.0 * tierMult;
+        val = (rand.nextInt(101) + 50).toDouble() * tierMult;
         break;
       case '방어력':
-        val = (rand.nextInt(6) + 2).toDouble() * tierMult; // 2~7
+        minVal = 2.0 * tierMult;
+        maxVal = 7.0 * tierMult;
+        val = (rand.nextInt(6) + 2).toDouble() * tierMult;
         break;
       case '치명타 확률':
         isPerc = true;
-        val = (rand.nextDouble() * 2.0 + 1.0) + (tier * 0.5); // 1~3% + 티어보너스
+        minVal = 1.0 + (tier * 0.5);
+        maxVal = 3.0 + (tier * 0.5);
+        val = (rand.nextDouble() * 2.0 + 1.0) + (tier * 0.5);
         break;
       case '치명타 피해':
         isPerc = true;
-        val = (rand.nextDouble() * 10.0 + 5.0) + (tier * 5.0); // 5~15% + 티어보너스
+        minVal = 5.0 + (tier * 5.0);
+        maxVal = 15.0 + (tier * 5.0);
+        val = (rand.nextDouble() * 10.0 + 5.0) + (tier * 5.0);
         break;
       case '공격 속도':
-        val = (rand.nextDouble() * 1.0 + 0.5); // 0.5~1.5 (대폭 상향)
+        minVal = 0.5;
+        maxVal = 1.5;
+        val = (rand.nextDouble() * 1.0 + 0.5);
         break;
       case 'HP 재생':
         isPerc = true;
-        val = (rand.nextDouble() * 1.0 + 0.5); // 0.5~1.5%
+        minVal = 0.5;
+        maxVal = 1.5;
+        val = (rand.nextDouble() * 1.0 + 0.5);
         break;
       case '골드 획득':
       case '경험치 획득':
       case '아이템 드롭':
         isPerc = true;
-        val = (rand.nextDouble() * 3.0 + 2.0) + (tier * 1.0); // 2~5% + 티어보너스
+        minVal = 2.0 + (tier * 1.0);
+        maxVal = 5.0 + (tier * 1.0);
+        val = (rand.nextDouble() * 3.0 + 2.0) + (tier * 1.0);
         break;
     }
     
-    return ItemOption(name: name, value: val, isPercentage: isPerc);
+    int stars = ((val - minVal) / (maxVal - minVal) * 5).ceil().clamp(1, 5);
+    
+    return ItemOption(name: name, value: val, isPercentage: isPerc, stars: stars, maxValue: maxVal);
   }
 
   // 옵션 재설정 (리롤)
@@ -570,6 +634,22 @@ class Item {
       for (var o in options) {
         if (o.name == '체력') o.value = value;
       }
+    }
+  }
+
+  // --- [잠재능력 개방] (v0.0.50) ---
+  void awakenPotential(Random rand) {
+    // 1. 특별 옵션 풀 (저확률 5%)
+    if (rand.nextDouble() < 0.05) {
+      List<String> specialPool = ['모든 스킬 레벨', '최종 피해량 증폭', '쿨타임 감소'];
+      String name = specialPool[rand.nextInt(specialPool.length)];
+      double val = (name == '모든 스킬 레벨') ? 1.0 : 5.0; // 스킬 +1, 나머지는 5%
+      bool isPerc = (name != '모든 스킬 레벨');
+      
+      potential = ItemOption(name: name, value: val, isPercentage: isPerc, isSpecial: true, stars: 5, maxValue: val);
+    } else {
+      // 2. 일반 옵션 풀 (기존 generateRandomOption 활용, 티어 반영)
+      potential = _generateRandomOption(rand, tier);
     }
   }
 }

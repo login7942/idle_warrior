@@ -34,10 +34,12 @@ class Monster {
   factory Monster.generate(HuntingZone zone, int stage) {
     final rand = Random();
     
-    // --- [v0.0.40] 엘리트 몬스터 시스템 ---
-    // 10% 확률로 엘리트 몬스터 생성 (체력/골드 1.5~3배, 드롭률 상향)
-    bool isElite = rand.nextDouble() < 0.10;
-    double eliteMult = isElite ? (1.5 + rand.nextDouble() * 1.5) : 1.0; // 1.5~3.0
+    // --- [v0.0.51] 무한의탑 전용 스케일링 설계 ---
+    bool isTower = zone.id == ZoneId.tower;
+    bool isElite = isTower ? true : (rand.nextDouble() < 0.10);
+    double eliteMult = isTower 
+        ? (5.0 + (stage * 0.1)) // 탑은 기본 5배 + 층당 추가 배율
+        : (isElite ? (1.5 + rand.nextDouble() * 1.5) : 1.0);
     
     // 지역별 몬스터 이름 무작위 선택
     String species = zone.monsterNames[rand.nextInt(zone.monsterNames.length)];
@@ -62,7 +64,8 @@ class Monster {
     int mHp = (mHpFinal * eliteMult).toInt();
     
     // ATK(stage) = 90 × 1.02^stage
-    int mAtk = (90 * pow(1.02, s)).toInt();
+    int mAtk = (90 * pow(isTower ? 1.04 : 1.02, s)).toInt();
+    if (isTower) mAtk = (mAtk * 2.0).toInt(); // 탑은 공격력도 2배 기본 보너스
     
     // 방어력은 0으로 고정
     int mDef = 0;
@@ -83,10 +86,15 @@ class Monster {
     // 엘리트 몬스터는 드롭률 상향 (20% -> 50%)
     double dropChance = isElite ? 0.5 : 0.2;
     
-    // 엘리트 몬스터 이름 표식
-    String displayName = isElite 
-      ? '⭐ $species (Lv.$totalLevel)' 
-      : '$species (Lv.$totalLevel)';
+    // 몬스터 이름 표식
+    String displayName;
+    if (isTower) {
+      displayName = '👹 [TOWER] $species ($stage층)';
+    } else {
+      displayName = isElite 
+        ? '⭐ $species (Lv.$totalLevel)' 
+        : '$species (Lv.$totalLevel)';
+    }
 
     return Monster(
       name: displayName,
