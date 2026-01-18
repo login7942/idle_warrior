@@ -1,6 +1,6 @@
 {
-  "version": "0.0.40",
-  "buildNumber": 40,
+  "version": "0.0.52",
+  "buildNumber": 52,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "엘리트 몬스터 시스템 도입 (⭐ 표식, 체력/골드 1.5~3배, 드롭률 50%)"
+  "changelog": "컴파일 오류 수정 (ImageFilter, PointerDeviceKind 참조 오류 해결)"
 }

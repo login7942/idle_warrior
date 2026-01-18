@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
+import 'dart:ui' as ui;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -172,6 +172,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
     _uiTickerController.addListener(() {
       _updateParticles(); // 매 프레임 파티클 리스트 정기 청소
+      _updateFloatingTexts(); // 🆕 매 프레임 데미지 텍스트 정기 청소
     });
     
     // 🆕 게임 초기화 실행 (Supabase 로그인 + 데이터 로드)
@@ -659,73 +660,40 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   void _handleVictory(Duration? killDuration) {
+    // 1. 즉시 처리해야 하는 UI 정보 업데이트 (골드/경험치 수치만)
     int finalGold = (currentMonster!.goldReward * player.goldBonus / 100).toInt();
+    int expReward = currentMonster!.expReward;
     
-    // 처치 시간 디버그 로그 (사용자 확인용)
-    if (killDuration != null) {
-      double seconds = killDuration.inMilliseconds / 1000;
-      _addLog('전투 승리! (${seconds.toStringAsFixed(2)}초) ${currentMonster!.expReward} EXP, $finalGold G 획득', LogType.item);
-    } else {
-      _addLog('전투 승리! ${currentMonster!.expReward} EXP, $finalGold G 획득', LogType.item);
-    }
-    
-    player.gainExp(currentMonster!.expReward);
+    player.gainExp(expReward);
     player.gold += finalGold;
     _sessionGold += finalGold;
-    _sessionExp += currentMonster!.expReward;
-    
-    // 드롭 보너스 적용된 확률 계산
-    double finalDropChance = currentMonster!.itemDropChance * (player.dropBonus / 100);
-    if (Random().nextDouble() < finalDropChance) {
-      Item newItem = Item.generate(player.level, stage: _currentStage);
-      if (player.addItem(newItem)) {
-        _addLog('[획득] ${newItem.name} (${newItem.grade.name})', LogType.item);
-        player.totalItemsFound++;
-        _sessionItems++; // 세션 아이템 수 증가
-        _checkEncyclopedia(newItem); // 도감 체크
-      }
-    }
-    // 효율 데이터 및 누적 통계 기록
-    _recentGains.add(GainRecord(DateTime.now(), gold: finalGold, exp: currentMonster!.expReward, kills: 1));
+    _sessionExp += expReward;
     player.totalKills++;
     player.totalGoldEarned += finalGold;
-    
-    _updateLastSaveTime(); // 주기적인 저장
 
-    // 몬스터 위치 계산 후 파티클 생성
+    // 2. 몬스터 위치 계산 및 파티클 생성 (시점 중요)
     RenderBox? box = _monsterKey.currentContext?.findRenderObject() as RenderBox?;
-    Offset spawnPos = const Offset(200, 300); // 대비용 기본값
+    Offset spawnPos = const Offset(200, 300);
     if (box != null) {
-      // 몬스터 위젯의 중앙 하단(발밑) 부근에서 튀어나오게 조정
       spawnPos = box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2));
-      // SafeArea나 다른 레이어 오차 보정 (대략적인 화면 상대 좌표)
       spawnPos = Offset(spawnPos.dx, spawnPos.dy - 150); 
     }
-    _spawnLootParticles(finalGold, currentMonster!.expReward, spawnPos);
+    _spawnLootParticles(finalGold, expReward, spawnPos);
 
-    // 재료 드롭 (방안 A: 수량형 재료)
-    _dropMaterials(currentMonster!.level);
-
-    // 스테이지 진행도 업데이트 및 가속 로직
+    // 3. 스테이지 업데이트 (즉시 반영 필요)
     setState(() {
       bool jumped = false;
-      if (killDuration != null) {
-        if (killDuration.inMilliseconds < 1500) { // 1.5초 이내 처치 시 스테이지 가속(점프)
-          _currentStage += 1;
-          _stageKills = 0;
-          _zoneStages[_currentZone.id] = _currentStage;
-          jumped = true;
-          
-          // 점프 효과 활성화 및 애니메이션 ID 갱신
-          _showJumpEffect = true;
-          _jumpEffectId++; // ID 변경을 통해 애니메이션 초기화 유도
-          _jumpEffectTimer?.cancel();
-          _jumpEffectTimer = Timer(const Duration(milliseconds: 2000), () {
-            if (mounted) setState(() => _showJumpEffect = false);
-          });
-          
-          _addLog('🚀 JUMP STAGE!! [${_currentZone.name}-${Monster.getDisplayStage(_currentStage)}] 진입', LogType.event);
-        }
+      if (killDuration != null && killDuration.inMilliseconds < 1500) {
+        _currentStage += 1;
+        _stageKills = 0;
+        _zoneStages[_currentZone.id] = _currentStage;
+        jumped = true;
+        _showJumpEffect = true;
+        _jumpEffectId++;
+        _jumpEffectTimer?.cancel();
+        _jumpEffectTimer = Timer(const Duration(milliseconds: 2000), () {
+          if (mounted) setState(() => _showJumpEffect = false);
+        });
       }
 
       if (!jumped) {
@@ -735,7 +703,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             _stageKills = 0;
             _currentStage += 1;
             _zoneStages[_currentZone.id] = _currentStage;
-            _addLog('스테이지 클리어! [${_currentZone.name}-${Monster.getDisplayStage(_currentStage)}] 진입', LogType.event);
           } else {
             _stageKills = _targetKills - 1; 
           }
@@ -743,12 +710,33 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       }
     });
 
-    // 레거시 재귀 호출 코드 제거 (이벤트 기반으로 대체됨)
-    // _spawnMonster();
-    // _startBattleLoop(); 
-    
-    // 자동 저장 실행
-    _saveGameData(); 
+    // 4. 무거운 로직 분산 처리 (200ms 지연)
+    // 몬스터 사망 애니메이션이 한창 진행 중일 때 CPU 부하를 피함
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
+      
+      // 드롭 로직
+      double finalDropChance = currentMonster!.itemDropChance * (player.dropBonus / 100);
+      if (Random().nextDouble() < finalDropChance) {
+        Item newItem = Item.generate(player.level, stage: _currentStage);
+        if (player.addItem(newItem)) {
+          _addLog('[획득] ${newItem.name} (${newItem.grade.name})', LogType.item);
+          player.totalItemsFound++;
+          _sessionItems++;
+          _checkEncyclopedia(newItem);
+        }
+      }
+
+      // 로그 및 기타 로직
+      if (killDuration != null) {
+        double seconds = killDuration.inMilliseconds / 1000;
+        _addLog('전역 승리! (${seconds.toStringAsFixed(2)}초) $expReward EXP, $finalGold G 획득', LogType.damage);
+      }
+      
+      _recentGains.add(GainRecord(DateTime.now(), gold: finalGold, exp: expReward, kills: 1));
+      _dropMaterials(currentMonster!.level);
+      _updateLastSaveTime(); // 저장 로직은 가장 마지막에
+    });
   }
 
   void _dropMaterials(int monsterLevel) {
@@ -866,9 +854,19 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   void _updateParticles() {
-    if (!mounted || _lootParticles.isEmpty) return;
     final now = DateTime.now();
+    if (!mounted || _lootParticles.isEmpty) return;
+    
+    // 1초 이상 된 파티클 제거
     _lootParticles.removeWhere((p) => now.difference(p.startTime).inMilliseconds > 1200);
+  }
+
+  void _updateFloatingTexts() {
+    final now = DateTime.now();
+    if (!mounted || floatingTexts.isEmpty) return;
+
+    // 1초 이상 된 텍스트 제거
+    floatingTexts.removeWhere((t) => now.difference(t.createdAt).inMilliseconds >= 1000);
   }
 
   void _addLog(String msg, LogType type) {
@@ -953,16 +951,19 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   Expanded(
                     child: Stack(
                       children: [
-                        _buildBodyContent(),
+                        // 핵심: 바디 콘텐츠를 RepaintBoundary로 감싸서 다른 UI와 렌더링 레이어 분리
+                        RepaintBoundary(child: _buildBodyContent()),
                         Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomDock()),
                         // 최적화된 파티클 레이어 (전투 탭에서만 활성화)
                         if (_selectedIndex == 0)
                           Positioned.fill(
                             child: IgnorePointer(
-                              child: CustomPaint(
-                                painter: LootParticlePainter(
-                                  particles: _lootParticles,
-                                  ticker: _uiTickerController,
+                              child: RepaintBoundary(
+                                child: CustomPaint(
+                                  painter: LootParticlePainter(
+                                    particles: _lootParticles,
+                                    ticker: _uiTickerController,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1080,7 +1081,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+          filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
@@ -3346,8 +3347,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           child: ScrollConfiguration(
             behavior: ScrollConfiguration.of(context).copyWith(
               dragDevices: {
-                PointerDeviceKind.touch,
-                PointerDeviceKind.mouse, // 마우스 드래그 스크롤 명시적 허용
+                ui.PointerDeviceKind.touch,
+                ui.PointerDeviceKind.mouse, // 마우스 드래그 스크롤 명시적 허용
               },
             ),
             child: ListView.builder(
@@ -3461,7 +3462,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           // 플레이어 펫 표시 (전투 장면 최상상위에서 독립적으로 부유)
           if (player.activePet != null)
             _buildIndependentPet(player.activePet!),
-          ...floatingTexts.map((ft) => _buildFloatingTextWidget(ft)),
+          
+          // 🆕 고성능 캔버스 기반 데미지 텍스트 레이어
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: DamageTextPainter(
+                  texts: floatingTexts,
+                  ticker: _uiTickerController,
+                ),
+              ),
+            ),
+          ),
         ]);
       },
     );
@@ -4155,102 +4167,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildFloatingTextWidget(FloatingText ft) {
-    final age = DateTime.now().difference(ft.createdAt).inMilliseconds;
-    final progress = (age / 1000).clamp(0.0, 1.0); // 노출 시간 1000ms로 연장
-    
-    if (progress >= 1.0) return const SizedBox();
 
-    // 제안된 프리미엄 웹 감성 로직: easeOutCubic
-    final curveValue = Curves.easeOutCubic.transform(progress);
-    
-    // 위치(Y축 위로), 투명도(사라짐), 스케일(0.9 -> 1.0 미세 변화)
-    final translateY = -80 * curveValue; // 더 높이 올라가도록 수정 (-30 -> -80)
-    // 투명도: 후반부에 급격히 사라지도록 개선 (Stay opaque longer)
-    final opacity = 1.0 - (progress * progress * progress); 
-    final scale = 0.9 + (0.1 * curveValue);
-    
-    bool isSkill = ft.text.contains('⚡') || ft.text.contains('🔥');
-    bool isCrit = ft.isCrit == true;
-    bool isSpecial = isSkill || isCrit || ft.isHeal;
-    double baseOpacity = isSpecial ? 1.0 : 0.7; // 일반 데미지만 연하게
-    
-    Color mainColor = Colors.white;
-    List<Shadow> textShadows = [const Shadow(blurRadius: 4, color: Colors.black)];
-    double fontSize = 16; // 기본은 축소된 크기
-    
-    if (ft.isHeal) {
-      mainColor = Colors.greenAccent;
-      fontSize = 20;
-      textShadows = [const Shadow(blurRadius: 8, color: Colors.green)];
-    } else if (isSkill) {
-      // 스킬 데미지 (크리티컬 여부에 따른 차이)
-      if (isCrit) {
-        mainColor = Colors.cyanAccent;
-        fontSize = 32;
-        textShadows = [const Shadow(blurRadius: 10, color: Colors.blueAccent)];
-      } else {
-        mainColor = Colors.yellowAccent;
-        fontSize = 26;
-        textShadows = [const Shadow(blurRadius: 8, color: Colors.orange)];
-      }
-    } else if (isCrit) {
-      // 일반 평타 크리티컬
-      mainColor = Colors.orangeAccent;
-      fontSize = 28;
-      textShadows = [const Shadow(blurRadius: 10, color: Colors.redAccent)];
-    } else {
-      // 순수 일반 데미지
-      if (!ft.isMonsterTarget) { // 플레이어 피격
-        mainColor = Colors.redAccent;
-        fontSize = 18;
-      } else {
-        fontSize = 16;
-      }
-    }
-
-    return Positioned(
-      // 몬스터 타격 시(isMonsterTarget: true) 우측 정렬, 플레이어 피격 시(false) 좌측 정렬
-      left: ft.isMonsterTarget ? null : (60 + ft.offsetX),
-      right: ft.isMonsterTarget ? (60 + ft.offsetX) : null,
-      top: 150 + ft.offsetY + translateY,
-      child: Opacity(
-        opacity: opacity * baseOpacity,
-        child: Transform.scale(
-          scale: scale,
-          child: Stack( 
-            alignment: Alignment.center,
-            children: [
-              // 외곽선 텍스트 (가독성용)
-              Text(
-                ft.text,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
-                  foreground: Paint()
-                    ..style = PaintingStyle.stroke
-                    ..strokeWidth = isSpecial ? 3 : 1.5 // 일반 데미지는 외곽선 얇게
-                    ..color = Colors.black,
-                ),
-              ),
-              // 실제 데미지 텍스트
-              Text(
-                ft.text,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
-                  color: mainColor,
-                  shadows: textShadows,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 🏆 ACHIEVEMENT SYSTEM - 업적 및 도감 시스템
@@ -5439,8 +5356,137 @@ class FloatingText {
   final bool isHeal;
   final double offsetX;
   final double offsetY;
-  FloatingText(this.text, this.isMonsterTarget, this.createdAt, {this.isCrit = false, this.isHeal = false, this.offsetX = 0, this.offsetY = 0});
+  
+  // 🆕 Painter에서 사용할 스타일 캐싱
+  late final bool isSkill;
+  late final bool isSpecial;
+
+  FloatingText(this.text, this.isMonsterTarget, this.createdAt, {this.isCrit = false, this.isHeal = false, this.offsetX = 0, this.offsetY = 0}) {
+    isSkill = text.contains('⚡') || text.contains('🔥');
+    isSpecial = isSkill || isCrit || isHeal;
+  }
 }
+
+/// 🆕 고성능 데미지 텍스트 렌더러
+class DamageTextPainter extends CustomPainter {
+  final List<FloatingText> texts;
+  final Animation<double> ticker;
+
+  DamageTextPainter({required this.texts, required this.ticker}) : super(repaint: ticker);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (texts.isEmpty) return;
+    final now = DateTime.now();
+
+    for (var ft in texts) {
+      final elapsed = now.difference(ft.createdAt).inMilliseconds;
+      if (elapsed < 0 || elapsed >= 1000) continue;
+
+      final progress = elapsed / 1000;
+      final curveValue = Curves.easeOutCubic.transform(progress);
+      
+      // 애니메이션 수치 계산
+      final translateY = -80 * curveValue;
+      final opacity = (1.0 - (progress * progress * progress)).clamp(0.0, 1.0);
+      final scale = 0.9 + (0.1 * curveValue);
+
+      // 스타일 결정
+      double baseOpacity = ft.isSpecial ? 1.0 : 0.7;
+      Color mainColor = Colors.white;
+      double fontSize = 16;
+      Color shadowColor = Colors.black;
+
+      if (ft.isHeal) {
+        mainColor = Colors.greenAccent;
+        fontSize = 20;
+        shadowColor = Colors.green;
+      } else if (ft.isSkill) {
+        if (ft.isCrit) {
+          mainColor = Colors.cyanAccent;
+          fontSize = 32;
+          shadowColor = Colors.blueAccent;
+        } else {
+          mainColor = Colors.yellowAccent;
+          fontSize = 26;
+          shadowColor = Colors.orange;
+        }
+      } else if (ft.isCrit) {
+        mainColor = Colors.orangeAccent;
+        fontSize = 28;
+        shadowColor = Colors.redAccent;
+      } else {
+        if (!ft.isMonsterTarget) {
+          mainColor = Colors.redAccent;
+          fontSize = 18;
+        } else {
+          fontSize = 16;
+        }
+      }
+
+      // 텍스트 페인터 설정
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: ft.text,
+          style: TextStyle(
+            color: mainColor.withOpacity(opacity * baseOpacity),
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            fontStyle: FontStyle.italic,
+            shadows: [
+              Shadow(blurRadius: ft.isSpecial ? 8 : 4, color: shadowColor.withOpacity(opacity)),
+            ],
+          ),
+        ),
+        textDirection: ui.TextDirection.ltr,
+      );
+
+      textPainter.layout();
+
+      // 위치 결정 (Positioned 로직 이식)
+      double posX;
+      if (ft.isMonsterTarget) {
+        posX = size.width - (60 + ft.offsetX) - textPainter.width;
+      } else {
+        posX = 60 + ft.offsetX;
+      }
+      double posY = 150 + ft.offsetY + translateY;
+
+      canvas.save();
+      canvas.translate(posX + textPainter.width / 2, posY + textPainter.height / 2);
+      canvas.scale(scale);
+      canvas.translate(-textPainter.width / 2, -textPainter.height / 2);
+
+      // 1. 외곽선 그리기 (직접 그리기로 대체 가능하나 성능상 TextPainter 레이아웃 재활용)
+      final outlinePainter = TextPainter(
+        text: TextSpan(
+          text: ft.text,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            fontStyle: FontStyle.italic,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = ft.isSpecial ? 3 : 1.5
+              ..color = Colors.black.withOpacity(opacity * baseOpacity),
+          ),
+        ),
+        textDirection: ui.TextDirection.ltr,
+      );
+      outlinePainter.layout();
+      outlinePainter.paint(canvas, Offset.zero);
+
+      // 2. 메인 텍스트 그리기
+      textPainter.paint(canvas, Offset.zero);
+      
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant DamageTextPainter oldDelegate) => true;
+}
+
 
 class GainRecord {
   final DateTime time;
