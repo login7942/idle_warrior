@@ -270,14 +270,78 @@ class Item {
   // 부가 옵션도 동일한 강화 계수 적용 여부 (반지/목걸이 HP 용)
   double getEnhanceFactor() => 1 + (enhanceLevel * 0.05);
 
-  // 드롭 아이템 생성기 (스테이지에 따라 티어 및 등급 결정)
+  // 드롭 아이템 생성기 (점진적 티어 드롭 시스템)
   factory Item.generate(int playerLevel, {int stage = 1}) {
     final rand = Random();
     final id = DateTime.now().millisecondsSinceEpoch.toString() + rand.nextInt(1000).toString();
     
-    // 티어 및 등급 결정 (100스테이지 단위로 도약)
-    // 1-100: T1(Common), 101-200: T2(Uncommon), 201-300: T3(Rare) ...
-    int dropTier = ((stage - 1) ~/ 100 + 1).clamp(1, 6);
+    // === 점진적 티어 드롭 시스템 ===
+    // 현재 구간의 최대 티어 결정
+    int maxTier = ((stage - 1) ~/ 100 + 1).clamp(1, 6);
+    
+    // 각 티어별 드롭 확률 계산
+    Map<int, double> tierChances = {};
+    
+    if (maxTier == 1) {
+      // T1 구간 (1-100): T1만 100%
+      tierChances[1] = 1.0;
+    } else {
+      // T2 이상 구간: 점진적 확률 계산
+      // 현재 구간 내 진행도 (0.0 ~ 1.0)
+      int stageInTier = ((stage - 1) % 100) + 1; // 1~100
+      double progress = stageInTier / 100.0; // 0.01 ~ 1.0
+      
+      // 현재 티어 확률: 5% → 20% (점진적 증가)
+      double currentTierChance = 0.05 + (progress * 0.15);
+      
+      // 이전 티어들 확률 계산
+      if (maxTier == 2) {
+        // T2 구간 (101-200)
+        tierChances[1] = 1.0 - currentTierChance; // 95% → 80%
+        tierChances[2] = currentTierChance;        // 5% → 20%
+      } else if (maxTier == 3) {
+        // T3 구간 (201-300)
+        // T1: 75% → 60% (점진적 감소)
+        tierChances[1] = 0.75 - (progress * 0.15);
+        tierChances[2] = 0.20; // T2 고정 20%
+        tierChances[3] = currentTierChance; // T3: 5% → 20%
+      } else if (maxTier == 4) {
+        // T4 구간 (301-400)
+        tierChances[1] = 0.55 - (progress * 0.15); // T1: 55% → 40%
+        tierChances[2] = 0.20; // T2 고정 20%
+        tierChances[3] = 0.20; // T3 고정 20%
+        tierChances[4] = currentTierChance; // T4: 5% → 20%
+      } else if (maxTier == 5) {
+        // T5 구간 (401-500)
+        tierChances[1] = 0.35 - (progress * 0.15); // T1: 35% → 20%
+        tierChances[2] = 0.20; // T2 고정 20%
+        tierChances[3] = 0.20; // T3 고정 20%
+        tierChances[4] = 0.20; // T4 고정 20%
+        tierChances[5] = currentTierChance; // T5: 5% → 20%
+      } else { // maxTier >= 6
+        // T6 구간 (501+)
+        tierChances[1] = 0.20; // T1 고정 20%
+        tierChances[2] = 0.20; // T2 고정 20%
+        tierChances[3] = 0.20; // T3 고정 20%
+        tierChances[4] = 0.20; // T4 고정 20%
+        tierChances[5] = 0.15; // T5 고정 15%
+        tierChances[6] = currentTierChance; // T6: 5% → 20%
+      }
+    }
+    
+    // 확률에 따라 티어 선택
+    double roll = rand.nextDouble();
+    double cumulative = 0.0;
+    int dropTier = 1;
+    
+    for (int tier in tierChances.keys.toList()..sort()) {
+      cumulative += tierChances[tier]!;
+      if (roll < cumulative) {
+        dropTier = tier;
+        break;
+      }
+    }
+    
     ItemGrade grade = ItemGrade.values[dropTier - 1];
     ItemType type = ItemType.values[rand.nextInt(ItemType.values.length)];
 

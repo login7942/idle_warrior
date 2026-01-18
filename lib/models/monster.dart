@@ -68,8 +68,10 @@ class Monster {
     int mDef = 0;
 
     // --- 보상 공식 분리 (v0.0.39) ---
-    // 1. 경험치(EXP): 기존 지수(1.025) 유지하여 레벨업 속도 보존
-    double expMult = (pow(1.025, s) * (1 + s / 1000)).toDouble();
+    // [v0.0.47] 레벨 1000 시스템: 경험치 선형 증가
+    // 기존: 지수 성장 (1.025^s) → 레벨 100 이후 성장 정체
+    // 신규: 스테이지 비례 성장 → 레벨 1000까지 균형잡힌 성장
+    int expReward = 20 + (s.toInt() * 2); // 스테이지당 +2 경험치
     
     // 2. 골드(Gold): 기초 수령액 상향(50->200) 및 후반 지수 억제(1.025->1.017)
     // 환생 시스템 도입 전 인플레이션 방지를 위해 성장을 엄격하게 제한
@@ -93,7 +95,7 @@ class Monster {
       hp: mHp,
       attack: mAtk,
       defense: mDef,
-      expReward: (20 * expMult).toInt(),
+      expReward: expReward,
       goldReward: finalGold,
       itemDropChance: dropChance,
       isElite: isElite,

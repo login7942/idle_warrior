@@ -47,6 +47,10 @@ class GameMainPage extends StatefulWidget {
   State<GameMainPage> createState() => _GameMainPageState();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎮 GAME STATE CLASS - 게임 상태 관리 클래스
+// ═══════════════════════════════════════════════════════════════════════════
+
 class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMixin {
   late Player player;
   Monster? currentMonster;
@@ -78,6 +82,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   late AnimationController _monsterSpawnController; // 몬스터 등장 연출
   late AnimationController _monsterDeathController; // 몬스터 사망 연출
   List<FloatingText> floatingTexts = [];
+  List<FloatingText> _pendingFloatingTexts = []; // 배치 처리용 큐
+  Timer? _floatingTextBatchTimer; // 배치 처리 타이머
+  static const int _maxFloatingTexts = 10; // 최대 동시 표시 개수
 
   // 효율 측정용 데이터
   final List<GainRecord> _recentGains = [];
@@ -125,6 +132,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   int _jumpEffectId = 0; // 애니메이션 재시작을 위한 ID
   Timer? _jumpEffectTimer;
   int monsterCurrentHp = 0;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔄 LIFECYCLE & DATA MANAGEMENT - 생명주기 및 데이터 관리
+  // ═══════════════════════════════════════════════════════════════════════════
 
   @override
   void initState() {
@@ -245,6 +256,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _jumpEffectTimer?.cancel();
     _monsterAttackTimer?.cancel(); // 몬스터 타이머 해제
     _regenTimer?.cancel(); // 재생 타이머 해제
+    _floatingTextBatchTimer?.cancel(); // 플로팅 텍스트 배치 타이머 해제
     _playerAnimController.dispose();
     _monsterAnimController.dispose();
     _uiTickerController.dispose();
@@ -255,6 +267,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _monsterDeathController.dispose();
     super.dispose();
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⚔️ COMBAT SYSTEM - 전투 시스템
+  // ═══════════════════════════════════════════════════════════════════════════
 
   void _updateEfficiency() {
     if (!mounted) return;
@@ -646,6 +662,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   // --- 화면 모드 순환 (일반 -> 화면유지 -> 절전 -> 일반) ---
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📊 UI FEEDBACK & DISPLAY - UI 피드백 및 화면 모드
+  // ═══════════════════════════════════════════════════════════════════════════
+
   void _cycleDisplayMode() {
     setState(() {
       switch (_displayMode) {
@@ -732,16 +752,27 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     double ox = offsetX ?? (rand.nextDouble() * 40) - 20; 
     double oy = offsetY ?? (rand.nextDouble() * 30) - 15; 
     
-    setState(() { 
-      floatingTexts.add(FloatingText(text, isMonsterTarget, DateTime.now(), isCrit: isCrit, isHeal: isHeal, offsetX: ox, offsetY: oy)); 
-    });
-    // 리스트 청소는 효율을 위해 1.5초 후 실행 (노출 시간 1000ms 보다 길게 유지)
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    // 큐에 추가만 하고 즉시 setState는 하지 않음 (배치 처리)
+    _pendingFloatingTexts.add(FloatingText(text, isMonsterTarget, DateTime.now(), isCrit: isCrit, isHeal: isHeal, offsetX: ox, offsetY: oy));
+    
+    // 타이머가 없으면 생성 (16ms = 1프레임 후 일괄 처리)
+    _floatingTextBatchTimer ??= Timer(const Duration(milliseconds: 16), () {
       if (mounted) {
         setState(() {
+          // 큐에 있는 모든 텍스트를 한 번에 추가
+          floatingTexts.addAll(_pendingFloatingTexts);
+          _pendingFloatingTexts.clear();
+          
+          // 최대 개수 제한 (오래된 것부터 제거)
+          if (floatingTexts.length > _maxFloatingTexts) {
+            floatingTexts.removeRange(0, floatingTexts.length - _maxFloatingTexts);
+          }
+          
+          // 만료된 텍스트 정리
           floatingTexts.removeWhere((t) => DateTime.now().difference(t.createdAt).inMilliseconds >= 1000);
         });
       }
+      _floatingTextBatchTimer = null;
     });
   }
 
@@ -832,6 +863,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎨 MAIN UI COMPONENTS - 메인 UI 컴포넌트
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _buildBodyContent() {
     switch (_selectedIndex) {
       case 0: return _buildCombatTab();
@@ -916,6 +951,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🗺️ HUNTING ZONE - 사냥터 시스템
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildHuntingZoneTab() {
     return Container(
@@ -1013,6 +1052,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 👤 CHARACTER TAB - 캐릭터 정보 탭
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildCharacterTab() {
     return SingleChildScrollView(
@@ -1335,6 +1378,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   // --- 가방 (인벤토리) 메뉴 구현 ---
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎒 INVENTORY SYSTEM - 인벤토리 시스템
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _buildInventoryTab() {
     return Column(
       children: [
@@ -2021,9 +2068,23 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                     ),
                                     const SizedBox(width: 4),
                                     Flexible(
-                                      child: Text(
-                                        '${currentItem.name} ${currentItem.enhanceLevel > 0 ? '+${currentItem.enhanceLevel}' : ''}',
-                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentItem.grade.color),
+                                      child: LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          // 화면 너비에 따라 폰트 크기 동적 조정
+                                          double fontSize = constraints.maxWidth > 200 ? 18 : 
+                                                           constraints.maxWidth > 150 ? 16 : 14;
+                                          return Text(
+                                            '${currentItem.name} ${currentItem.enhanceLevel > 0 ? '+${currentItem.enhanceLevel}' : ''}',
+                                            style: TextStyle(
+                                              fontSize: fontSize, 
+                                              fontWeight: FontWeight.bold, 
+                                              color: currentItem.grade.color
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                          );
+                                        },
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -2361,7 +2422,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       // 액션 버튼
                       Row(
                         children: [
-                          Expanded(child: _buildPopBtn(
+                          Expanded(child: _buildItemDetailBtn(
                             isEquipped ? '해제하기' : '착용하기', 
                             Colors.lightBlueAccent, 
                             () {
@@ -2381,16 +2442,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                               final savedLevel = player.enhancementSuccession[currentItem.tier] ?? 0;
                               
                               if (currentItem.isBroken) {
-                                return _buildPopBtn('파손됨', Colors.red.withOpacity(0.3), null, subLabel: '수리 필요', icon: Icons.build_circle_outlined);
+                                return _buildItemDetailBtn('파손됨', Colors.red.withOpacity(0.3), null, subLabel: '수리 필요', icon: Icons.build_circle_outlined);
                               }
                               
                               if (currentItem.isLocked) {
-                                return _buildPopBtn('장비 잠김', Colors.grey.withOpacity(0.5), null, subLabel: '잠금 해제 필요', icon: Icons.lock);
+                                return _buildItemDetailBtn('장비 잠김', Colors.grey.withOpacity(0.5), null, subLabel: '잠금 해제 필요', icon: Icons.lock);
                               }
 
                               if (savedLevel > 0) {
                                 // 계승 데이터가 있는 경우: 계승 버튼 노출
-                                return _buildPopBtn(
+                                return _buildItemDetailBtn(
                                   '+$savedLevel 계승하기', 
                                   Colors.cyan, 
                                   () {
@@ -2405,7 +2466,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                 );
                               } else {
                                 // 일반 강화 버튼
-                                return _buildPopBtn(
+                                return _buildItemDetailBtn(
                                   '강화', 
                                   Colors.blueAccent, 
                                   () => _enhanceItem(currentItem, setDialogState),
@@ -2418,7 +2479,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         ],
                       ),
                       const SizedBox(height: 10),
-                      _buildPopBtn(
+                      _buildItemDetailBtn(
                         currentItem.isLocked ? '잠금 상태 (분해 불가)' : '아이템 분해', 
                         currentItem.isLocked ? Colors.grey.withOpacity(0.3) : Colors.red.withOpacity(0.8), 
                         currentItem.isLocked ? null : () {
@@ -2535,6 +2596,75 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       subLabel, 
                       style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.bold)
                     ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 아이템 상세 다이얼로그 전용 버튼 (크기 고정)
+  Widget _buildItemDetailBtn(String label, Color color, VoidCallback? onTap, {String? subLabel, bool isFull = false, IconData? icon}) {
+    return _PressableScale(
+      onTap: onTap,
+      child: Container(
+        // 고정 높이 제거 - 패딩으로만 크기 조정
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color,
+              color.withOpacity(0.7),
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(color: color.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8), // 패딩 증가
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) Icon(icon, size: 14, color: Colors.white),
+                  if (icon != null) const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label, 
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 13, 
+                        color: Colors.white,
+                        letterSpacing: 0.3,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              if (subLabel != null) 
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    subLabel, 
+                    style: TextStyle(
+                      fontSize: 10, 
+                      color: Colors.white.withOpacity(0.8), 
+                      fontWeight: FontWeight.bold
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
             ],
@@ -3130,6 +3260,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
 
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⚔️ COMBAT UI - 전투 화면 UI
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _buildBattleScene() {
     return AnimatedBuilder(
       animation: Listenable.merge([_uiTickerController, _monsterSpawnController, _monsterDeathController]),
@@ -3500,6 +3634,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   // --- 스킬 상세 메뉴 구현 ---
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⚡ SKILL SYSTEM - 스킬 시스템
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _buildSkillTab() {
     return DefaultTabController(
       length: 2,
@@ -3668,48 +3806,57 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       void applySkillDamage(double powerMultiplier, {int hits = 1, String effectName = ""}) {
         if (currentMonster == null) return;
         
+        // 다단 히트는 시간차를 두고 적용 (타격감 향상)
         for (int i = 0; i < hits; i++) {
-          bool isSkillCrit = Random().nextDouble() * 100 < player.critChance;
-          double sVariance = 0.9 + (Random().nextDouble() * 0.2); // ±10% 분산
-          int skillDmg = (player.attack * powerMultiplier / 100 * sVariance).toInt();
-          int finalDmg = (skillDmg - currentMonster!.defense).clamp(1, 9999999);
-          if (isSkillCrit) finalDmg = (finalDmg * player.critDamage / 100).toInt();
+          final hitDelay = i * 100; // 각 히트마다 100ms 간격
+          
+          Future.delayed(Duration(milliseconds: hitDelay), () {
+            if (!mounted || currentMonster == null) return;
+            
+            setState(() {
+              bool isSkillCrit = Random().nextDouble() * 100 < player.critChance;
+              double sVariance = 0.9 + (Random().nextDouble() * 0.2); // ±10% 분산
+              int skillDmg = (player.attack * powerMultiplier / 100 * sVariance).toInt();
+              int finalDmg = (skillDmg - currentMonster!.defense).clamp(1, 9999999);
+              if (isSkillCrit) finalDmg = (finalDmg * player.critDamage / 100).toInt();
 
-          // 흡혈 적용 (패시브)
-          if (player.lifesteal > 0) {
-            int healAmount = (finalDmg * player.lifesteal / 100).toInt();
-            playerCurrentHp = (playerCurrentHp + healAmount).clamp(0, player.maxHp);
-          }
+              // 흡혈 적용 (패시브)
+              if (player.lifesteal > 0) {
+                int healAmount = (finalDmg * player.lifesteal / 100).toInt();
+                playerCurrentHp = (playerCurrentHp + healAmount).clamp(0, player.maxHp);
+              }
 
-          currentMonster!.hp -= finalDmg;
-          
-          // 다단 히트 시 약간의 지연 효과는 UI 상으로만 표현 (플로팅 텍스트 분산)
-          double ox = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
-          double oy = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
-          
-          _addFloatingText(
-            isSkillCrit ? '⚡CRITICAL $finalDmg' : '🔥SKILL $finalDmg', 
-            true, 
-            isCrit: isSkillCrit,
-            offsetX: ox,
-            offsetY: oy
-          );
-          
-          if (i == 0) {
-            _addLog(
-              isSkillCrit 
-                ? '[CRITICAL] ${skill.name} 발동! $finalDmg 피해!!! $effectName' 
-                : '[스킬] ${skill.name} 사용! $finalDmg 피해! $effectName', 
-              LogType.damage
-            );
-          }
-        }
-        
-        if (currentMonster!.isDead) {
-          final killDuration = _lastMonsterSpawnTime != null 
-              ? DateTime.now().difference(_lastMonsterSpawnTime!) 
-              : null;
-          _handleVictory(killDuration);
+              currentMonster!.hp -= finalDmg;
+              
+              // 다단 히트 시 플로팅 텍스트 분산
+              double ox = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
+              double oy = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
+              
+              _addFloatingText(
+                isSkillCrit ? '⚡CRITICAL $finalDmg' : '🔥SKILL $finalDmg', 
+                true, 
+                isCrit: isSkillCrit,
+                offsetX: ox,
+                offsetY: oy
+              );
+              
+              if (i == 0) {
+                _addLog(
+                  isSkillCrit 
+                    ? '[CRITICAL] ${skill.name} 발동! $finalDmg 피해!!! $effectName' 
+                    : '[스킬] ${skill.name} 사용! $finalDmg 피해! $effectName', 
+                  LogType.damage
+                );
+              }
+              
+              if (currentMonster!.isDead) {
+                final killDuration = _lastMonsterSpawnTime != null 
+                    ? DateTime.now().difference(_lastMonsterSpawnTime!) 
+                    : null;
+                _handleVictory(killDuration);
+              }
+            });
+          });
         }
       }
 
@@ -3946,6 +4093,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🏆 ACHIEVEMENT SYSTEM - 업적 및 도감 시스템
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildAchievementTab() {
     return Container(
@@ -4334,6 +4485,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   // --- 펫 시스템 UI 및 로직 ---
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🐾 PET SYSTEM - 펫 시스템
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _buildPetTab() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -4600,6 +4755,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
 
   // --- 시스템 및 관리자 모드 UI ---
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⚙️ SYSTEM & ADMIN - 시스템 및 관리자 모드
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _buildSystemTab() {
     if (_isAdminAuthenticated) {
       return _buildAdminPanel();
@@ -5042,6 +5201,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎭 HELPER CLASSES - 헬퍼 클래스 및 열거형
+// ═══════════════════════════════════════════════════════════════════════════
 
 enum LogType { damage, item, event }
 enum LootType { gold, exp }

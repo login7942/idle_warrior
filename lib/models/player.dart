@@ -355,13 +355,22 @@ class Player {
       exp -= maxExp;
       level++;
       levelUp();
-      maxExp = (maxExp * 1.15).toInt();
+      
+      // [v0.0.47] 레벨 1000 시스템: 선형 증가 방식
+      // 기존: maxExp = (maxExp * 1.15).toInt() → 기하급수적 폭발
+      // 신규: 레벨에 비례한 고정값 추가 → 레벨 1000까지 가능
+      maxExp = maxExp + (level * 10);
     }
   }
 
   void levelUp() {
-    baseHp += 30;
-    baseAttack += 2;
+    // [v0.0.47] 레벨 비례 스탯 증가 - 후반 레벨업 보상감 향상
+    // 레벨이 높을수록 더 많이 증가하지만, 장비의 중요성은 여전히 유지
+    int hpGain = 30 + (level ~/ 10);   // 10레벨당 +1 추가 (Lv.100: +40, Lv.1000: +130)
+    int atkGain = 2 + (level ~/ 50);   // 50레벨당 +1 추가 (Lv.100: +4, Lv.1000: +22)
+    
+    baseHp += hpGain;
+    baseAttack += atkGain;
     if (level % 2 == 0) baseDefense += 1;
   }
 
