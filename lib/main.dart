@@ -15,8 +15,20 @@ import 'models/pet.dart';
 import 'models/achievement.dart';
 import 'models/hunting_zone.dart';
 import 'services/update_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'config/supabase_config.dart';
+import 'services/auth_service.dart';
+import 'services/cloud_save_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Supabase 초기화
+  await Supabase.initialize(
+    url: SupabaseConfig.supabaseUrl,
+    anonKey: SupabaseConfig.supabaseAnonKey,
+  );
+  
   runApp(const IdleWarriorApp());
 }
 
@@ -52,6 +64,12 @@ class GameMainPage extends StatefulWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMixin {
+  // 🆕 Supabase 서비스
+  final AuthService _authService = AuthService();
+  final CloudSaveService _cloudSaveService = CloudSaveService();
+  bool _isCloudSynced = false; // 클라우드 동기화 상태
+  DateTime? _lastCloudSaveTime; // 🆕 마지막 클라우드 저장 시간 기록
+  
   late Player player;
   Monster? currentMonster;
   DateTime? monsterSpawnTime; // 처치 속도 측정을 위해 추가
@@ -156,11 +174,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _updateParticles(); // 매 프레임 파티클 리스트 정기 청소
     });
     
-    // 데이터 먼저 불러오기
-    _loadGameData().then((_) {
-      _spawnMonster();
-      _startBattleLoop();
-    });
+    // 🆕 게임 초기화 실행 (Supabase 로그인 + 데이터 로드)
+    _initializeGame();
 
     // 1초마다 효율 갱신
     _efficiencyTimer = Timer.periodic(const Duration(seconds: 10), (t) => _updateEfficiency());
@@ -176,21 +191,105 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     });
   }
 
-  Future<void> _saveGameData() async {
+  // 🆕 게임 초기화 로직
+  Future<void> _initializeGame() async {
+    try {
+      // 1. Supabase 익명 로그인 시도
+      if (!_authService.isLoggedIn) {
+        await _authService.signInAnonymously();
+      }
+      
+      // 2. 데이터 로드 (로컬 + 클라우드 비교)
+      await _loadGameData();
+      
+      // 3. 전투 시작
+      if (mounted) {
+        _spawnMonster();
+        _startBattleLoop();
+      }
+    } catch (e) {
+      debugPrint('초기화 중 오류 발생: $e');
+      // 오류 발생 시에도 기본 데이터로 시작
+      await _loadGameData();
+      if (mounted) {
+        _spawnMonster();
+        _startBattleLoop();
+      }
+    }
+  }
+
+  Future<void> _saveGameData({bool forceCloud = false}) async {
+    final nowTime = DateTime.now();
+    final nowStr = nowTime.toIso8601String();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('player_save_data', jsonEncode(player.toJson()));
-    // 스테이지 정보도 별도 저장
+    
+    final saveData = {
+      'player': player.toJson(),
+      'current_stage': _currentStage,
+      'current_zone_id': _currentZone.id.name,
+      'last_save_time': nowStr,
+      'zone_stages': _zoneStages.map((k, v) => MapEntry(k.name, v)),
+      'auto_advance': _autoAdvance,
+    };
+
+    // 1. 로컬 저장 (항상 즉시 수행)
+    await prefs.setString('player_save_data', jsonEncode(saveData['player']));
     await prefs.setInt('current_stage', _currentStage);
     await prefs.setString('current_zone_id', _currentZone.id.name);
+    await prefs.setString('lastSaveTime', nowStr);
+    
+    // 2. 클라우드 저장 (최소 30초 간격 또는 강제 실행 시)
+    if (_authService.isLoggedIn) {
+      final bool shouldSaveToCloud = forceCloud || 
+          _lastCloudSaveTime == null || 
+          nowTime.difference(_lastCloudSaveTime!).inSeconds >= 30;
+
+      if (shouldSaveToCloud) {
+        _lastCloudSaveTime = nowTime;
+        _cloudSaveService.saveToCloud(saveData).then((success) {
+          if (mounted) {
+            setState(() {
+              _isCloudSynced = success;
+            });
+          }
+        });
+      }
+    }
   }
 
   Future<void> _loadGameData() async {
     final prefs = await SharedPreferences.getInstance();
-    String? data = prefs.getString('player_save_data');
-    if (data != null) {
+    
+    // 1. 로컬 데이터 로드 시도
+    String? localData = prefs.getString('player_save_data');
+    String? localTime = prefs.getString('lastSaveTime');
+    
+    Map<String, dynamic>? cloudDataMap;
+    String? cloudTime;
+
+    // 2. 클라우드 데이터 로드 시도
+    if (_authService.isLoggedIn) {
+      final cloudSave = await _cloudSaveService.loadFromCloud();
+      if (cloudSave != null) {
+        cloudDataMap = cloudSave['data'] as Map<String, dynamic>;
+        cloudTime = cloudSave['timestamp'] as String;
+      }
+    }
+
+    // 3. 비교 후 최신 데이터 결정
+    Map<String, dynamic>? targetData;
+    bool isFromCloud = false;
+
+    if (cloudDataMap != null && _isCloudNewer(cloudTime, localTime)) {
+      // 클라우드가 더 최신이거나 로컬이 없음
+      targetData = cloudDataMap;
+      isFromCloud = true;
+    } else if (localData != null) {
+      // 로컬이 더 최신이거나 클라우드가 없음 (현재 로컬 데이터만 로드)
+      // 단, 로컬은 기존 구조(JSON string) 그대로 로드
       try {
         setState(() {
-          player = Player.fromJson(jsonDecode(data));
+          player = Player.fromJson(jsonDecode(localData));
           playerCurrentHp = player.maxHp;
           _currentStage = prefs.getInt('current_stage') ?? 1;
           String? zoneName = prefs.getString('current_zone_id');
@@ -198,29 +297,81 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             _currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
           }
         });
+        _isCloudSynced = !isFromCloud && cloudDataMap != null; // 로컬이 최신인데 클라우드도 있으면 아직 동기화 전
+        return; 
       } catch (e) {
-        debugPrint('데이터 로드 실패: $e');
+        debugPrint('로컬 데이터 파싱 실패: $e');
+      }
+    }
+
+    // 4. 결정된 타겟 데이터 적용 (클라우드 기반 로드)
+    if (targetData != null) {
+      try {
+        setState(() {
+          player = Player.fromJson(targetData!['player']);
+          playerCurrentHp = player.maxHp;
+          _currentStage = targetData['current_stage'] ?? 1;
+          String? zoneName = targetData['current_zone_id'];
+          if (zoneName != null) {
+            _currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
+          }
+          
+          // 추가 정보 복구 (있는 경우에만)
+          if (targetData.containsKey('auto_advance')) {
+            _autoAdvance = targetData['auto_advance'];
+          }
+          if (targetData.containsKey('zone_stages')) {
+            var zs = Map<String, dynamic>.from(targetData['zone_stages']);
+            zs.forEach((k, v) {
+              try {
+                final zid = ZoneId.values.byName(k);
+                _zoneStages[zid] = v as int;
+              } catch (_) {}
+            });
+          }
+          
+          _isCloudSynced = true;
+        });
+        if (isFromCloud) _addLog('클라우드에서 데이터를 불러왔습니다.', LogType.event);
+      } catch (e) {
+        debugPrint('타겟 데이터 적용 실패: $e');
       }
     } else {
-      // [신규 플레이어 지원] 데이터가 없는 경우 초기 무기 지급
-      setState(() {
-        Item starterWeapon = Item(
-          id: 'starter_${DateTime.now().millisecondsSinceEpoch}',
-          name: '모험가의 목검',
-          type: ItemType.weapon,
-          grade: ItemGrade.common,
-          tier: 1,
-          mainStat: 100, // 리빌딩된 1티어 무기 공격력 (상향)
-          subOptions: [],
-          enhanceLevel: 0,
-          durability: 100,
-          maxDurability: 100,
-          isNew: false,
-        );
-        player.equipItem(starterWeapon);
-        playerCurrentHp = player.maxHp; // 무기 장착 후 HP 갱신
-        _addLog('환영합니다! 모험을 시작하기 위해 [모험가의 목검]을 지급했습니다.', LogType.event);
-      });
+      // [신규 플레이어 지원] 데이터가 전혀 없는 경우
+      _initializeStarterData();
+    }
+  }
+
+  void _initializeStarterData() {
+    setState(() {
+      Item starterWeapon = Item(
+        id: 'starter_${DateTime.now().millisecondsSinceEpoch}',
+        name: '모험가의 목검',
+        type: ItemType.weapon,
+        grade: ItemGrade.common,
+        tier: 1,
+        mainStat: 100,
+        subOptions: [],
+        enhanceLevel: 0,
+        durability: 100,
+        maxDurability: 100,
+        isNew: false,
+      );
+      player.equipItem(starterWeapon);
+      playerCurrentHp = player.maxHp;
+      _addLog('환영합니다! 모험을 시작하기 위해 [모험가의 목검]을 지급했습니다.', LogType.event);
+    });
+  }
+
+  bool _isCloudNewer(String? cloudTime, String? localTime) {
+    if (cloudTime == null) return false;
+    if (localTime == null) return true;
+    try {
+      final cloud = DateTime.parse(cloudTime);
+      final local = DateTime.parse(localTime);
+      return cloud.isAfter(local);
+    } catch (_) {
+      return true;
     }
   }
 
@@ -2698,6 +2849,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   _buildShadowText('Gold', fontSize: 12, color: Colors.amber.withOpacity(0.6), fontWeight: FontWeight.bold),
                   const SizedBox(width: 4),
                   _buildShadowText(_formatNumber(player.gold), fontSize: 18, color: Colors.amberAccent, fontWeight: FontWeight.w900),
+                  const SizedBox(width: 8),
+                  // 🆕 클라우드 상태 아이콘
+                  Icon(
+                    _isCloudSynced ? Icons.cloud_done : Icons.cloud_off,
+                    size: 14,
+                    color: _isCloudSynced ? Colors.greenAccent : Colors.white24,
+                  ),
                 ],
               ),
             ],
@@ -4778,8 +4936,51 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 const SizedBox(height: 24),
                 _buildShadowText('시스템 설정', fontSize: 24, fontWeight: FontWeight.bold),
                 const SizedBox(height: 12),
-                Text('게임 환경 설정 및 데이터 관리', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
+                const SizedBox(height: 12),
+                // 🆕 현재 로그인 정보 표시
+                Text(
+                  !_authService.isLoggedIn 
+                    ? '상태: 로그아웃됨' 
+                    : (_authService.userId!.startsWith('anon') 
+                        ? '상태: 익명 계정 (보호되지 않음)' 
+                        : '상태: 구글 계정 연동됨'),
+                  style: TextStyle(
+                    color: !_authService.isLoggedIn 
+                      ? Colors.grey 
+                      : (_authService.userId!.startsWith('anon') ? Colors.orangeAccent : Colors.greenAccent),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold
+                  )
+                ),
                 const SizedBox(height: 40),
+                // 🆕 구글 로그인 버튼 (로그아웃 상태일 때 표시)
+                if (!_authService.isLoggedIn)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _buildPopBtn(
+                      '구글 계정으로 로그인', 
+                      Colors.white, 
+                      () async {
+                        _showToast('구글 로그인 창을 띄웁니다...');
+                        await _authService.signInWithGoogle();
+                      },
+                      icon: Icons.login,
+                    ),
+                  ),
+                // 🆕 구글 계정 보호 버튼 (익명 계정일 때 표시)
+                if (_authService.isLoggedIn && _authService.userId!.startsWith('anon'))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _buildPopBtn(
+                      '구글 계정으로 데이터 보호', 
+                      Colors.white, 
+                      () async {
+                        _showToast('구글 로그인 창을 띄웁니다...');
+                        await _authService.signInWithGoogle();
+                      },
+                      icon: Icons.security,
+                    ),
+                  ),
                 // 관리자 모드 진입 버튼
                 _buildPopBtn(
                   '관리자 모드', 
@@ -4788,10 +4989,31 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   icon: Icons.admin_panel_settings,
                 ),
                 const SizedBox(height: 16),
+                // 🆕 클라우드 수동 동기화 버튼
+                _buildPopBtn(
+                  '클라우드 수동 동기화', 
+                  Colors.blueAccent.withOpacity(0.8), 
+                  () async {
+                    await _saveGameData(forceCloud: true);
+                    if (_isCloudSynced) {
+                      _showToast('클라우드 동기화 완료!', isError: false);
+                    } else {
+                      _showToast('동기화 실패: 로그인을 확인하세요.');
+                    }
+                  },
+                  icon: Icons.sync,
+                ),
+                const SizedBox(height: 16),
                 _buildPopBtn(
                   '로그아웃', 
                   Colors.white10, 
-                  () => _showToast('준비 중인 기능입니다.'),
+                  () async {
+                    await _authService.signOut();
+                    setState(() {
+                      _isCloudSynced = false;
+                    });
+                    _showToast('로그아웃되었습니다.');
+                  },
                   icon: Icons.logout,
                 ),
               ],
