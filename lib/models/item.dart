@@ -15,7 +15,7 @@ extension ItemTypeExtension on ItemType {
     }
   }
 
-  String get mainStatName {
+  String get mainStatName1 {
     switch (this) {
       case ItemType.weapon:
       case ItemType.ring:
@@ -24,9 +24,17 @@ extension ItemTypeExtension on ItemType {
       case ItemType.helmet:
       case ItemType.armor:
       case ItemType.boots:
+        return '방어력';
+    }
+  }
+
+  String? get mainStatName2 {
+    switch (this) {
+      case ItemType.armor:
+      case ItemType.necklace:
         return '체력';
       default:
-        return '공격력';
+        return null;
     }
   }
 }
@@ -142,7 +150,8 @@ class Item {
   final ItemType type;
   final ItemGrade grade;
   final int tier; 
-  int mainStat; // 가변으로 변경
+  int mainStat1; // 기존 mainStat
+  int? mainStat2; // 추가 주능력치 (v0.0.58)
   final List<ItemOption> subOptions;
   int enhanceLevel;    // 강화 레벨 (+0, +1...)
   int durability;      // 현재 내구도
@@ -151,14 +160,14 @@ class Item {
   int rerollCount;     // 옵션 재설정 횟수 (Max 5)
   bool isLocked;       // 아이템 잠금 여부
   ItemOption? potential; // 잠재능력 (v0.0.50 추가)
-
   Item({
     required this.id,
     required this.name,
     required this.type,
     required this.grade,
     required this.tier,
-    required this.mainStat,
+    required this.mainStat1,
+    this.mainStat2,
     required this.subOptions,
     this.enhanceLevel = 0,
     this.durability = 100,
@@ -169,13 +178,50 @@ class Item {
     this.potential,
   });
 
+  Item copyWith({
+    String? id,
+    String? name,
+    ItemType? type,
+    ItemGrade? grade,
+    int? tier,
+    int? mainStat1,
+    int? mainStat2,
+    List<ItemOption>? subOptions,
+    int? enhanceLevel,
+    int? durability,
+    int? maxDurability,
+    bool? isNew,
+    int? rerollCount,
+    bool? isLocked,
+    ItemOption? potential,
+  }) {
+    return Item(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      grade: grade ?? this.grade,
+      tier: tier ?? this.tier,
+      mainStat1: mainStat1 ?? this.mainStat1,
+      mainStat2: mainStat2 ?? this.mainStat2,
+      subOptions: subOptions ?? this.subOptions,
+      enhanceLevel: enhanceLevel ?? this.enhanceLevel,
+      durability: durability ?? this.durability,
+      maxDurability: maxDurability ?? this.maxDurability,
+      isNew: isNew ?? this.isNew,
+      rerollCount: rerollCount ?? this.rerollCount,
+      isLocked: isLocked ?? this.isLocked,
+      potential: potential ?? this.potential,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'type': type.name,
         'grade': grade.name,
         'tier': tier,
-        'mainStat': mainStat,
+        'mainStat1': mainStat1,
+        'mainStat2': mainStat2,
         'subOptions': subOptions.map((o) => o.toJson()).toList(),
         'enhanceLevel': enhanceLevel,
         'durability': durability,
@@ -196,25 +242,37 @@ class Item {
       orElse: () => ItemGrade.common,
     );
 
-    // --- [데이터 보정 로직] 1티어 아이템만 고정 수치 강제 적용 ---
-    int fixedMainStat = json['mainStat'];
-    List<ItemOption> fixedSubOptions = (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList();
     int currentTier = json['tier'] ?? 1;
+    int fixedMainStat1 = json['mainStat1'] ?? json['mainStat'] ?? 10;
+    int? fixedMainStat2 = json['mainStat2'];
+    List<ItemOption> fixedSubOptions = (json['subOptions'] as List).map((o) => ItemOption.fromJson(o)).toList();
 
-    // 티어 1인 경우에만 구버전 데이터 보정 수행
+    // 티어 1인 경우에만 새로운 수치로 강제 보정
     if (currentTier == 1) {
       switch (type) {
-        case ItemType.weapon: fixedMainStat = 100; break;
-        case ItemType.helmet: fixedMainStat = 300; break;
-        case ItemType.armor: fixedMainStat = 500; break;
-        case ItemType.boots: fixedMainStat = 200; break;
-        case ItemType.ring:
-          fixedMainStat = 20;
-          _updateHpOption(fixedSubOptions, 100);
+        case ItemType.weapon:
+          fixedMainStat1 = 12;
+          fixedMainStat2 = null;
+          break;
+        case ItemType.helmet:
+          fixedMainStat1 = 10;
+          fixedMainStat2 = null;
+          break;
+        case ItemType.armor:
+          fixedMainStat1 = 15; // 방어력
+          fixedMainStat2 = 80; // 체력
+          break;
+        case ItemType.boots:
+          fixedMainStat1 = 8;
+          fixedMainStat2 = null;
           break;
         case ItemType.necklace:
-          fixedMainStat = 30;
-          _updateHpOption(fixedSubOptions, 150);
+          fixedMainStat1 = 7;   // 공격력
+          fixedMainStat2 = 100; // 체력
+          break;
+        case ItemType.ring:
+          fixedMainStat1 = 10;
+          fixedMainStat2 = null;
           break;
       }
     }
@@ -225,7 +283,8 @@ class Item {
       type: type,
       grade: grade,
       tier: currentTier,
-      mainStat: fixedMainStat,
+      mainStat1: fixedMainStat1,
+      mainStat2: fixedMainStat2,
       subOptions: fixedSubOptions,
       enhanceLevel: json['enhanceLevel'],
       durability: json['durability'],
@@ -239,33 +298,46 @@ class Item {
 
   bool get isBroken => durability <= 0;
 
-  // 장비 리빌딩: 강화 수식 적용 (기본수치 * (1 + level * 0.05))
-  int get effectiveMainStat {
-    double factor = 1 + (enhanceLevel * 0.05);
-    double stat = mainStat * factor;
+  // 장비 리빌딩: 강화 수식 적용 (복리 성장 모델)
+  int get effectiveMainStat1 {
+    double factor = getEnhanceFactor();
+    double stat = mainStat1 * factor;
+
+    if (isBroken) stat *= 0.8;
+    return stat.toInt();
+  }
+
+  int get effectiveMainStat2 {
+    if (mainStat2 == null) return 0;
+    double factor = getEnhanceFactor();
+    double stat = mainStat2! * factor;
 
     if (isBroken) stat *= 0.8;
     return stat.toInt();
   }
 
   // 장비 리빌딩: 주 능력치 이름 규칙
-  String get mainStatName => type.mainStatName;
+  String get mainStatName1 => type.mainStatName1;
+  String? get mainStatName2 => type.mainStatName2;
 
   // 아이템 전투력 계산 로직
   int get combatPower {
     double power = 0;
 
-    // 1. 주 능력치 점수
-    int mStat = effectiveMainStat;
-    if (mainStatName == '공격력') power += mStat * 2.0;
-    else if (mainStatName == '체력') power += mStat * 0.1;
-    else if (mainStatName == '방어력') power += mStat * 1.5;
+    // 1. 주 능력치 1 점수
+    int mStat1 = effectiveMainStat1;
+    String name1 = mainStatName1;
+    if (name1 == '공격력') power += mStat1 * 2.0;
+    else if (name1 == '체력') power += mStat1 * 0.1;
+    else if (name1 == '방어력') power += mStat1 * 1.5;
 
-    // 2. 반지/목걸이 고정 체력 보너스 반영 (강화 영향 포함)
-    if (type == ItemType.ring || type == ItemType.necklace) {
-      if (subOptions.isNotEmpty && subOptions[0].name == '체력') {
-        power += (subOptions[0].value * getEnhanceFactor()) * 0.1;
-      }
+    // 2. 주 능력치 2 점수 (있는 경우)
+    if (mainStat2 != null) {
+      int mStat2 = effectiveMainStat2;
+      String? name2 = mainStatName2;
+      if (name2 == '공격력') power += mStat2 * 2.0;
+      else if (name2 == '체력') power += mStat2 * 0.1;
+      else if (name2 == '방어력') power += mStat2 * 1.5;
     }
 
     // 3. 보조 옵션 점수
@@ -311,133 +383,93 @@ class Item {
   }
 
   // 부가 옵션도 동일한 강화 계수 적용 여부 (반지/목걸이 HP 용)
-  double getEnhanceFactor() => 1 + (enhanceLevel * 0.05);
+  // 강화 계수 계산 (복리 모델: 1~17강 12%, 18강~ 6%)
+  double getEnhanceFactor() {
+    if (enhanceLevel <= 0) return 1.0;
+    
+    if (enhanceLevel <= 17) {
+      return pow(1.12, enhanceLevel).toDouble();
+    } else {
+      // 17강까지는 12%, 그 이후는 6% 복리
+      double baseFactor = pow(1.12, 17).toDouble();
+      return baseFactor * pow(1.06, enhanceLevel - 17).toDouble();
+    }
+  }
 
-  // 드롭 아이템 생성기 (점진적 티어 드롭 시스템)
-  factory Item.generate(int playerLevel, {int stage = 1}) {
+  // 드랍 아이템 생성기 (v0.0.59: T1 고정 드랍 및 등급 분리 시스템)
+  factory Item.generate(int playerLevel, {int tier = 1, ItemType? forcedType}) {
     final rand = Random();
     final id = DateTime.now().millisecondsSinceEpoch.toString() + rand.nextInt(1000).toString();
     
-    // === 점진적 티어 드롭 시스템 ===
-    // 현재 구간의 최대 티어 결정
-    int maxTier = ((stage - 1) ~/ 100 + 1).clamp(1, 6);
-    
-    // 각 티어별 드롭 확률 계산
-    Map<int, double> tierChances = {};
-    
-    if (maxTier == 1) {
-      // T1 구간 (1-100): T1만 100%
-      tierChances[1] = 1.0;
+    // 1. 티어 결정
+    int dropTier = tier;
+
+    // 2. 등급 결정 (독립 확률)
+    // 일반: 80%, 고급: 12%, 희귀: 5%, 에픽: 2%, 전설: 0.8%, 신화: 0.2%
+    ItemGrade grade;
+    double gradeRoll = rand.nextDouble();
+    if (gradeRoll < 0.002) {
+      grade = ItemGrade.mythic;        // 0.2%
+    } else if (gradeRoll < 0.010) {
+      grade = ItemGrade.legendary;     // 0.8%
+    } else if (gradeRoll < 0.030) {
+      grade = ItemGrade.epic;          // 2%
+    } else if (gradeRoll < 0.080) {
+      grade = ItemGrade.rare;          // 5%
+    } else if (gradeRoll < 0.200) {
+      grade = ItemGrade.uncommon;      // 12%
     } else {
-      // T2 이상 구간: 점진적 확률 계산
-      // 현재 구간 내 진행도 (0.0 ~ 1.0)
-      int stageInTier = ((stage - 1) % 100) + 1; // 1~100
-      double progress = stageInTier / 100.0; // 0.01 ~ 1.0
-      
-      // 현재 티어 확률: 5% → 20% (점진적 증가)
-      double currentTierChance = 0.05 + (progress * 0.15);
-      
-      // 이전 티어들 확률 계산
-      if (maxTier == 2) {
-        // T2 구간 (101-200)
-        tierChances[1] = 1.0 - currentTierChance; // 95% → 80%
-        tierChances[2] = currentTierChance;        // 5% → 20%
-      } else if (maxTier == 3) {
-        // T3 구간 (201-300)
-        // T1: 75% → 60% (점진적 감소)
-        tierChances[1] = 0.75 - (progress * 0.15);
-        tierChances[2] = 0.20; // T2 고정 20%
-        tierChances[3] = currentTierChance; // T3: 5% → 20%
-      } else if (maxTier == 4) {
-        // T4 구간 (301-400)
-        tierChances[1] = 0.55 - (progress * 0.15); // T1: 55% → 40%
-        tierChances[2] = 0.20; // T2 고정 20%
-        tierChances[3] = 0.20; // T3 고정 20%
-        tierChances[4] = currentTierChance; // T4: 5% → 20%
-      } else if (maxTier == 5) {
-        // T5 구간 (401-500)
-        tierChances[1] = 0.35 - (progress * 0.15); // T1: 35% → 20%
-        tierChances[2] = 0.20; // T2 고정 20%
-        tierChances[3] = 0.20; // T3 고정 20%
-        tierChances[4] = 0.20; // T4 고정 20%
-        tierChances[5] = currentTierChance; // T5: 5% → 20%
-      } else { // maxTier >= 6
-        // T6 구간 (501+)
-        tierChances[1] = 0.20; // T1 고정 20%
-        tierChances[2] = 0.20; // T2 고정 20%
-        tierChances[3] = 0.20; // T3 고정 20%
-        tierChances[4] = 0.20; // T4 고정 20%
-        tierChances[5] = 0.15; // T5 고정 15%
-        tierChances[6] = currentTierChance; // T6: 5% → 20%
-      }
+      grade = ItemGrade.common;        // 80%
     }
-    
-    // 확률에 따라 티어 선택
-    double roll = rand.nextDouble();
-    double cumulative = 0.0;
-    int dropTier = 1;
-    
-    for (int tier in tierChances.keys.toList()..sort()) {
-      cumulative += tierChances[tier]!;
-      if (roll < cumulative) {
-        dropTier = tier;
-        break;
-      }
-    }
-    
-    ItemGrade grade = ItemGrade.values[dropTier - 1];
-    ItemType type = ItemType.values[rand.nextInt(ItemType.values.length)];
 
-    // ② 보조 옵션 개수 결정 (티어별 차등)
-    int minOpts = (dropTier <= 2) ? 1 : (dropTier == 3) ? 2 : (dropTier <= 5) ? 3 : 4;
-    int maxOpts = (dropTier <= 2) ? 2 : (dropTier == 3) ? 3 : (dropTier <= 5) ? 4 : 5;
-    int optCount = minOpts + rand.nextInt(maxOpts - minOpts + 1);
+    ItemType type = forcedType ?? ItemType.values[rand.nextInt(ItemType.values.length)];
 
-    int mStat = 0;
+    // 3. 보조 옵션 개수 결정 (등급 기반: 1~6개)
+    int optCount = grade.index + 1;
+
+    int mStat1 = 0;
+    int? mStat2;
     List<ItemOption> options = [];
 
-    // ① 기본 능력치 설정 (10배수 성장 모델)
-    // T1: 1x, T2: 10x, T3: 100x ... T6: 100,000x
-    double tierMult = pow(10, dropTier - 1).toDouble();
+    // ① 기본 능력치 설정 (T1 베이스 고정)
+    double tierMult = pow(4, dropTier - 1).toDouble();
 
     switch (type) {
       case ItemType.weapon:
-        mStat = (100 * tierMult).toInt(); 
+        mStat1 = (12 * tierMult).toInt(); 
         break;
       case ItemType.helmet:
-        mStat = (300 * tierMult).toInt();
+        mStat1 = (10 * tierMult).toInt();
         break;
       case ItemType.armor:
-        mStat = (500 * tierMult).toInt();
+        mStat1 = (15 * tierMult).toInt();
+        mStat2 = (80 * tierMult).toInt();
         break;
       case ItemType.boots:
-        mStat = (200 * tierMult).toInt();
+        mStat1 = (8 * tierMult).toInt();
         break;
       case ItemType.ring:
-        mStat = (20 * tierMult).toInt();
-        // 장신구 전용 체력 옵션 (슬롯 0번에 우선 배치)
-        options.add(ItemOption(name: '체력', value: 100 * tierMult, isPercentage: false));
+        mStat1 = (10 * tierMult).toInt();
         break;
       case ItemType.necklace:
-        mStat = (30 * tierMult).toInt();
-        options.add(ItemOption(name: '체력', value: 150 * tierMult, isPercentage: false));
+        mStat1 = (7 * tierMult).toInt();
+        mStat2 = (100 * tierMult).toInt();
         break;
     }
 
     // ② 랜덤 보조 옵션 생성 (중복 방지)
     Set<String> usedNames = options.map((e) => e.name).toSet();
-    final int targetCount = options.length + optCount; // 고정 옵션 외에 추가로 optCount만큼 생성
-    while (options.length < targetCount) {
-      ItemOption newOpt = _generateRandomOption(rand, dropTier);
+    while (options.length < optCount) {
+      ItemOption newOpt = _generateRandomOption(rand, dropTier, grade: grade);
       if (!usedNames.contains(newOpt.name)) {
         options.add(newOpt);
         usedNames.add(newOpt.name);
       }
     }
 
-    String prefix = _getGradeName(grade);
+    String prefix = getGradeName(grade);
     String typeName = type.nameKr;
-    String name = '$prefix $typeName'; // 이름 뒤의 티어 명시 제거
+    String name = '$prefix $typeName'; 
 
     return Item(
       id: id,
@@ -445,7 +477,8 @@ class Item {
       type: type,
       grade: grade,
       tier: dropTier,
-      mainStat: mStat,
+      mainStat1: mStat1,
+      mainStat2: mStat2,
       subOptions: options,
       enhanceLevel: 0,
       durability: 100,
@@ -535,7 +568,7 @@ class Item {
     return "강화 성공! (+${enhanceLevel})";
   }
 
-  static String _getGradeName(ItemGrade grade) {
+  static String getGradeName(ItemGrade grade) {
     switch (grade) {
       case ItemGrade.common: return '평범한';
       case ItemGrade.uncommon: return '고급';
@@ -548,62 +581,67 @@ class Item {
 
   static String _getTypeName(ItemType type) => type.nameKr;
 
-  static ItemOption _generateRandomOption(Random rand, int tier) {
+  static ItemOption _generateRandomOption(Random rand, int tier, {ItemGrade? grade}) {
     List<String> pool = ['공격력', '방어력', '체력', '치명타 확률', '치명타 피해', '공격 속도', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭'];
     String name = pool[rand.nextInt(pool.length)];
     
-    double tierMult = pow(10, tier - 1).toDouble();
+    // 티어 스케일링: 4.0배 지수 성장 기반 최대치 설정
+    double tierMult = pow(4, tier - 1).toDouble();
     double val = 0.0;
     double minVal = 0.0;
     double maxVal = 0.0;
     bool isPerc = false;
 
+    // 등급 가중치 (고등급일수록 해당 티어의 천장에 가까운 수치가 뜰 확률 증가)
+    double gradeWeight = (grade != null) ? (grade.index * 0.08) : 0.0;
+    double roll = (rand.nextDouble() + gradeWeight).clamp(0.0, 1.0);
+
     switch (name) {
       case '공격력':
-        minVal = 5.0 * tierMult;
-        maxVal = 15.0 * tierMult;
-        val = (rand.nextInt(11) + 5).toDouble() * tierMult;
+        minVal = 4.0 * tierMult;
+        maxVal = 10.0 * tierMult;
+        val = minVal + (maxVal - minVal) * roll;
         break;
       case '체력':
-        minVal = 50.0 * tierMult;
-        maxVal = 150.0 * tierMult;
-        val = (rand.nextInt(101) + 50).toDouble() * tierMult;
+        minVal = 30.0 * tierMult;
+        maxVal = 80.0 * tierMult;
+        val = minVal + (maxVal - minVal) * roll;
         break;
       case '방어력':
         minVal = 2.0 * tierMult;
-        maxVal = 7.0 * tierMult;
-        val = (rand.nextInt(6) + 2).toDouble() * tierMult;
+        maxVal = 6.0 * tierMult;
+        val = minVal + (maxVal - minVal) * roll;
         break;
       case '치명타 확률':
         isPerc = true;
         minVal = 1.0 + (tier * 0.5);
         maxVal = 3.0 + (tier * 0.5);
-        val = (rand.nextDouble() * 2.0 + 1.0) + (tier * 0.5);
+        val = minVal + (maxVal - minVal) * roll;
         break;
       case '치명타 피해':
         isPerc = true;
         minVal = 5.0 + (tier * 5.0);
         maxVal = 15.0 + (tier * 5.0);
-        val = (rand.nextDouble() * 10.0 + 5.0) + (tier * 5.0);
+        val = minVal + (maxVal - minVal) * roll;
         break;
       case '공격 속도':
-        minVal = 0.5;
-        maxVal = 1.5;
-        val = (rand.nextDouble() * 1.0 + 0.5);
+        minVal = 0.3 + (tier * 0.1);
+        maxVal = 0.8 + (tier * 0.1);
+        val = minVal + (maxVal - minVal) * roll;
         break;
       case 'HP 재생':
         isPerc = true;
-        minVal = 0.5;
-        maxVal = 1.5;
-        val = (rand.nextDouble() * 1.0 + 0.5);
+        minVal = 0.3 + (tier * 0.2);
+        maxVal = 0.8 + (tier * 0.2);
+        val = minVal + (maxVal - minVal) * roll;
         break;
       case '골드 획득':
       case '경험치 획득':
       case '아이템 드롭':
         isPerc = true;
-        minVal = 2.0 + (tier * 1.0);
-        maxVal = 5.0 + (tier * 1.0);
-        val = (rand.nextDouble() * 3.0 + 2.0) + (tier * 1.0);
+        minVal = 2.0 + (tier * 1.5);
+        maxVal = 5.0 + (tier * 1.5);
+        val = minVal + (maxVal - minVal) * roll;
         break;
     }
     

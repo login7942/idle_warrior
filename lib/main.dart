@@ -99,10 +99,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   late AnimationController _heroRotateController; // 헤일로 회전용
   late AnimationController _monsterSpawnController; // 몬스터 등장 연출
   late AnimationController _monsterDeathController; // 몬스터 사망 연출
-  List<FloatingText> floatingTexts = [];
-  List<FloatingText> _pendingFloatingTexts = []; // 배치 처리용 큐
-  Timer? _floatingTextBatchTimer; // 배치 처리 타이머
-  static const int _maxFloatingTexts = 10; // 최대 동시 표시 개수
+  final DamageManager damageManager = DamageManager(); // 🆕 데미지 매니저
+  static const int _maxDamageTexts = 10; // 🆕 최대 동시 표시 개수 제한 (10개)
 
   // 효율 측정용 데이터
   final List<GainRecord> _recentGains = [];
@@ -127,6 +125,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // 전리품 파티클 시스템
   final List<LootParticle> _lootParticles = [];
+  final GlobalKey _battleSceneKey = GlobalKey(); // 🆕 배틀 장면 좌표 기준키
   final GlobalKey _monsterKey = GlobalKey();
   final GlobalKey _goldTargetKey = GlobalKey();
   final GlobalKey _expTargetKey = GlobalKey();
@@ -168,6 +167,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   bool _isEnteringTower = false; // 🆕 무한의탑 중복 입장/연타 방지 플래그
   bool _isTowerResultShowing = false; // 🆕 결과 팝업 중복 노출 방지
 
+  // --- [신규 v0.0.60] 제작 시스템 상태 ---
+  int _selectedCraftTier = 2; // 기본 선택 티어 (T2)
+  int _expandedCraftCategory = 0; // 0: 장외 제작, 그 외: 준비 중
+
+  // --- [신규 v0.0.61] 자동 분해 시스템 ---
+  int _autoDismantleLevel = 0; // 0: 사용안함, 1: 일반, 2: 고급이하, 3: 희귀이하, 4: 전체
+
   // ═══════════════════════════════════════════════════════════════════════════
   // 🔄 LIFECYCLE & DATA MANAGEMENT - 생명주기 및 데이터 관리
   // ═══════════════════════════════════════════════════════════════════════════
@@ -189,7 +195,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
     _uiTickerController.addListener(() {
       _updateParticles(); // 매 프레임 파티클 리스트 정기 청소
-      _updateFloatingTexts(); // 🆕 매 프레임 데미지 텍스트 정기 청소
+      damageManager.update(); // 🆕 데미지 텍스트 상태 업데이트 (+800ms 만료 처리)
     });
     
     // 🆕 게임 초기화 실행 (Supabase 로그인 + 데이터 로드)
@@ -248,6 +254,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       'last_save_time': nowStr,
       'zone_stages': _zoneStages.map((k, v) => MapEntry(k.name, v)),
       'auto_advance': _autoAdvance,
+      // 🆕 오프라인 보상 정확도를 위한 전투 효율 데이터 추가
+      'gold_per_min': _goldPerMin,
+      'exp_per_min': _expPerMin,
+      'kills_per_min': _killsPerMin,
+      // [v0.0.61] 자동 분해 설정
+      'auto_dismantle_level': _autoDismantleLevel,
     };
 
     // 1. 로컬 저장 (항상 즉시 수행)
@@ -255,6 +267,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     await prefs.setInt('current_stage', _currentStage);
     await prefs.setString('current_zone_id', _currentZone.id.name);
     await prefs.setString('lastSaveTime', nowStr);
+    
+    // 로컬 효율 데이터 별도 저장
+    await prefs.setDouble('gold_per_min', _goldPerMin);
+    await prefs.setDouble('exp_per_min', _expPerMin);
+    await prefs.setDouble('kills_per_min', _killsPerMin);
+    await prefs.setInt('auto_dismantle_level', _autoDismantleLevel);
     
     // 2. 클라우드 저장 (최소 30초 간격 또는 강제 실행 시)
     if (_authService.isLoggedIn) {
@@ -314,6 +332,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           if (zoneName != null) {
             _currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
           }
+          // 로컬 효율 데이터 복구
+          _goldPerMin = prefs.getDouble('gold_per_min') ?? 0;
+          _expPerMin = prefs.getDouble('exp_per_min') ?? 0;
+          _killsPerMin = prefs.getDouble('kills_per_min') ?? 0;
         });
         _isCloudSynced = !isFromCloud && cloudDataMap != null; // 로컬이 최신인데 클라우드도 있으면 아직 동기화 전
         return; 
@@ -347,6 +369,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               } catch (_) {}
             });
           }
+
+          // 클라우드 효율 데이터 복구
+          _goldPerMin = (targetData['gold_per_min'] ?? 0).toDouble();
+          _expPerMin = (targetData['exp_per_min'] ?? 0).toDouble();
+          _killsPerMin = (targetData['kills_per_min'] ?? 0).toDouble();
+          _autoDismantleLevel = targetData['auto_dismantle_level'] ?? 0;
           
           _isCloudSynced = true;
         });
@@ -368,7 +396,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         type: ItemType.weapon,
         grade: ItemGrade.common,
         tier: 1,
-        mainStat: 100,
+        mainStat1: 12, // T1 목검 공격력 12 (v0.0.58 개편)
         subOptions: [],
         enhanceLevel: 0,
         durability: 100,
@@ -401,8 +429,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       final lastTime = DateTime.parse(lastSaveStr);
       // 현재 효율(분당 골드 등) 정보가 없을 경우 대비 기본값 설정 (추후 정교화 가능)
       // 초보자 배려: 최소 효율 보장
-      double gMin = _goldPerMin > 0 ? _goldPerMin : 50.0;
-      double eMin = _expPerMin > 0 ? _expPerMin : 30.0;
+      // 🆕 효율 데이터 신뢰도 향상: 로드된 기록이 없을 경우 '레벨 비례' 최소 보장
+      double levelFactor = player.level.toDouble();
+      double gMin = _goldPerMin > 0 ? _goldPerMin : (50.0 + levelFactor * 10); // 기본 골드 보정
+      double eMin = _expPerMin > 0 ? _expPerMin : (30.0 + levelFactor * 5);   // 기본 경험치 보정
       double kMin = _killsPerMin > 0 ? _killsPerMin : 5.0;
 
       final rewards = player.calculateOfflineRewards(lastTime, gMin, eMin, kMin);
@@ -425,7 +455,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _jumpEffectTimer?.cancel();
     _monsterAttackTimer?.cancel(); // 몬스터 타이머 해제
     _regenTimer?.cancel(); // 재생 타이머 해제
-    _floatingTextBatchTimer?.cancel(); // 플로팅 텍스트 배치 타이머 해제
     _playerAnimController.dispose();
     _monsterAnimController.dispose();
     _uiTickerController.dispose();
@@ -465,7 +494,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   void _spawnMonster() {
     if (!mounted) return;
     setState(() {
-      currentMonster = Monster.generate(_currentZone, _currentStage);
+      // [v0.0.56] 10마리 중 마지막인 경우 보스 출현을 위해 isFinal: true 기입
+      bool isFinal = (_stageKills >= _targetKills - 1);
+      currentMonster = Monster.generate(_currentZone, _currentStage, isFinal: isFinal);
       monsterCurrentHp = currentMonster!.hp; // HP 동기화
       _lastMonsterSpawnTime = DateTime.now(); // 스폰 시간 기록
       _isProcessingVictory = false; // 새로운 몬스터 스폰 시 플래그 초기화
@@ -498,17 +529,20 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   void _monsterPerformAttack() {
     if (!mounted || currentMonster == null || _isProcessingVictory) return;
     setState(() {
-      if (_selectedIndex == 0) {
-        _monsterAnimController.forward().then((_) => _monsterAnimController.reverse());
-        _addFloatingText('-${(currentMonster!.attack - player.defense).clamp(1, 99999)}', false);
-      }
-      
+      // 1. 실제 데미지 계산 (Soft Cap 공식)
       double mVariance = 0.9 + (Random().nextDouble() * 0.2);
       double pDefenseRating = 100 / (100 + player.defense);
       double rawMDmg = (currentMonster!.attack * pDefenseRating) * mVariance;
       double minMDmg = (currentMonster!.attack * 0.1) * mVariance;
       int mDmg = max(rawMDmg, minMDmg).toInt().clamp(1, 999999999);
 
+      // 2. 애니메이션 및 화면 표시 (계산된 mDmg 사용)
+      if (_selectedIndex == 0) {
+        _monsterAnimController.forward().then((_) => _monsterAnimController.reverse());
+        _addFloatingText('-$mDmg', false);
+      }
+      
+      // 3. 실제 체력 차감
       playerCurrentHp -= mDmg;
       if (playerCurrentHp <= 0) _handlePlayerDeath();
     });
@@ -701,10 +735,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       spawnPos = Offset(spawnPos.dx, spawnPos.dy - 150); 
     }
     _spawnLootParticles(finalGold, expReward, spawnPos);
-    
-    // 🆕 몬스터 하단에 골드/EXP 플로팅 텍스트 표시
-    _addFloatingText('+$finalGold G', true, isGold: true, offsetY: 100); 
-    _addFloatingText('+$expReward EXP', true, isExp: true, offsetY: 130);
 
 
     // 3. 스테이지 업데이트 (즉시 반영 필요)
@@ -750,12 +780,32 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       // 드롭 로직
       double finalDropChance = currentMonster!.itemDropChance * (player.dropBonus / 100);
       if (Random().nextDouble() < finalDropChance) {
-        Item newItem = Item.generate(player.level, stage: _currentStage);
-        if (player.addItem(newItem)) {
-          _addLog('[획득] ${newItem.name} (${newItem.grade.name})', LogType.item);
-          player.totalItemsFound++;
-          _sessionItems++;
-          _checkEncyclopedia(newItem);
+        Item newItem = Item.generate(player.level);
+        
+        // [v0.0.61] 자동 분해 체크
+        if (_shouldAutoDismantleItem(newItem)) {
+          // 즉시 분해하여 파편으로 전환
+          Map<String, int> rewards = _calculateDismantleRewards(newItem);
+          player.gold += rewards['gold']!;
+          player.powder += rewards['powder']!;
+          player.enhancementStone += rewards['stone']!;
+          player.rerollStone += rewards['reroll']!;
+          player.protectionStone += rewards['protection']!;
+          player.cube += rewards['cube']!;
+          
+          int tier = rewards['tier']!;
+          int shards = rewards['shards']!;
+          player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
+          
+          _addLog('[자동분해] ${newItem.name} → 파편 +$shards', LogType.item);
+        } else {
+          // 일반적으로 인벤토리에 추가
+          if (player.addItem(newItem)) {
+            _addLog('[획득] ${newItem.name} (${newItem.grade.name})', LogType.item);
+            player.totalItemsFound++;
+            _sessionItems++;
+            _checkEncyclopedia(newItem);
+          }
         }
       }
 
@@ -815,12 +865,26 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _addLog('[전설] 강화 보호석 $amount개 획득!', LogType.item);
     }
 
-    // 5. 강화 큐브 드롭 (1% 확률)
-    if (rand.nextDouble() < 0.01) {
+    // 5. 강화 큐브 드롭 (0.1% 확률)
+    if (rand.nextDouble() < 0.001) {
       int amount = 1;
       player.cube += amount;
       _sessionCube += amount; // 세션 큐브 증가
       _addLog('[신화] 강화 큐브 $amount개 획득!', LogType.item);
+    }
+
+    // --- [신규 v0.0.60] 스펙 기반 게이트 드랍 (심연의 구슬) ---
+    double avgLv = player.averageEnhanceLevel;
+    
+    // T2 코어: 평균 13강 이상 시 3% 확률로 드랍
+    if (avgLv >= 13.0 && rand.nextDouble() < 0.03) {
+      player.tierCores[2] = (player.tierCores[2] ?? 0) + 1;
+      _addLog('[게이트] 심연의 구슬 [T2] 획득!', LogType.event);
+    }
+    // T3 코어: 평균 15강 이상 시 1% 확률로 드랍
+    if (avgLv >= 15.0 && rand.nextDouble() < 0.01) {
+      player.tierCores[3] = (player.tierCores[3] ?? 0) + 1;
+      _addLog('[게이트] 심연의 구슬 [T3] 획득!', LogType.event);
     }
   }
 
@@ -908,14 +972,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _lootParticles.removeWhere((p) => now.difference(p.startTime).inMilliseconds > 1200);
   }
 
-  void _updateFloatingTexts() {
-    final now = DateTime.now();
-    if (!mounted || floatingTexts.isEmpty) return;
-
-    // 0.5초 이상 된 텍스트 제거
-    floatingTexts.removeWhere((t) => now.difference(t.createdAt).inMilliseconds >= 500);
-
-  }
 
   void _addLog(String msg, LogType type) {
     if (!mounted) return;
@@ -944,34 +1000,64 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     });
   }
 
-  void _addFloatingText(String text, bool isMonsterTarget, {bool isCrit = false, bool isHeal = false, bool isGold = false, bool isExp = false, double? offsetX, double? offsetY}) {
+  // 🆕 데미지 텍스트 추가 API (통합 관리)
+  void _addFloatingText(String text, bool isMonsterTarget, {
+    bool isCrit = false, 
+    bool isHeal = false, 
+    bool isGold = false, 
+    bool isExp = false, 
+    double? offsetX, 
+    double? offsetY
+  }) {
     final rand = Random();
-    double ox = offsetX ?? (rand.nextDouble() * 40) - 20; 
-    double oy = offsetY ?? (rand.nextDouble() * 30) - 15; 
     
-    // 큐에 추가만 하고 즉시 setState는 하지 않음 (배치 처리)
-    _pendingFloatingTexts.add(FloatingText(text, isMonsterTarget, DateTime.now(), isCrit: isCrit, isHeal: isHeal, isGold: isGold, isExp: isExp, offsetX: ox, offsetY: oy));
-    
-    // 타이머가 없으면 생성 (16ms = 1프레임 후 일괄 처리)
-    _floatingTextBatchTimer ??= Timer(const Duration(milliseconds: 16), () {
-      if (mounted) {
-        setState(() {
-          // 큐에 있는 모든 텍스트를 한 번에 추가
-          floatingTexts.addAll(_pendingFloatingTexts);
-          _pendingFloatingTexts.clear();
-          
-          // 최대 개수 제한 (오래된 것부터 제거)
-          if (floatingTexts.length > _maxFloatingTexts) {
-            floatingTexts.removeRange(0, floatingTexts.length - _maxFloatingTexts);
-          }
-          
-          // 만료된 텍스트 정리 (0.5초)
-          floatingTexts.removeWhere((t) => DateTime.now().difference(t.createdAt).inMilliseconds >= 500);
+    // 타입 결정
+    DamageType type = DamageType.normal;
+    if (isCrit) type = DamageType.critical;
+    else if (isHeal) type = DamageType.heal;
+    else if (isGold) type = DamageType.gold;
+    else if (isExp) type = DamageType.exp;
 
-        });
+    // 1. 기준 좌표 계산 (글로벌 -> 로컬 변환)
+    Offset basePos = const Offset(200, 300); // 폴백값
+    
+    // 배틀 장면의 렌더박스 확보
+    final battleBox = _battleSceneKey.currentContext?.findRenderObject() as RenderBox?;
+    if (battleBox != null) {
+      if (isMonsterTarget) {
+        final monsterBox = _monsterKey.currentContext?.findRenderObject() as RenderBox?;
+        if (monsterBox != null) {
+          // 몬스터 중심의 글로벌 좌표를 배틀 장면의 로컬 좌표로 변환
+          final globalCenter = monsterBox.localToGlobal(Offset(monsterBox.size.width / 2, monsterBox.size.height / 2));
+          basePos = battleBox.globalToLocal(globalCenter);
+        }
+      } else {
+        // 플레이어 캐릭터는 좌측에 고정된 편 (배틀 박스 기준 상대 좌표 사용 제안)
+        // 화면 크기에 대응하기 위해 하드코딩 대신 비율 또는 몬스터 대비 좌측 위치 사용
+        basePos = Offset(battleBox.size.width * 0.25, battleBox.size.height * 0.6);
       }
-      _floatingTextBatchTimer = null;
-    });
+    }
+
+    // 2. 추가 오프셋 적용 (더 넓게 흩어지도록 범위 확장)
+    double ox = offsetX ?? (rand.nextDouble() * 80) - 40; // ±40px 범위
+    double oy = offsetY ?? (rand.nextDouble() * 50) - 25; // ±25px 범위
+    
+    // 수치 값 추출
+    double val = double.tryParse(text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+
+    damageManager.add(DamageEntry(
+      text: text,
+      value: val,
+      isMonsterTarget: isMonsterTarget,
+      createdAt: DateTime.now(),
+      type: type,
+      basePosition: basePos + Offset(ox, oy),
+    ));
+
+    // 최대 개수 초과 시 오래된 것 제거
+    if (damageManager.texts.length > _maxDamageTexts) {
+      damageManager.texts.removeAt(0);
+    }
   }
 
   @override
@@ -1092,7 +1178,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       case 1: return _buildCharacterTab();
       case 2: return _buildHuntingZoneTab(); // 사냥터 이동 메뉴 연결
       case 3: return _buildInventoryTab(); // 가방 메뉴 연결
-      case 4: return _buildMenuPlaceholder('제작');
+      case 4: return _buildCraftTab();
       case 5: return _buildSkillTab();
       case 6: return _buildPetTab();
       case 7: return _buildMenuPlaceholder('유물 (환생)');
@@ -1668,6 +1754,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         // 재료 바 (이미지 스타일의 콤팩트 한 줄 바)
         _buildResourceBar(),
         
+        // 자동 분해 설정 패널
+        _buildAutoDismantlePanel(),
+        
         // 장착 슬롯
         _buildEquippedSlots(),
         
@@ -1685,7 +1774,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   Widget _buildResourceBar() {
     return _buildGlassContainer(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       borderRadius: 20,
       color: Colors.white.withOpacity(0.04),
       child: Column(
@@ -1693,35 +1782,107 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('보유 재화 정보', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+              const Text('보유 재화', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
               Text(
-                '가방 (${player.inventory.length} / ${player.maxInventory})',
-                style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)
+                '가방 ${player.inventory.length}/${player.maxInventory}',
+                style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)
               ),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Divider(color: Colors.white10, height: 1),
-          ),
-          Row(
-            children: [
-              Expanded(child: _buildResourceItem('✨', '가루', player.powder, Colors.greenAccent)),
-              Expanded(child: _buildResourceItem('💎', '강화석', player.enhancementStone, Colors.blueAccent)),
-              Expanded(child: _buildResourceItem('🎲', '재설정', player.rerollStone, Colors.purpleAccent)),
-            ],
-          ),
           const SizedBox(height: 8),
+          // 1줄로 압축된 재화 정보
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              Expanded(child: _buildResourceItem('🛡️', '보호', player.protectionStone, Colors.amberAccent)),
-              Expanded(child: _buildResourceItem('🔮', '큐브', player.cube, Colors.redAccent)),
-              const Expanded(child: SizedBox()), // 균형을 위한 빈 공간
+              _buildCompactResource('✨', player.powder, Colors.greenAccent),
+              _buildCompactResource('💎', player.enhancementStone, Colors.blueAccent),
+              _buildCompactResource('🎲', player.rerollStone, Colors.purpleAccent),
+              _buildCompactResource('🛡️', player.protectionStone, Colors.amberAccent),
+              _buildCompactResource('🔮', player.cube, Colors.redAccent),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildCompactResource(String emoji, int count, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 4),
+        Text(
+          _formatNumber(count),
+          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAutoDismantlePanel() {
+    return _buildGlassContainer(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      borderRadius: 16,
+      color: Colors.white.withOpacity(0.03),
+      border: Border.all(color: _autoDismantleLevel > 0 ? Colors.blueAccent.withOpacity(0.3) : Colors.white10),
+      child: Row(
+        children: [
+          Icon(
+            Icons.auto_delete_outlined,
+            size: 16,
+            color: _autoDismantleLevel > 0 ? Colors.blueAccent : Colors.white38,
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            '자동 분해',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: DropdownButton<int>(
+              value: _autoDismantleLevel,
+              isDense: true,
+              underline: const SizedBox(),
+              dropdownColor: const Color(0xFF1a1d2e),
+              style: const TextStyle(color: Colors.white70, fontSize: 10),
+              items: const [
+                DropdownMenuItem(value: 0, child: Text('사용 안 함')),
+                DropdownMenuItem(value: 1, child: Text('T1 일반')),
+                DropdownMenuItem(value: 2, child: Text('T1 고급 이하')),
+                DropdownMenuItem(value: 3, child: Text('T1 희귀 이하')),
+                DropdownMenuItem(value: 4, child: Text('T1 전체')),
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _autoDismantleLevel = v);
+                  _saveGameData();
+                  String msg = v == 0 ? '자동 분해를 비활성화했습니다.' : 'T1 ${_getAutoDismantleName(v)} 자동 분해 활성화';
+                  _showToast(msg);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getAutoDismantleName(int level) {
+    switch (level) {
+      case 1: return '일반';
+      case 2: return '고급 이하';
+      case 3: return '희귀 이하';
+      case 4: return '전체';
+      default: return '';
+    }
   }
 
   Widget _buildResourceItem(String emoji, String label, int count, Color color) {
@@ -1749,6 +1910,307 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // 🔨 [신규 v0.0.60] 제작 탭 (Forge UI)
+  Widget _buildCraftTab() {
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        _buildCraftHeader(),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            children: [
+              _buildCraftCategory(
+                0, '⚔️ 장비 제작', 
+                child: Column(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('제작 티어 선택', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+                            Text(
+                              '현재 평균 강화: +${player.averageEnhanceLevel.toStringAsFixed(1)}',
+                              style: TextStyle(
+                                color: player.averageEnhanceLevel >= 13.0 ? Colors.greenAccent : Colors.white38,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          '※ 평균강화 달성 시 상위재료가 드랍됩니다',
+                          style: TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTierTab(),
+                    const SizedBox(height: 16),
+                    _buildEquipmentCraftGrid(),
+                  ],
+                )
+              ),
+              _buildCraftCategory(1, '🧪 소모품 제작 (준비 중)', isLocked: true),
+              _buildCraftCategory(2, '💎 유물 합성 (준비 중)', isLocked: true),
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCraftHeader() {
+    return _buildGlassContainer(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      color: Colors.white.withOpacity(0.04),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('보유 제작 재료', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildMiniResourceItem('🧩', 'T1 파편', player.tierShards[1] ?? 0, Colors.tealAccent),
+              const SizedBox(width: 16),
+              _buildMiniResourceItem('🧩', 'T2 파편', player.tierShards[2] ?? 0, Colors.blueAccent),
+              const SizedBox(width: 16),
+              _buildMiniResourceItem('🔮', 'T2 구슬', player.tierCores[2] ?? 0, Colors.purpleAccent),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniResourceItem(String emoji, String label, int count, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white24, fontSize: 9)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 12)),
+            const SizedBox(width: 4),
+            Text(_formatNumber(count), style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCraftCategory(int index, String title, {Widget? child, bool isLocked = false}) {
+    bool isExp = _expandedCraftCategory == index;
+    return Column(
+      children: [
+        _PressableScale(
+          onTap: isLocked ? null : () => setState(() => _expandedCraftCategory = isExp ? -1 : index),
+          child: _buildGlassContainer(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            margin: const EdgeInsets.only(bottom: 8),
+            borderRadius: 20,
+            border: Border.all(color: isExp ? Colors.blueAccent.withOpacity(0.3) : Colors.white.withOpacity(0.05)),
+            color: isExp ? Colors.blueAccent.withOpacity(0.05) : Colors.white.withOpacity(0.03),
+            child: Row(
+              children: [
+                Text(title, style: TextStyle(color: isLocked ? Colors.white24 : Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                if (isLocked) const Icon(Icons.lock, size: 16, color: Colors.white10)
+                else Icon(isExp ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: Colors.white38),
+              ],
+            ),
+          ),
+        ),
+        if (isExp && child != null) 
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.only(bottom: 20),
+            child: child
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTierTab() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [2, 3, 4, 5, 6].map((t) {
+          bool isSel = _selectedCraftTier == t;
+          double reqAvg = t == 2 ? 13.0 : (t == 3 ? 15.0 : 18.0); // T2: 13, T3: 15, T4+: 18
+          bool isLocked = player.averageEnhanceLevel < reqAvg;
+          
+          return _PressableScale(
+            onTap: isLocked ? null : () => setState(() => _selectedCraftTier = t),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSel ? Colors.blueAccent : (isLocked ? Colors.black26 : Colors.white.withOpacity(0.05)),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isSel ? Colors.white24 : Colors.white10),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isLocked) const Icon(Icons.lock, size: 10, color: Colors.white24),
+                      if (isLocked) const SizedBox(width: 4),
+                      Text(
+                        'Tier $t', 
+                        style: TextStyle(
+                          color: isSel ? Colors.white : (isLocked ? Colors.white24 : Colors.white60),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12
+                        )
+                      ),
+                    ],
+                  ),
+                  if (isLocked)
+                    Text(
+                      '평균강화+${reqAvg.toInt()}',
+                      style: const TextStyle(color: Colors.redAccent, fontSize: 8, fontWeight: FontWeight.bold)
+                    ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildEquipmentCraftGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        mainAxisExtent: 140,
+      ),
+      itemCount: ItemType.values.length,
+      itemBuilder: (context, idx) {
+        final type = ItemType.values[idx];
+        return _buildCraftCard(type);
+      },
+    );
+  }
+
+  Widget _buildCraftCard(ItemType type) {
+    int tier = _selectedCraftTier;
+    // 재료 설정: T2(파편 150, 구슬 5), T3(파편 500, 구슬 10)... 
+    // 실제 밸런스에 맞춰 조정 가능
+    int shardCost = tier == 2 ? 150 : (tier == 3 ? 500 : 2000);
+    int coreCost = tier == 2 ? 5 : (tier == 3 ? 10 : 30);
+    
+    int myShards = player.tierShards[tier - 1] ?? 0;
+    int myCores = player.tierCores[tier] ?? 0;
+    
+    bool canCraft = myShards >= shardCost && myCores >= coreCost;
+
+    return _buildGlassContainer(
+      padding: const EdgeInsets.all(12),
+      borderRadius: 20,
+      color: Colors.white.withOpacity(0.03),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _getEmptyIcon(type, size: 24),
+              const SizedBox(width: 8),
+              Text(type.nameKr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+            ],
+          ),
+          const Spacer(),
+          _buildCraftResourceRow('🧩', shardCost, myShards),
+          _buildCraftResourceRow('🔮', coreCost, myCores),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 32,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: canCraft ? Colors.blueAccent : Colors.white10,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: canCraft ? () => _executeCraft(type, tier, shardCost, coreCost) : null,
+              child: const Text('제작하기', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCraftResourceRow(String emoji, int req, int my) {
+    bool ok = my >= req;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 10)),
+          const SizedBox(width: 4),
+          Text(_formatNumber(my), style: TextStyle(fontSize: 10, color: ok ? Colors.white70 : Colors.redAccent, fontWeight: FontWeight.bold)),
+          Text(' / ${_formatNumber(req)}', style: const TextStyle(fontSize: 10, color: Colors.white24)),
+        ],
+      ),
+    );
+  }
+
+  void _executeCraft(ItemType type, int tier, int shardCost, int coreCost) {
+    if (player.inventory.length >= player.maxInventory) {
+      _showToast('가방이 가득 찼습니다.');
+      return;
+    }
+
+    setState(() {
+      player.tierShards[tier - 1] = (player.tierShards[tier - 1] ?? 0) - shardCost;
+      player.tierCores[tier] = (player.tierCores[tier] ?? 0) - coreCost;
+      
+      // 아이템 생성 (선택한 티어 및 부위 반영)
+      Item newItem = Item.generate(player.level, tier: tier, forcedType: type);
+      
+      player.inventory.add(newItem);
+      _saveGameData();
+      _showCraftResult(newItem);
+    });
+  }
+
+  void _showCraftResult(Item item) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.9),
+      builder: (context) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildShadowText('연성 성공!', fontSize: 28, color: Colors.amberAccent, fontWeight: FontWeight.w900),
+            const SizedBox(height: 30),
+            _buildPremiumItemSlot(item, size: 100, onTap: () {}),
+            const SizedBox(height: 20),
+            _buildShadowText(item.name, fontSize: 18, color: item.grade.color, fontWeight: FontWeight.bold),
+            const SizedBox(height: 40),
+            _buildPopBtn('인벤토리 확인', Colors.blueAccent, () => Navigator.pop(context), isFull: false),
+          ],
+        ),
       ),
     );
   }
@@ -2017,6 +2479,25 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
+  // [v0.0.61] 자동 분해 판별 로직
+  bool _shouldAutoDismantleItem(Item item) {
+    if (_autoDismantleLevel == 0) return false; // 비활성화
+    if (item.tier != 1) return false; // T1만 대상
+    
+    switch (_autoDismantleLevel) {
+      case 1: // T1 일반만
+        return item.grade == ItemGrade.common;
+      case 2: // T1 고급 이하
+        return item.grade.index <= ItemGrade.uncommon.index;
+      case 3: // T1 희귀 이하
+        return item.grade.index <= ItemGrade.rare.index;
+      case 4: // T1 전체
+        return true;
+      default:
+        return false;
+    }
+  }
+
   void _showBulkDismantleDialog() {
     ItemGrade selectedGrade = ItemGrade.uncommon; // 기본값
 
@@ -2110,6 +2591,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     int protection = (item.grade.index >= 3 && rand.nextDouble() < 0.2) ? 1 : 0;
     int cube = (item.grade.index >= 4 && rand.nextDouble() < 0.1) ? 1 : 0;
 
+    // 티어 파편 (등급별 차등)
+    int shards = 0;
+    switch (item.grade) {
+      case ItemGrade.common: shards = 1; break;
+      case ItemGrade.uncommon: shards = 3; break;
+      case ItemGrade.rare: shards = 10; break;
+      case ItemGrade.epic: shards = 30; break;
+      case ItemGrade.legendary: shards = 100; break;
+      case ItemGrade.mythic: shards = 500; break;
+    }
+
     return {
       'gold': gold,
       'powder': powder,
@@ -2117,6 +2609,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       'reroll': reroll,
       'protection': protection,
       'cube': cube,
+      'shards': shards,
+      'tier': item.tier,
     };
   }
 
@@ -2131,7 +2625,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
     setState(() {
       player.inventory.removeWhere((item) {
-        if (item.grade.index <= maxGrade.index) {
+        if (item.grade.index <= maxGrade.index && !item.isLocked) {
           dismantleCount++;
           var rewards = _calculateDismantleRewards(item);
           totalGold += rewards['gold']!;
@@ -2140,6 +2634,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           totalReroll += rewards['reroll']!;
           totalProtection += rewards['protection']!;
           totalCube += rewards['cube']!;
+          
+          // 파편 추가
+          int tier = rewards['tier']!;
+          int shards = rewards['shards']!;
+          player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
+          
           return true;
         }
         return false;
@@ -2207,6 +2707,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     children: [
                       _buildResultRow('💰', '골드', _formatNumber(gold), Colors.amberAccent),
                       _buildResultRow('✨', '마법 가루', powder.toString(), Colors.blueAccent),
+                      _buildResultRow('🧩', '티어 파편', '획득 완료', Colors.tealAccent),
                       if (stone > 0) _buildResultRow('💎', '강화석', stone.toString(), Colors.cyanAccent),
                       if (reroll > 0) _buildResultRow('🌀', '재설정석', reroll.toString(), Colors.purpleAccent),
                       if (protection > 0) _buildResultRow('🛡️', '보호석', protection.toString(), Colors.orangeAccent),
@@ -2362,6 +2863,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                                     ),
                                                   ),
                                                   const SizedBox(width: 8),
+                                                  _buildTierBadge(currentItem.tier),
+                                                  const SizedBox(width: 8),
                                                   Text(
                                                     '${currentItem.name.replaceAll(RegExp(r" T[1-6]$"), "")} +${currentItem.enhanceLevel}',
                                                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: currentItem.grade.color, letterSpacing: -0.5),
@@ -2372,15 +2875,44 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                           ),
                                         ),
                                         _buildNavArrow(hasNext, () => navigate(1), Icons.chevron_right),
-                                      ],
+                                       ],
                                     ),
-                                    const SizedBox(height: 12),
-                                    // 전투력(CP) 하이라이트
-                                    _buildCPBadge(currentItem.combatPower),
                                   ],
                                 ),
                               ),
-                              Positioned(right: 12, top: 12, child: GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.close, color: Colors.white24, size: 20))),
+                              // 우측 상단: 전투력 + 닫기 버튼
+                              Positioned(
+                                right: 12,
+                                top: 12,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amberAccent.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.amberAccent.withOpacity(0.3)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.bolt, size: 12, color: Colors.amberAccent),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            NumberFormat('#,###').format(currentItem.combatPower),
+                                            style: const TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () => Navigator.pop(context),
+                                      child: const Icon(Icons.close, color: Colors.white24, size: 20),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
   
@@ -2470,9 +3002,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildTierBadge(int tier) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white10)),
-      child: Text('T$tier', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white70)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Text(
+        'Tier $tier', 
+        style: const TextStyle(
+          fontSize: 11, 
+          fontWeight: FontWeight.w900, 
+          color: Colors.white,
+          letterSpacing: 0.5
+        )
+      ),
     );
   }
 
@@ -2530,11 +3074,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               ...() {
                 final myStats = <String, double>{};
                 final targetStats = <String, double>{};
-                myStats[item.mainStatName] = item.effectiveMainStat.toDouble();
-                if (item.type == ItemType.ring || item.type == ItemType.necklace) myStats['체력'] = (myStats['체력'] ?? 0) + (40 * item.getEnhanceFactor());
+                myStats[item.mainStatName1] = (myStats[item.mainStatName1] ?? 0) + item.effectiveMainStat1.toDouble();
+                if (item.mainStat2 != null) {
+                  myStats[item.mainStatName2!] = (myStats[item.mainStatName2!] ?? 0) + item.effectiveMainStat2.toDouble();
+                }
                 for (var o in item.subOptions) myStats[o.name] = (myStats[o.name] ?? 0) + o.value;
-                targetStats[equip.mainStatName] = equip.effectiveMainStat.toDouble();
-                if (equip.type == ItemType.ring || equip.type == ItemType.necklace) targetStats['체력'] = (targetStats['체력'] ?? 0) + (40 * equip.getEnhanceFactor());
+
+                targetStats[equip.mainStatName1] = (targetStats[equip.mainStatName1] ?? 0) + equip.effectiveMainStat1.toDouble();
+                if (equip.mainStat2 != null) {
+                  targetStats[equip.mainStatName2!] = (targetStats[equip.mainStatName2!] ?? 0) + equip.effectiveMainStat2.toDouble();
+                }
                 for (var o in equip.subOptions) targetStats[o.name] = (targetStats[o.name] ?? 0) + o.value;
                 final allKeys = {...myStats.keys, ...targetStats.keys}.toList()..sort();
                 return allKeys.map((k) {
@@ -2551,7 +3100,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildMainStatSection(Item item) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // 12 -> 8
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), 
       decoration: BoxDecoration(
         color: Colors.blueAccent.withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
@@ -2562,21 +3111,20 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(item.mainStatName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
-              Text(NumberFormat('#,###').format(item.effectiveMainStat), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+              Text(item.mainStatName1, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
+              Text(NumberFormat('#,###').format(item.effectiveMainStat1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
             ],
           ),
-          if (item.type == ItemType.ring || item.type == ItemType.necklace)
-            Padding(
-              padding: const EdgeInsets.only(top: 4), // 6 -> 4
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('보너스 체력', style: TextStyle(fontSize: 13, color: Colors.white54)),
-                  Text(NumberFormat('#,###').format((40 * item.getEnhanceFactor()).toInt()), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                ],
-              ),
+          if (item.mainStat2 != null) ...[
+            const Divider(color: Colors.white10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(item.mainStatName2!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
+                Text(NumberFormat('#,###').format(item.effectiveMainStat2), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+              ],
             ),
+          ],
         ],
       ),
     );
@@ -2837,6 +3385,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           player.gold += rewards['gold']!; player.powder += rewards['powder']!;
           player.enhancementStone += rewards['stone']!; player.rerollStone += rewards['reroll']!;
           player.protectionStone += rewards['protection']!; player.cube += rewards['cube']!;
+          
+          // 파편 추가
+          int tier = rewards['tier']!;
+          int shards = rewards['shards']!;
+          player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
         });
         Navigator.pop(context);
         _showToast('분해 완료! 보상을 획득했습니다.', isError: false);
@@ -3633,7 +4186,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return AnimatedBuilder(
       animation: Listenable.merge([_uiTickerController, _monsterSpawnController, _monsterDeathController]),
       builder: (context, child) {
-        return Stack(fit: StackFit.expand, children: [
+        return Stack(
+          key: _battleSceneKey,
+          fit: StackFit.expand, 
+          children: [
           // 기존 중복 배경 제거
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
             _buildActor(player.name, player.level, playerCurrentHp, player.maxHp, 'assets/images/warrior.png', _playerAnimController, true),
@@ -3669,13 +4225,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           if (player.activePet != null)
             _buildIndependentPet(player.activePet!),
           
-          // 🆕 고성능 캔버스 기반 데미지 텍스트 레이어
+          // 🆕 고성능 캔버스 기반 데미지 텍스트 레이어 (RepaintBoundary 최적화 적용)
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(
-                painter: DamageTextPainter(
-                  texts: floatingTexts,
-                  ticker: _uiTickerController,
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: DamagePainter(
+                    texts: damageManager.texts,
+                    ticker: _uiTickerController,
+                  ),
                 ),
               ),
             ),
@@ -5591,72 +6149,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
 
-  void _showOfflineRewardDialog(Map<String, dynamic> rewards) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1D2E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: const BorderSide(color: Colors.white10)),
-        title: Column(
-          children: [
-            const Icon(Icons.nightlight_round, color: Colors.blueAccent, size: 40),
-            const SizedBox(height: 10),
-            _buildShadowText('부재 중 성과 리포트', fontSize: 20, fontWeight: FontWeight.bold),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('${rewards['minutes']}분 동안 용사가 쉬지 않고 사냥했습니다!', style: const TextStyle(fontSize: 12, color: Colors.white60)),
-            const SizedBox(height: 25),
-            _buildRewardItem(Icons.monetization_on, '획득 골드', '${rewards['gold']} G', Colors.amber),
-            _buildRewardItem(Icons.auto_awesome, '획득 경험치', '${rewards['exp']} EXP', Colors.blueAccent),
-            _buildRewardItem(Icons.bolt, '처치 수', '${rewards['kills']} 마리', Colors.redAccent),
-            _buildRewardItem(Icons.diamond, '보너스 강화석', '${rewards['bonusStones']} 개', Colors.greenAccent),
-          ],
-        ),
-        actions: [
-          Center(
-            child: ElevatedButton(
-              onPressed: () {
-                setState(() => player.applyOfflineRewards(rewards));
-                _updateLastSaveTime();
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurpleAccent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              ),
-              child: const Text('보상 모두 수령', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRewardItem(IconData icon, String label, String value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 8),
-              Text(label, style: const TextStyle(fontSize: 13, color: Colors.white70)),
-            ],
-          ),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
-        ],
-      ),
-    );
-  }
 
   // --- 프리미엄 아이템 연출 및 슬롯 로직 ---
 
@@ -5860,6 +6352,116 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     }
   }
 
+  void _showOfflineRewardDialog(Map<String, dynamic> rewards) {
+    int minutes = rewards['minutes'] as int;
+    int hours = minutes ~/ 60;
+    int mins = minutes % 60;
+    String timeStr = hours > 0 ? '$hours시간 ${mins}분' : '$mins분';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1D2E),
+        title: Row(
+          children: [
+            const Icon(Icons.bedtime, color: Colors.amber, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              '방치 보상 ($timeStr)',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '게임을 떠나 있는 동안 획득한 보상입니다!',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              _buildOfflineRewardItem('💰', '골드', rewards['gold']),
+              _buildOfflineRewardItem('⭐', '경험치', rewards['exp']),
+              _buildOfflineRewardItem('⚔️', '처치 수', rewards['kills']),
+              const Divider(color: Colors.white24, height: 24),
+              const Text(
+                '제작 재료',
+                style: TextStyle(color: Colors.amber, fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (rewards.containsKey('tierShards')) ...[
+                ...((rewards['tierShards'] as Map<int, int>).entries.map((e) =>
+                    _buildOfflineRewardItem('🧩', 'T${e.key} 파편', e.value)
+                )),
+              ],
+              if (rewards.containsKey('powder'))
+                _buildOfflineRewardItem('✨', '가루', rewards['powder']),
+              const Divider(color: Colors.white24, height: 24),
+              const Text(
+                '강화 재료',
+                style: TextStyle(color: Colors.blueAccent, fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              _buildOfflineRewardItem('💎', '강화석', rewards['bonusStones']),
+              if (rewards.containsKey('rerollStone'))
+                _buildOfflineRewardItem('🎲', '재설정석', rewards['rerollStone']),
+              if (rewards.containsKey('protectionStone'))
+                _buildOfflineRewardItem('🛡️', '보호석', rewards['protectionStone']),
+              if (rewards.containsKey('cube'))
+                _buildOfflineRewardItem('🔮', '큐브', rewards['cube']),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+            ),
+            onPressed: () {
+              player.applyOfflineRewards(rewards);
+              _saveGameData();
+              Navigator.pop(context);
+              _showToast('방치 보상을 획득했습니다!');
+            },
+            child: const Text('보상 받기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfflineRewardItem(String emoji, String label, int amount) {
+    if (amount <= 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+          ),
+          Text(
+            '+${_formatNumber(amount)}',
+            style: const TextStyle(
+              color: Colors.greenAccent,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showTowerResultDialog(bool isSuccess) {
     if (_isTowerResultShowing) return;
     _isTowerResultShowing = true;
@@ -5974,40 +6576,47 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 enum LogType { damage, item, event }
 enum LootType { gold, exp }
 class CombatLogEntry { final String message; final LogType type; final DateTime time; CombatLogEntry(this.message, this.type, this.time); }
-class FloatingText {
+enum DamageType { normal, critical, skill, heal, gold, exp }
+
+/// 🆕 데미지 텍스트 데이터 모델
+class DamageEntry {
   final String text;
+  final double value;
   final bool isMonsterTarget;
   final DateTime createdAt;
-  final bool isCrit;
-  final bool isHeal;
-  final bool isGold; // 🆕 골드 표시 여부
-  final bool isExp;  // 🆕 경험치 표시 여부
-  final double offsetX;
-  final double offsetY;
+  final DamageType type;
+  final Offset basePosition;
   
-  late final bool isSkill;
-  late final bool isSpecial;
+  DamageEntry({
+    required this.text,
+    required this.value,
+    required this.isMonsterTarget,
+    required this.createdAt,
+    required this.type,
+    required this.basePosition,
+  });
+}
 
-  FloatingText(this.text, this.isMonsterTarget, this.createdAt, {
-    this.isCrit = false, 
-    this.isHeal = false, 
-    this.isGold = false, 
-    this.isExp = false,
-    this.offsetX = 0, 
-    this.offsetY = 0
-  }) {
-    isSkill = text.contains('⚡') || text.contains('🔥');
-    isSpecial = isSkill || isCrit || isHeal || isGold || isExp;
+/// 🆕 데미지 텍스트 생명주기 관리 매니저
+class DamageManager {
+  final List<DamageEntry> texts = [];
+  
+  void add(DamageEntry entry) {
+    texts.add(entry);
+  }
+  
+  void update() {
+    final now = DateTime.now();
+    texts.removeWhere((t) => now.difference(t.createdAt).inMilliseconds >= 800);
   }
 }
 
-
-/// 🆕 고성능 데미지 텍스트 렌더러
-class DamageTextPainter extends CustomPainter {
-  final List<FloatingText> texts;
+/// 🆕 고성능 데미지 텍스트 렌더러 (CustomPainter)
+class DamagePainter extends CustomPainter {
+  final List<DamageEntry> texts;
   final Animation<double> ticker;
 
-  DamageTextPainter({required this.texts, required this.ticker}) : super(repaint: ticker);
+  DamagePainter({required this.texts, required this.ticker}) : super(repaint: ticker);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -6015,103 +6624,105 @@ class DamageTextPainter extends CustomPainter {
     final now = DateTime.now();
 
     for (var ft in texts) {
-      final elapsed = now.difference(ft.createdAt).inMilliseconds;
-      if (elapsed < 0 || elapsed >= 500) continue;
+      final elapsedMs = now.difference(ft.createdAt).inMilliseconds;
+      if (elapsedMs < 0 || elapsedMs >= 800) continue;
 
-      final progress = elapsed / 500;
-
-      final curveValue = Curves.easeOutCubic.transform(progress);
+      final double progress = elapsedMs / 800; // 0.0 ~ 1.0 (0.8s)
       
-      // 애니메이션 수치 계산
-      final translateY = -80 * curveValue;
-      final opacity = progress < 0.8 ? 1.0 : (1.0 - (progress - 0.8) / 0.2).clamp(0.0, 1.0); // 80%까지 유지 후 마지막에 미세하게 페이드아웃
+      double scale = 1.0;
+      double opacity = 1.0;
+      double offsetY = 0.0;
 
-      final scale = 0.9 + (0.1 * curveValue);
-
-      // 스타일 결정
-      double baseOpacity = ft.isSpecial ? 1.0 : 0.7;
-      Color mainColor = Colors.white;
-      double fontSize = 16;
-      Color shadowColor = Colors.black;
-
-      if (ft.isHeal) {
-        mainColor = Colors.greenAccent;
-        fontSize = 20;
-        shadowColor = Colors.green;
-      } else if (ft.isGold) {
-        mainColor = Colors.amberAccent;
-        fontSize = 16;
-        shadowColor = Colors.orange;
-      } else if (ft.isExp) {
-        mainColor = Colors.lightBlueAccent;
-        fontSize = 16;
-        shadowColor = Colors.blue;
-      } else if (ft.isSkill) {
-        if (ft.isCrit) {
-          mainColor = Colors.cyanAccent;
-          fontSize = 26; // 32 -> 26 축소
-          shadowColor = Colors.blueAccent;
-        } else {
-          mainColor = Colors.yellowAccent;
-          fontSize = 22; // 26 -> 22 축소
-          shadowColor = Colors.orange;
-        }
-      } else if (ft.isCrit) {
-        mainColor = Colors.orangeAccent;
-        fontSize = 24; // 28 -> 24 축소
-        shadowColor = Colors.redAccent;
-      } else {
-        if (!ft.isMonsterTarget) {
-          mainColor = Colors.redAccent;
-          fontSize = 18;
-        } else {
-          fontSize = 16;
-        }
+      // 1단계: 0~0.16s (0~20%) - Bounce Bounce (튀어오름)
+      if (progress <= 0.2) {
+        final p = progress / 0.2; // 0.0 ~ 1.0
+        scale = 0.5 + (0.7 * p); // 0.5 -> 1.2
+        opacity = p; // 0.0 -> 1.0
+        offsetY = -25 * p; // 0 -> -25px
+      } 
+      // 2단계: 0.16~0.8s (20~100%) - ScaleDown & Rise & Fade (부드러운 소멸)
+      else {
+        final p = (progress - 0.2) / 0.8; // 0.0 ~ 1.0
+        scale = 1.2 - (0.2 * p); // 1.2 -> 1.0
+        opacity = 1.0 - p; // 1.0 -> 0.0
+        offsetY = -25 - (75 * p); // -25 -> -100px
       }
 
-      // 텍스트 페인터 설정
+      // 최종 좌표 계산 (basePosition + 애니메이션 오프셋)
+      final position = ft.basePosition + Offset(0, offsetY);
+
+      // 텍스트 스타일 설정 (FontWeight.w800 적용으로 웅장함 강조)
+      TextStyle style = _getTextStyle(ft.type, opacity);
+      
       final textPainter = TextPainter(
         text: TextSpan(
-          text: ft.text,
-          style: TextStyle(
-            color: mainColor.withOpacity(opacity * baseOpacity),
-            fontSize: fontSize,
-            fontWeight: FontWeight.w900,
-            fontStyle: FontStyle.italic,
-            shadows: [
-              Shadow(blurRadius: ft.isSpecial ? 8 : 4, color: shadowColor.withOpacity(opacity)),
-            ],
-          ),
+          text: ft.text, 
+          style: style,
         ),
         textDirection: ui.TextDirection.ltr,
+        textAlign: TextAlign.center,
       );
-
+      
       textPainter.layout();
 
-      // 위치 결정 (Positioned 로직 이식)
-      double posX;
-      if (ft.isMonsterTarget) {
-        posX = size.width - (60 + ft.offsetX) - textPainter.width;
-      } else {
-        posX = 60 + ft.offsetX;
-      }
-      double posY = 150 + ft.offsetY + translateY;
-
+      // 2. 텍스트 바디 렌더링
       canvas.save();
-      canvas.translate(posX + textPainter.width / 2, posY + textPainter.height / 2);
+      canvas.translate(position.dx, position.dy);
       canvas.scale(scale);
-      canvas.translate(-textPainter.width / 2, -textPainter.height / 2);
-
-      // 메인 텍스트 그리기 (테두리 제거)
-      textPainter.paint(canvas, Offset.zero);
-
       
+      // 메인 텍스트 그리기 (TextStyle 내의 Shadow로 충분하므로 중복 그림자 제거)
+      textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
       canvas.restore();
     }
   }
 
+  TextStyle _getTextStyle(DamageType type, double opacity) {
+    Color color;
+    double fontSize;
+    
+    switch (type) {
+      case DamageType.critical:
+        color = const Color(0xFFEF4444); // 더 강렬한 빨간색
+        fontSize = 22;
+        break;
+      case DamageType.skill:
+        color = const Color(0xFFF97316);
+        fontSize = 22;
+        break;
+      case DamageType.heal:
+        color = const Color(0xFF22C55E);
+        fontSize = 18;
+        break;
+      case DamageType.gold:
+        color = const Color(0xFFEAB308);
+        fontSize = 17;
+        break;
+      case DamageType.exp:
+        color = const Color(0xFF3B82F6);
+        fontSize = 17;
+        break;
+      case DamageType.normal:
+      default:
+        color = Colors.white;
+        fontSize = 18;
+    }
+
+    return GoogleFonts.luckiestGuy(
+      color: color.withOpacity(opacity),
+      fontSize: fontSize,
+      letterSpacing: 0.5,
+      shadows: [
+        Shadow(
+          blurRadius: 4.0,
+          color: Colors.black.withOpacity(opacity * 0.5),
+          offset: const Offset(1.5, 1.5),
+        ),
+      ],
+    );
+  }
+
   @override
-  bool shouldRepaint(covariant DamageTextPainter oldDelegate) => true;
+  bool shouldRepaint(covariant DamagePainter oldDelegate) => true;
 }
 
 

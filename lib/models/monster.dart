@@ -31,71 +31,90 @@ class Monster {
   });
 
   // 사냥터와 스테이지에 따른 몬스터 생성기
-  factory Monster.generate(HuntingZone zone, int stage) {
+  factory Monster.generate(HuntingZone zone, int stage, {bool isFinal = false}) {
     final rand = Random();
-    
-    // --- [v0.0.51] 무한의탑 전용 스케일링 설계 ---
-    bool isTower = zone.id == ZoneId.tower;
-    bool isElite = isTower ? true : (rand.nextDouble() < 0.10);
-    double eliteMult = isTower 
-        ? (5.0 + (stage * 0.1)) // 탑은 기본 5배 + 층당 추가 배율
-        : (isElite ? (1.5 + rand.nextDouble() * 1.5) : 1.0);
-    
-    // 지역별 몬스터 이름 무작위 선택
-    String species = zone.monsterNames[rand.nextInt(zone.monsterNames.length)];
-    int totalLevel = (zone.minLevel + stage - 1);
-
-    // --- [2026-01-17] 밸런스 최적화: 아이템 티어(100층당 10배)에 맞춘 성장 모델 ---
     double s = stage.toDouble();
-    // HP(stage) = 900 × 1.025^stage (100층당 약 11.8배 성장하여 티어 상향과 조화)
-    double baseHp = (900 * pow(1.025, s)).toDouble();
     
-    // 초반 구간 체력 완화 로직 (Smoothing) 적용
-    double mHpFinal;
-    if (s <= 5) {
-      mHpFinal = baseHp * 0.15;
-    } else if (s <= 10) {
-      mHpFinal = baseHp * 0.4;
+    // 1. 성장 배율(Multiplier) 계산 (3단계 구간)
+    double multiplier;
+    if (s <= 200) {
+      multiplier = 1 + (s * 0.15);
+    } else if (s <= 1500) {
+      multiplier = 31 * pow(1.065, (s - 200) / 10).toDouble();
     } else {
-      mHpFinal = baseHp;
+      multiplier = 85000 * pow(1.1, (s - 1500) / 50).toDouble() * (1 + ((s.toInt() - 1500) ~/ 100) * 0.5);
     }
-    
-    // 엘리트 몬스터는 체력 증가
-    int mHp = (mHpFinal * eliteMult).toInt();
-    
-    // ATK(stage) = 90 × 1.02^stage
-    int mAtk = (90 * pow(isTower ? 1.04 : 1.02, s)).toInt();
-    if (isTower) mAtk = (mAtk * 2.0).toInt(); // 탑은 공격력도 2배 기본 보너스
-    
-    // 방어력은 0으로 고정
-    int mDef = 0;
 
-    // --- 보상 공식 분리 (v0.0.39) ---
-    // [v0.0.47] 레벨 1000 시스템: 경험치 선형 증가
-    // 기존: 지수 성장 (1.025^s) → 레벨 100 이후 성장 정체
-    // 신규: 스테이지 비례 성장 → 레벨 1000까지 균형잡힌 성장
-    int expReward = 20 + (s.toInt() * 2); // 스테이지당 +2 경험치
+    // 맵 난이도 계수 적용
+    multiplier *= zone.difficultyMultiplier;
+
+    // 2. 몬스터 유형 결정 (보스 / 엘리트 / 일반)
+    // 매 50 스테이지의 마지막(10번째) 몬스터만 보스로 출현
+    bool isBoss = (stage % 50 == 0) && isFinal;
+    bool isTower = zone.id == ZoneId.tower;
     
-    // 2. 골드(Gold): 기초 수령액 상향(50->200) 및 후반 지수 억제(1.025->1.017)
-    // 환생 시스템 도입 전 인플레이션 방지를 위해 성장을 엄격하게 제한
-    double goldMult = pow(1.017, s).toDouble();
-    
-    // 엘리트 몬스터는 골드도 배율만큼 증가
-    int finalGold = (200 * goldMult * eliteMult).toInt();
-    
-    // 엘리트 몬스터는 드롭률 상향 (20% -> 50%)
-    double dropChance = isElite ? 0.5 : 0.2;
-    
-    // 몬스터 이름 표식
+    // 타워는 매 층이 보스급이거나 특수 강화됨
+    bool isElite = !isBoss && (isTower || rand.nextDouble() < 0.10);
+
+    // 3. 베이스 스탯 결정
+    double baseHp;
+    double baseAtk;
+    double baseDef;
+    double baseGold;
+    double baseExp;
+    String species = zone.monsterNames[rand.nextInt(zone.monsterNames.length)];
+
+    if (isBoss) {
+      baseHp = 800;
+      baseAtk = 35;
+      baseDef = 15;
+      baseGold = 500;
+      baseExp = 500;
+    } else {
+      // 일반 몬스터 베이스 (랜덤 범위)
+      baseHp = 60 + rand.nextInt(41).toDouble();    // 60~100
+      baseAtk = 8 + rand.nextInt(7).toDouble();     // 8~14
+      baseDef = 3 + rand.nextInt(4).toDouble();     // 3~6
+      baseGold = 20 + rand.nextInt(16).toDouble();  // 20~35
+      baseExp = 15 + rand.nextInt(11).toDouble();   // 15~25
+    }
+
+    // 4. 엘리트/타워 보정 적용
+    double eliteMult = 1.0;
+    if (isElite) {
+      baseHp *= 1.5;
+      baseAtk *= 1.3;
+      baseDef *= 1.2;
+      // 보상 2~5배 랜덤
+      eliteMult = 2.0 + rand.nextDouble() * 3.0;
+      baseGold *= eliteMult;
+      baseExp *= eliteMult;
+    }
+
+    // 5. 최종 스탯 산출 (베이스 * 배율)
+    int mHp = (baseHp * multiplier).toInt();
+    int mAtk = (baseAtk * multiplier).toInt();
+    int mDef = (baseDef * multiplier).toInt();
+
+    // 스테이지 보상 가속화 배율 적용: multiplier * (1 + stage / 500)
+    double rewardMultiplier = multiplier * (1 + s / 500);
+    int mGold = (baseGold * rewardMultiplier).toInt();
+    int mExp = (baseExp * rewardMultiplier).toInt();
+
+    // 6. 이름 및 비주얼 설정
     String displayName;
-    if (isTower) {
+    if (isBoss) {
+      displayName = '👑 $species (BOSS)';
+    } else if (isTower) {
       displayName = '👹 [TOWER] $species ($stage층)';
+    } else if (isElite) {
+      displayName = '⭐ $species (Elite)';
     } else {
-      displayName = isElite 
-        ? '⭐ $species (Lv.$totalLevel)' 
-        : '$species (Lv.$totalLevel)';
+      displayName = species;
     }
 
+    int totalLevel = (zone.minLevel + stage - 1);
+    
     return Monster(
       name: displayName,
       level: totalLevel,
@@ -103,11 +122,11 @@ class Monster {
       hp: mHp,
       attack: mAtk,
       defense: mDef,
-      expReward: expReward,
-      goldReward: finalGold,
-      itemDropChance: dropChance,
-      isElite: isElite,
-      eliteMultiplier: eliteMult,
+      expReward: mExp,
+      goldReward: mGold,
+      itemDropChance: isBoss ? 1.0 : (isElite ? 0.5 : 0.2),
+      isElite: isElite || isBoss,
+      eliteMultiplier: isElite ? eliteMult : 1.0,
     );
   }
 
