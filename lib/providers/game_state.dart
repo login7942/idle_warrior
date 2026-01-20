@@ -1,0 +1,544 @@
+import 'dart:async';
+import 'dart:math';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/player.dart';
+import '../models/monster.dart';
+import '../models/item.dart';
+import '../models/skill.dart';
+import '../models/hunting_zone.dart';
+import '../services/auth_service.dart';
+import '../services/cloud_save_service.dart';
+
+enum LogType { damage, item, event }
+
+class CombatLogEntry {
+  final String message;
+  final LogType type;
+  final DateTime time;
+
+  CombatLogEntry(this.message, this.type) : time = DateTime.now();
+}
+
+class GameState extends ChangeNotifier {
+  // --- 서비스 레이어 ---
+  final AuthService authService = AuthService();
+  final CloudSaveService _cloudSaveService = CloudSaveService();
+
+  // --- 플레이어 및 전투 상태 ---
+  Player player = Player();
+  int _playerCurrentHp = 0;
+  int get playerCurrentHp => _playerCurrentHp;
+  set playerCurrentHp(int val) {
+    _playerCurrentHp = val;
+    notifyListeners();
+  }
+
+  Monster? currentMonster;
+  int _monsterCurrentHp = 0;
+  int get monsterCurrentHp => _monsterCurrentHp;
+  set monsterCurrentHp(int val) {
+    _monsterCurrentHp = val;
+    notifyListeners();
+  }
+  
+  // --- 진행 데이터 ---
+  int _currentStage = 1;
+  int get currentStage => _currentStage;
+  set currentStage(int val) {
+    _currentStage = val;
+    notifyListeners();
+  }
+
+  HuntingZone _currentZone = HuntingZoneData.list[0];
+  HuntingZone get currentZone => _currentZone;
+  set currentZone(HuntingZone val) {
+    _currentZone = val;
+    notifyListeners();
+  }
+
+  final Map<ZoneId, int> zoneStages = { for (var v in ZoneId.values) v : 1 };
+  
+  bool autoAdvance = true;
+  int _stageKills = 0;
+  int get stageKills => _stageKills;
+  set stageKills(int val) {
+    _stageKills = val;
+    notifyListeners();
+  }
+  final int targetKills = 10;
+  
+  // --- 효율 데이터 ---
+  double goldPerMin = 0;
+  double expPerMin = 0;
+  double killsPerMin = 0;
+  int autoDismantleLevel = 0;
+
+  // --- 전투 로그 ---
+  List<CombatLogEntry> logs = [];
+  final int maxLogs = 50;
+
+  // --- 시스템 상태 ---
+  bool isProcessingVictory = false;
+  bool isCloudSynced = false;
+  DateTime? lastCloudSaveTime;
+  DateTime? lastMonsterSpawnTime;
+  int _skillRoundRobinIndex = 0;
+  
+  // --- UI 통신용 콜백 ---
+  Function(String text, bool isCrit, bool isSkill, {double? ox, double? oy})? onDamageDealt;
+  Function(int damage)? onPlayerDamageTaken;
+  VoidCallback? onMonsterSpawned;
+  Function(int gold, int exp)? onVictory;
+  Function(int healAmount)? onHeal;
+  VoidCallback? onStageJump; // [v0.0.79] 스테이지 점프 발생 시 호출
+
+  // --- 초기화 ---
+  GameState() {
+    _initializeGame();
+  }
+
+  Future<void> _initializeGame() async {
+    try {
+      if (!authService.isLoggedIn) {
+        await authService.signInAnonymously();
+      }
+      await loadGameData();
+    } catch (e) {
+      debugPrint('초기화 중 오류 발생: $e');
+      await loadGameData();
+    }
+  }
+
+  // --- 데이터 관리 ---
+  Future<void> saveGameData({bool forceCloud = false}) async {
+    final nowTime = DateTime.now();
+    final nowStr = nowTime.toIso8601String();
+    final prefs = await SharedPreferences.getInstance();
+    
+    final saveData = {
+      'player': player.toJson(),
+      'current_stage': currentStage,
+      'current_zone_id': currentZone.id.name,
+      'last_save_time': nowStr,
+      'zone_stages': zoneStages.map((k, v) => MapEntry(k.name, v)),
+      'auto_advance': autoAdvance,
+      'gold_per_min': goldPerMin,
+      'exp_per_min': expPerMin,
+      'kills_per_min': killsPerMin,
+      'auto_dismantle_level': autoDismantleLevel,
+    };
+
+    await prefs.setString('player_save_data', jsonEncode(saveData['player']));
+    await prefs.setInt('current_stage', currentStage);
+    await prefs.setString('current_zone_id', currentZone.id.name);
+    await prefs.setString('lastSaveTime', nowStr);
+    await prefs.setDouble('gold_per_min', goldPerMin);
+    await prefs.setDouble('exp_per_min', expPerMin);
+    await prefs.setDouble('kills_per_min', killsPerMin);
+    await prefs.setInt('auto_dismantle_level', autoDismantleLevel);
+    
+    if (authService.isLoggedIn) {
+      final bool shouldSaveToCloud = forceCloud || 
+          lastCloudSaveTime == null || 
+          nowTime.difference(lastCloudSaveTime!).inSeconds >= 30;
+
+      if (shouldSaveToCloud) {
+        lastCloudSaveTime = nowTime;
+        final success = await _cloudSaveService.saveToCloud(saveData);
+        isCloudSynced = success;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> loadGameData() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? localData = prefs.getString('player_save_data');
+    String? localTime = prefs.getString('lastSaveTime');
+    
+    Map<String, dynamic>? cloudDataMap;
+    String? cloudTime;
+
+    if (authService.isLoggedIn) {
+      final cloudSave = await _cloudSaveService.loadFromCloud();
+      if (cloudSave != null) {
+        cloudDataMap = cloudSave['data'] as Map<String, dynamic>;
+        cloudTime = cloudSave['timestamp'] as String;
+      }
+    }
+
+    Map<String, dynamic>? targetData;
+    bool isFromCloud = false;
+
+    if (cloudDataMap != null && _isCloudNewer(cloudTime, localTime)) {
+      targetData = cloudDataMap;
+      isFromCloud = true;
+    } else if (localData != null) {
+      try {
+        player = Player.fromJson(jsonDecode(localData));
+        playerCurrentHp = player.maxHp;
+        currentStage = prefs.getInt('current_stage') ?? 1;
+        String? zoneName = prefs.getString('current_zone_id');
+        if (zoneName != null) {
+          currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
+        }
+        goldPerMin = prefs.getDouble('gold_per_min') ?? 0;
+        expPerMin = prefs.getDouble('exp_per_min') ?? 0;
+        killsPerMin = prefs.getDouble('kills_per_min') ?? 0;
+        autoDismantleLevel = prefs.getInt('auto_dismantle_level') ?? 0;
+        
+        isCloudSynced = cloudDataMap != null;
+      } catch (e) {
+        debugPrint('로컬 데이터 로드 실패: $e');
+      }
+    }
+
+    if (targetData != null) {
+      _applyLoadedData(targetData);
+      if (isFromCloud) addLog('클라우드에서 데이터를 불러왔습니다.', LogType.event);
+    } else {
+      _initializeStarterData();
+    }
+
+    // 데이터 로드 후 첫 몬스터 생성
+    spawnMonster();
+    notifyListeners();
+  }
+
+  void _applyLoadedData(Map<String, dynamic> targetData) {
+    player = Player.fromJson(targetData['player']);
+    playerCurrentHp = player.maxHp;
+    currentStage = targetData['current_stage'] ?? 1;
+    String? zoneName = targetData['current_zone_id'];
+    if (zoneName != null) {
+      currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
+    }
+    
+    autoAdvance = targetData['auto_advance'] ?? true;
+    if (targetData.containsKey('zone_stages')) {
+      var zs = Map<String, dynamic>.from(targetData['zone_stages']);
+      zs.forEach((k, v) {
+        try {
+          final zid = ZoneId.values.byName(k);
+          zoneStages[zid] = v as int;
+        } catch (_) {}
+      });
+    }
+
+    goldPerMin = (targetData['gold_per_min'] ?? 0).toDouble();
+    expPerMin = (targetData['exp_per_min'] ?? 0).toDouble();
+    killsPerMin = (targetData['kills_per_min'] ?? 0).toDouble();
+    autoDismantleLevel = targetData['auto_dismantle_level'] ?? 0;
+    
+    isCloudSynced = true;
+    notifyListeners();
+  }
+
+  void _initializeStarterData() {
+    Item starterWeapon = Item(
+      id: 'starter_${DateTime.now().millisecondsSinceEpoch}',
+      name: '모험가의 목검',
+      type: ItemType.weapon,
+      grade: ItemGrade.common,
+      tier: 1,
+      mainStat1: 12,
+      subOptions: [],
+      enhanceLevel: 0,
+      durability: 100,
+      maxDurability: 100,
+      isNew: false,
+    );
+    player.equipItem(starterWeapon);
+    playerCurrentHp = player.maxHp;
+    addLog('환영합니다! 모험을 시작하기 위해 [모험가의 목검]을 지급했습니다.', LogType.event);
+    notifyListeners();
+  }
+
+  bool _isCloudNewer(String? cloudTime, String? localTime) {
+    if (cloudTime == null) return false;
+    if (localTime == null) return true;
+    try {
+      final cloud = DateTime.parse(cloudTime);
+      final local = DateTime.parse(localTime);
+      return cloud.isAfter(local);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  // --- 전투 로직 ---
+  void spawnMonster() {
+    bool isFinal = (stageKills >= targetKills - 1);
+    currentMonster = Monster.generate(currentZone, currentStage, isFinal: isFinal);
+    monsterCurrentHp = currentMonster!.hp;
+    lastMonsterSpawnTime = DateTime.now();
+    isProcessingVictory = false;
+    onMonsterSpawned?.call();
+    notifyListeners();
+  }
+
+  void processCombatTurn() {
+    if (currentMonster == null || isProcessingVictory) return;
+
+    final activeSkills = player.skills.where((s) => s.type == SkillType.active && s.isUnlocked).toList();
+    Skill? selectedSkill;
+
+    if (activeSkills.isNotEmpty) {
+      int startIndex = _skillRoundRobinIndex % activeSkills.length;
+      for (int i = 0; i < activeSkills.length; i++) {
+        int checkIdx = (startIndex + i) % activeSkills.length;
+        final s = activeSkills[checkIdx];
+        if (s.isReady(player.cdr)) {
+          selectedSkill = s;
+          _skillRoundRobinIndex = (checkIdx + 1) % activeSkills.length;
+          break;
+        }
+      }
+    }
+
+    if (selectedSkill != null) {
+      _useSkill(selectedSkill);
+    } else {
+      _performBasicAttack();
+    }
+  }
+
+  void _performBasicAttack() {
+    if (currentMonster == null) return;
+    
+    double defenseRating = 100 / (100 + currentMonster!.defense);
+    double variance = 0.9 + (Random().nextDouble() * 0.2);
+    double rawDamage = (player.attack * defenseRating) * variance * player.potentialFinalDamageMult;
+    int baseDmg = max(rawDamage.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
+
+    bool isCrit = Random().nextDouble() * 100 < player.critChance;
+    int pDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
+
+    currentMonster!.hp -= pDmg;
+    monsterCurrentHp = currentMonster!.hp;
+    
+    onDamageDealt?.call(pDmg.toString(), isCrit, false);
+    
+    _checkMonsterDeath();
+    
+    if (player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
+      int lifestealAmt = (pDmg * player.lifesteal / 100).toInt();
+      if (lifestealAmt > 0) {
+        playerCurrentHp = (playerCurrentHp + lifestealAmt).clamp(0, player.maxHp);
+        onHeal?.call(lifestealAmt);
+      }
+    }
+    notifyListeners();
+  }
+
+  void _useSkill(Skill skill) {
+    if (currentMonster == null) return;
+    skill.lastUsed = DateTime.now();
+    player.totalSkillsUsed++;
+
+    // 스킬별 타격 횟수 정의
+    int hits = 1;
+    if (skill.id == 'act_1') hits = 3; // 바람 베기는 3연타
+
+    for (int i = 0; i < hits; i++) {
+      Future.delayed(Duration(milliseconds: i * 150), () {
+        if (currentMonster == null || currentMonster!.isDead) return;
+
+        double defenseRating = 100 / (100 + currentMonster!.defense);
+        double variance = 0.9 + (Random().nextDouble() * 0.2);
+        
+        // 연타 스킬은 타당 데미지 분산 (예: 3연타면 각각 1/hits 만큼 계산되어야 함)
+        // 하지만 기존 기획상 currentValue가 총합이 아닌 타당 배율일 수 있으므로 그대로 사용하되, 
+        // 필요 시 밸런스 파일(DOC_BALANCE) 참고하여 조정 가능.
+        double powerMult = skill.currentValue;
+        
+        double rawDmg = (player.attack * (powerMult / 100) * defenseRating) * variance * player.potentialFinalDamageMult;
+        int baseDmg = max(rawDmg.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
+
+        // 스킬도 치명타 확률 적용
+        bool isCrit = Random().nextDouble() * 100 < player.critChance;
+        int sDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
+
+        currentMonster!.hp -= sDmg;
+        monsterCurrentHp = currentMonster!.hp;
+
+        // UI 표현용 텍스트 (아이콘 포함)
+        String prefix = isCrit ? '⚡CRITICAL ' : '🔥SKILL ';
+        
+        // 연타 시 위치 분산
+        double ox = hits > 1 ? (Random().nextDouble() * 60 - 30) : 0;
+        double oy = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
+
+        onDamageDealt?.call('$prefix$sDmg', isCrit, true, ox: ox, oy: oy);
+
+        _checkMonsterDeath();
+        notifyListeners();
+      });
+    }
+  }
+
+  void _checkMonsterDeath() {
+    if (currentMonster == null || !currentMonster!.isDead || isProcessingVictory) return;
+    
+    isProcessingVictory = true; 
+    final killDuration = lastMonsterSpawnTime != null 
+        ? DateTime.now().difference(lastMonsterSpawnTime!) 
+        : null;
+
+    handleVictory(killDuration);
+    notifyListeners();
+  }
+
+  void handleVictory(Duration? killDuration) {
+    int finalGold = (currentMonster!.goldReward * player.goldBonus / 100).toInt();
+    int expReward = currentMonster!.expReward;
+    
+    player.gainExp(expReward);
+    player.gold += finalGold;
+    player.totalKills++;
+    player.totalGoldEarned += finalGold;
+
+    onVictory?.call(finalGold, expReward);
+
+    bool isTower = currentZone.id == ZoneId.tower;
+    if (!isTower) {
+      bool isBossStage = currentStage % 50 == 0;
+      bool jumped = false;
+      
+      if (!isBossStage && killDuration != null && killDuration.inMilliseconds < 1500) {
+        currentStage += 1;
+        stageKills = 0;
+        zoneStages[currentZone.id] = currentStage;
+        jumped = true;
+        onStageJump?.call(); // [v0.0.79] UI에 점프 발생 알림
+      }
+
+      if (!jumped) {
+        stageKills++;
+        if (stageKills >= targetKills) {
+          if (autoAdvance) {
+            stageKills = 0;
+            currentStage += 1;
+            zoneStages[currentZone.id] = currentStage;
+          } else {
+            stageKills = targetKills - 1;
+          }
+        }
+      }
+    }
+
+    _dropMaterials(currentMonster!.level);
+    _dropItem();
+    saveGameData(); 
+    
+    // 처치 후 다음 몬스터 스폰 (즉시)
+    spawnMonster();
+  }
+
+  void _dropItem() {
+    final rand = Random();
+    double dropChance = currentMonster!.itemDropChance * (player.dropBonus / 100);
+    
+    if (rand.nextDouble() < dropChance) {
+      final newItem = Item.generate(player.level, tier: 1); 
+      if (player.addItem(newItem)) {
+        addLog('[획득] ${newItem.grade.name} 등급의 ${newItem.type.nameKr} 획득!', LogType.item);
+        player.totalItemsFound++;
+        player.updateEncyclopedia(newItem); // [v0.0.78] 획득 시 도감 갱신
+      }
+    }
+  }
+
+  void _dropMaterials(int monsterLevel) {
+    final rand = Random();
+    
+    // 1. 강화석 드롭 (60% 확률)
+    if (rand.nextDouble() < 0.6) {
+      int amount = (monsterLevel / 2).ceil() + rand.nextInt(3);
+      player.enhancementStone += amount;
+      addLog('[공명] 강화석 $amount개 획득!', LogType.item);
+    }
+    
+    // 2. 가루 드롭 (40% 확률)
+    if (rand.nextDouble() < 0.4) {
+      int amount = (monsterLevel * 2) + rand.nextInt(10);
+      player.powder += amount;
+      addLog('[추출] 신비로운 가루 $amount개 획득!', LogType.item);
+    }
+    
+    // 3. 재설정석 드롭 (10% 확률 - 희귀)
+    if (rand.nextDouble() < 0.1) {
+      player.rerollStone += 1;
+      addLog('[희귀] 옵션 재설정석 획득!', LogType.item);
+    }
+    
+    // 4. 보호석 (2% 확률)
+    if (rand.nextDouble() < 0.02) {
+      player.protectionStone += 1;
+      addLog('[전설] 강화 보호석 획득!', LogType.item);
+    }
+
+    // 5. 강화 큐브 드롭 (0.1% 확률)
+    if (rand.nextDouble() < 0.001) {
+      player.cube += 1;
+      addLog('[신화] 강화 큐브 획득!', LogType.item);
+    }
+
+    // --- [v0.0.60] 스펙 기반 게이트 드랍 (심연의 구슬) ---
+    double avgLv = player.averageEnhanceLevel;
+    if (avgLv >= 13.0 && rand.nextDouble() < 0.03) {
+      player.tierCores[2] = (player.tierCores[2] ?? 0) + 1;
+      addLog('[게이트] 심연의 구슬 [T2] 획득!', LogType.event);
+    }
+    if (avgLv >= 15.0 && rand.nextDouble() < 0.01) {
+      player.tierCores[3] = (player.tierCores[3] ?? 0) + 1;
+      addLog('[게이트] 심연의 구슬 [T3] 획득!', LogType.event);
+    }
+  }
+
+  void addLog(String message, LogType type) {
+    logs.insert(0, CombatLogEntry(message, type));
+    if (logs.length > maxLogs) logs.removeLast();
+    notifyListeners();
+  }
+
+  void applyRegen() {
+    if (playerCurrentHp <= 0 || playerCurrentHp >= player.maxHp) return;
+    double regenAmount = player.maxHp * (player.hpRegen / 100);
+    int finalRegen = regenAmount.toInt();
+    if (finalRegen > 0) {
+      playerCurrentHp = (playerCurrentHp + finalRegen).clamp(0, player.maxHp);
+      onHeal?.call(finalRegen);
+      notifyListeners();
+    }
+  }
+
+  void monsterPerformAttack() {
+    if (currentMonster == null || isProcessingVictory) return;
+    
+    double mVariance = 0.9 + (Random().nextDouble() * 0.2);
+    double pDefenseRating = 100 / (100 + player.defense);
+    double rawMDmg = (currentMonster!.attack * pDefenseRating) * mVariance;
+    int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.1 * mVariance).toInt()).clamp(1, 999999999);
+
+    playerCurrentHp -= mDmg;
+    onPlayerDamageTaken?.call(mDmg);
+    
+    if (playerCurrentHp <= 0) {
+      playerCurrentHp = 0;
+      handlePlayerDeath();
+    }
+    notifyListeners();
+  }
+
+  void handlePlayerDeath() {
+    playerCurrentHp = player.maxHp;
+    currentStage = max(1, currentStage - 5);
+    zoneStages[currentZone.id] = currentStage;
+    addLog('사망했습니다. 안전을 위해 5스테이지 이전으로 후퇴합니다.', LogType.event);
+    spawnMonster();
+    notifyListeners();
+  }
+}

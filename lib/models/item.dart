@@ -625,8 +625,8 @@ class Item {
         val = minVal + (maxVal - minVal) * roll;
         break;
       case '공격 속도':
-        minVal = 0.3 + (tier * 0.1);
-        maxVal = 0.8 + (tier * 0.1);
+        minVal = 0.02 + (tier * 0.03);
+        maxVal = 0.08 + (tier * 0.04);
         val = minVal + (maxVal - minVal) * roll;
         break;
       case 'HP 재생':

@@ -74,6 +74,17 @@ class Player {
   // 장비 도감 시스템 (v0.0.35 추가)
   // encyclopediaProgress: "Tier_Type" -> Max Level reached (e.g., "T1_weapon" -> 15)
   Map<String, int> encyclopediaProgress = {};
+  
+  // [v0.0.78] 도감 업데이트 - 아이템 획득 및 강화 시 자동 호출
+  void updateEncyclopedia(Item item) {
+    String key = 'T${item.tier}_${item.type.name}';
+    int currentMax = encyclopediaProgress[key] ?? -1;
+    // 현재 도감 레벨보다 높은 등급/강화의 아이템이면 갱신 (-1인 경우 0강이라도 갱신)
+    if (item.enhanceLevel > currentMax) {
+      encyclopediaProgress[key] = item.enhanceLevel;
+    }
+  }
+
   // encyclopediaClaims: "Tier_Type" -> List of claimed levels (e.g., "T1_weapon" -> [0, 1, 2, 5])
   Map<String, List<int>> encyclopediaClaims = {};
 
@@ -193,7 +204,7 @@ class Player {
   // 스킬 목록 (v0.0.62 밸런스 개편)
   List<Skill> skills = [
     Skill(id: 'act_1', name: '바람 베기', description: '초반 주력기 (3연타 공격)', type: SkillType.active, iconEmoji: '🌪️', unlockLevel: 5, unlockCost: 1000, baseUpgradeCost: 1000, costMultiplier: 1.5, baseValue: 80, valuePerLevel: 8, baseCooldown: 6),
-    Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 5, valuePerLevel: 1, baseCooldown: 0),
+    Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 1.4, baseCooldown: 0),
     Skill(id: 'act_2', name: '강격', description: '강력한 한방 데미지를 입힙니다.', type: SkillType.active, iconEmoji: '🔨', unlockLevel: 15, unlockCost: 2000, baseUpgradeCost: 2000, costMultiplier: 1.6, baseValue: 200, valuePerLevel: 20, baseCooldown: 12),
     Skill(id: 'pas_2', name: '철벽', description: '방어력이 % 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '🛡️', unlockLevel: 20, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
     Skill(id: 'act_3', name: '얼음 화살', description: '고위력 공격 및 적을 빙결시킵니다.', type: SkillType.active, iconEmoji: '❄️', unlockLevel: 30, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 1.8, baseValue: 300, valuePerLevel: 40, baseCooldown: 15),
@@ -375,8 +386,8 @@ class Player {
       }
       if (item.potential?.name == '공격 속도') itemBonus += item.potential!.value;
     });
-    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + itemBonus;
-    return total.clamp(0.1, 10.0); // 최대 공격 속도를 10.0으로 캡 적용
+    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus;
+    return total.clamp(0.1, 4.0); // 최대 공격 속도를 4.0으로 하향 조정 (전투 엔진 250ms와 일치)
   }
 
   double get critChance {
