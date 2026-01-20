@@ -556,8 +556,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     
     if (!mounted || currentMonster == null || _isProcessingVictory) return;
     
-    // 첫 공격 즉시 시도
-    _processCombatTurn();
+    // [v0.0.64] 첫 공격도 공속의 영향을 받도록 즉시 실행 제거 (Timer.periodic이 첫 인터벌 대기 후 실행)
+    // _processCombatTurn(); 
     
     // [v0.1.x] 공속 턴 주기 및 하드캡 적용 (초당 최대 4회 = 250ms)
     int intervalMs = (1000 / player.attackSpeed).toInt();
@@ -605,8 +605,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       } else {
         // 모든 스킬이 쿨타임이면 기본공격 실행
         _performBasicAttack();
-        // 스킬을 하나도 못 썼으므로 다음 턴에는 다시 처음(0번)부터 스킬 찬스 탐색
-        _skillRoundRobinIndex = 0;
+        // [v0.0.64] 기본 공격 수행 후에도 스킬 순번을 유지하여 엄격한 라운드 로빈 구현
+        // _skillRoundRobinIndex = 0;
       }
     });
   }
@@ -775,7 +775,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       
       // [v0.0.54] 무한의탑은 여기서 스테이지를 올리지 않음 (결과 팝업에서 처리)
       if (!isTower) {
-        if (killDuration != null && killDuration.inMilliseconds < 1500) {
+        // [v0.0.65] 보스 스테이지(50의 배수)는 점프가 발생하지 않도록 하여 보스전 기회 보장
+        bool isBossStage = _currentStage % 50 == 0;
+        
+        if (!isBossStage && killDuration != null && killDuration.inMilliseconds < 1500) {
           _currentStage += 1;
           _stageKills = 0;
           _zoneStages[_currentZone.id] = _currentStage;
@@ -2863,7 +2866,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           Stack(
                             children: [
                               Container(
-                                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                                padding: const EdgeInsets.fromLTRB(20, 24, 20, 4),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
@@ -2911,37 +2914,20 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                   ],
                                 ),
                               ),
-                              // 우측 상단: 전투력 + 닫기 버튼
+                              // 우측 상단: 닫기 버튼
                               Positioned(
-                                right: 12,
-                                top: 12,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amberAccent.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.amberAccent.withOpacity(0.3)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.bolt, size: 12, color: Colors.amberAccent),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            NumberFormat('#,###').format(currentItem.combatPower),
-                                            style: const TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
-                                          ),
-                                        ],
-                                      ),
+                                right: 16,
+                                top: 16,
+                                child: GestureDetector(
+                                  onTap: () => Navigator.pop(context),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.05),
+                                      shape: BoxShape.circle,
                                     ),
-                                    const SizedBox(width: 8),
-                                    GestureDetector(
-                                      onTap: () => Navigator.pop(context),
-                                      child: const Icon(Icons.close, color: Colors.white24, size: 20),
-                                    ),
-                                  ],
+                                    child: const Icon(Icons.close, color: Colors.white24, size: 20),
+                                  ),
                                 ),
                               ),
                             ],
@@ -2952,11 +2938,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // --- [슬림 전투력 표시] ---
+                                Center(child: _buildCPBadge(currentItem.combatPower)),
+                                const SizedBox(height: 4),
+
                                 // --- [비교 카드 (확장형)] ---
                                 if (!isEquipped && currentEquip != null)
                                   _buildExpandableCompareCard(currentItem, currentEquip, isCompareExpanded, (v) => setDialogState(() => isCompareExpanded = v)),
                                 
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 4),
                                 // --- [주 능력치 섹션] ---
                                 _buildMainStatSection(currentItem),
                                 
@@ -3052,22 +3042,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildCPBadge(int cp) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.amberAccent.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.amberAccent.withOpacity(0.2)),
-        boxShadow: [BoxShadow(color: Colors.amberAccent.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.bolt, size: 16, color: Colors.amberAccent),
-          const SizedBox(width: 6),
-          Text(NumberFormat('#,###').format(cp), style: const TextStyle(color: Colors.amberAccent, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.bolt, size: 14, color: Colors.amberAccent),
+        const SizedBox(width: 4),
+        Text(
+          NumberFormat('#,###').format(cp), 
+          style: const TextStyle(
+            color: Colors.amberAccent, 
+            fontSize: 14, 
+            fontWeight: FontWeight.w900, 
+            letterSpacing: 0.5
+          )
+        ),
+      ],
     );
   }
 
@@ -3918,13 +3907,19 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildStageBarLarge() {
     double progress = (_stageKills / _targetKills).clamp(0, 1);
+    bool isBossStage = _currentStage % 50 == 0;
+    
     return Container(
       width: double.infinity,
       height: 14, 
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), 
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(7), 
+        borderRadius: BorderRadius.circular(7),
+        // 보스 스테이지일 경우 바 전체에 미세한 붉은 광운 추가
+        boxShadow: isBossStage ? [
+          BoxShadow(color: Colors.redAccent.withOpacity(0.15), blurRadius: 8, spreadRadius: 1)
+        ] : null,
       ),
       child: Stack(
         children: [
@@ -3934,11 +3929,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             builder: (context, value, child) => FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: value,
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(7),
-                  gradient: const LinearGradient(
-                    colors: [Colors.orangeAccent, Colors.orange],
+                  boxShadow: isBossStage ? [
+                    BoxShadow(color: Colors.redAccent.withOpacity(0.6), blurRadius: 10, spreadRadius: 2)
+                  ] : null,
+                  gradient: LinearGradient(
+                    colors: isBossStage 
+                        ? [Colors.redAccent, Colors.red.shade900] 
+                        : [Colors.orangeAccent, Colors.orange],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
@@ -3951,11 +3952,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  _currentZone.id == ZoneId.tower 
-                    ? '👹 무한의 탑 - ${Monster.getDisplayStage(_currentStage)}층 도전 중' 
-                    : '${_currentZone.name} - 스테이지 ${Monster.getDisplayStage(_currentStage)}', 
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white, fontStyle: FontStyle.italic)
+                Row(
+                  children: [
+                    if (isBossStage) ...[
+                      const Text('👑', style: TextStyle(fontSize: 10)),
+                      const SizedBox(width: 4),
+                      const Text('(보스) BOSS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.amberAccent, letterSpacing: 1)),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(
+                      _currentZone.id == ZoneId.tower 
+                        ? '👹 무한의 탑 - ${Monster.getDisplayStage(_currentStage)}층 도전 중' 
+                        : '${_currentZone.name} - 스테이지 ${Monster.getDisplayStage(_currentStage)}', 
+                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white, fontStyle: FontStyle.italic)
+                    ),
+                  ],
                 ),
                 if (_currentZone.id != ZoneId.tower)
                   Text('$_stageKills / $_targetKills', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
@@ -5151,14 +5162,74 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  // 장비 도감 UI (티어별 아코디언 형태)
+  // 장비 도감 UI (티어별 아코디언 형태 및 상단 요약)
   Widget _buildEquipmentEncyclopedia() {
-    return ListView.builder(
-      itemCount: 6, // T1 ~ T6
-      itemBuilder: (context, index) {
-        int tier = index + 1;
-        return _buildTierSection(tier);
-      },
+    return Column(
+      children: [
+        // [v0.0.67] 도감 총 효과 및 일괄 수령 영역
+        _buildGlassContainer(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          borderRadius: 20,
+          color: Colors.cyanAccent.withOpacity(0.05),
+          border: Border.all(color: Colors.cyanAccent.withOpacity(0.2)),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                   const Row(
+                    children: [
+                      Icon(Icons.analytics, color: Colors.cyanAccent, size: 20),
+                      SizedBox(width: 8),
+                      Text('현재 도감 총 보너스', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                  _buildPopBtn(
+                    '일괄 수령', 
+                    Colors.amberAccent, 
+                    () {
+                      int count = player.claimAllEncyclopediaRewards();
+                      if (count > 0) {
+                        setState(() {});
+                        _showSuccess('일괄 수령 완료', '$count개의 도감 보상을 모두 획득했습니다!');
+                        _saveGameData();
+                      } else {
+                        _showToast('수령할 보상이 없습니다.');
+                      }
+                    },
+                    icon: Icons.done_all
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black38,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  player.encyclopediaSummaryText,
+                  style: const TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.w600, height: 1.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: ListView.builder(
+            itemCount: 6, // T1 ~ T6
+            itemBuilder: (context, index) {
+              int tier = index + 1;
+              return _buildTierSection(tier);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -5390,10 +5461,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
-          _buildPetStatusHeader(),
-          const SizedBox(height: 16),
-          _buildPetSummonArea(),
-          const SizedBox(height: 16),
+          // [v0.0.69] 통합 펫 대시보드 (동행 정보 + 보유 효과 + 소환을 하나로 압축)
+          _buildPetUnifiedDashboard(),
+          const SizedBox(height: 12),
           _buildPetFilterArea(),
           const SizedBox(height: 12),
           Expanded(child: _buildOwnedPetGrid()),
@@ -5403,91 +5473,114 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildPetStatusHeader() {
+  Widget _buildPetUnifiedDashboard() {
     final activePet = player.activePet;
     return _buildGlassContainer(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       borderRadius: 24,
       border: Border.all(color: activePet?.grade.color.withOpacity(0.3) ?? Colors.white10),
-      child: Row(
+      child: Column(
         children: [
-          // 현재 펫 아이콘
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              gradient: activePet?.grade.bgGradient,
-              color: activePet == null ? Colors.white10 : null,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                if (activePet != null)
-                  BoxShadow(color: activePet.grade.color.withOpacity(0.2), blurRadius: 10),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                activePet?.iconEmoji ?? '❔',
-                style: const TextStyle(fontSize: 34),
-              ),
-            ),
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildShadowText(
-                  activePet?.name ?? '동행 중인 펫 없음',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: activePet?.grade.color ?? Colors.white60,
+          // 상단: 펫 동행 정보 및 보유 효과 요약 (수평 배치)
+          Row(
+            children: [
+              // 현재 펫 아이콘 (소형화)
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: activePet?.grade.bgGradient,
+                  color: activePet == null ? Colors.white10 : null,
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '전체 보유 효과: ATK +${player.petAtkBonus.toStringAsFixed(1)}% / HP +${player.petHpBonus.toStringAsFixed(1)}%',
-                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
-                ),
-                if (activePet != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '동행 효과: ${activePet.companionSkillName} (${activePet.companionValue.toStringAsFixed(1)}%)',
-                      style: const TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
+                child: Center(
+                  child: Text(
+                    activePet?.iconEmoji ?? '❔',
+                    style: const TextStyle(fontSize: 24),
                   ),
-              ],
-            ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildShadowText(
+                          activePet?.name ?? '동행 펫 없음',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: activePet?.grade.color ?? Colors.white60,
+                        ),
+                        Text(
+                          player.petSummaryText,
+                          style: TextStyle(color: Colors.orangeAccent.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      activePet != null 
+                        ? '동행 효과: ${activePet.companionSkillName} (${activePet.companionValue.toStringAsFixed(1)}%)'
+                        : '펫을 동행시키면 특수 효과가 활성화됩니다.',
+                      style: TextStyle(color: activePet != null ? Colors.cyanAccent : Colors.white24, fontSize: 10, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 12),
+          // 하단: 소환 버튼 (슬림화)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 14),
+                  SizedBox(width: 6),
+                  Text('펫 소환', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Row(
+                children: [
+                  _buildSlimSummonBtn('1회', () => _summonPet(1), '10,000 G'),
+                  const SizedBox(width: 8),
+                  _buildSlimSummonBtn('10회', () => _summonPet(10), '90,000 G', isHighlight: true),
+                ],
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPetSummonArea() {
-    return _buildGlassContainer(
-      padding: const EdgeInsets.all(16),
-      borderRadius: 20,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('펫 소환', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              Text('다양한 동료를 모아보세요!', style: TextStyle(color: Colors.white38, fontSize: 10)),
-            ],
-          ),
-          Row(
-            children: [
-              _buildPopBtn('1회 소환', Colors.blueGrey, () => _summonPet(1), subLabel: '10,000 G'),
-              const SizedBox(width: 8),
-              _buildPopBtn('10회 소환', Colors.deepPurple, () => _summonPet(10), subLabel: '90,000 G'),
-            ],
-          ),
-        ],
+  Widget _buildSlimSummonBtn(String label, VoidCallback onTap, String cost, {bool isHighlight = false}) {
+    return _PressableScale(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isHighlight ? Colors.deepPurple.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: isHighlight ? Colors.deepPurpleAccent.withOpacity(0.5) : Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 6),
+            Text(cost, style: TextStyle(color: isHighlight ? Colors.amberAccent : Colors.white38, fontSize: 9)),
+          ],
+        ),
       ),
     );
   }
+
 
   Widget _buildPetFilterArea() {
     final List<String> filters = ['전체', '일반', '고급', '희귀', '고대의', '유물의', '전설의'];

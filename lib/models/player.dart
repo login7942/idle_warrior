@@ -21,6 +21,16 @@ class Player {
   double get petHpBonus => pets.fold(0.0, (sum, p) => sum + p.currentHpBonus);
   double get petGoldBonus => pets.fold(0.0, (sum, p) => sum + p.currentGoldBonus);
   
+  // [v0.0.68] 펫 보유 효과 요약 텍스트
+  String get petSummaryText {
+    String summary = "";
+    if (petAtkBonus > 0) summary += "공격력 +${petAtkBonus.toStringAsFixed(1)}% ";
+    if (petHpBonus > 0) summary += "HP +${petHpBonus.toStringAsFixed(1)}% ";
+    if (petGoldBonus > 0) summary += "골드 +${petGoldBonus.toStringAsFixed(1)}% ";
+    
+    return summary.isEmpty ? "보유 중인 펫 효과 없음" : summary.trim();
+  }
+  
   // 동행 효과 값 가져오기용
   double getPetCompanionValue(String skillName) {
     if (activePet != null && activePet!.companionSkillName == skillName) {
@@ -136,6 +146,35 @@ class Player {
     } catch (_) {
       return 0.0;
     }
+  }
+
+  // [v0.0.67] 도감 일괄 수령 로직
+  int claimAllEncyclopediaRewards() {
+    int totalClaimed = 0;
+    encyclopediaProgress.forEach((key, maxLevel) {
+      if (encyclopediaClaims[key] == null) {
+        encyclopediaClaims[key] = [];
+      }
+      List<int> claimed = encyclopediaClaims[key]!;
+      for (int lv = 0; lv <= maxLevel; lv++) {
+        if (!claimed.contains(lv)) {
+          claimed.add(lv);
+          totalClaimed++;
+        }
+      }
+    });
+    return totalClaimed;
+  }
+
+  // [v0.0.67] 도감 보너스 요약 텍스트
+  String get encyclopediaSummaryText {
+    String summary = "";
+    if (encyclopediaAtkBonus > 0) summary += "공격력 +${encyclopediaAtkBonus.toInt()} ";
+    if (encyclopediaAtkMultiplier > 0) summary += "공격력 +${(encyclopediaAtkMultiplier * 100).toStringAsFixed(1)}% ";
+    if (encyclopediaHpBonus > 0) summary += "HP +${encyclopediaHpBonus.toInt()} ";
+    if (encyclopediaHpMultiplier > 0) summary += "HP +${(encyclopediaHpMultiplier * 100).toStringAsFixed(1)}% ";
+    
+    return summary.isEmpty ? "적용된 보너스 없음" : summary.trim();
   }
 
   // 기본 전투 스탯
