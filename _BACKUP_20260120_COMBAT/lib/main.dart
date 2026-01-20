@@ -174,9 +174,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   // --- [신규 v0.0.61] 자동 분해 시스템 ---
   int _autoDismantleLevel = 0; // 0: 사용안함, 1: 일반, 2: 고급이하, 3: 희귀이하, 4: 전체
 
-  // --- [신규 v0.1.x] 라운드 로빈 전투 시스템 ---
-  int _skillRoundRobinIndex = 0; // 다음에 탐색할 스킬 인덱스
-
   // ═══════════════════════════════════════════════════════════════════════════
   // 🔄 LIFECYCLE & DATA MANAGEMENT - 생명주기 및 데이터 관리
   // ═══════════════════════════════════════════════════════════════════════════
@@ -519,8 +516,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _monsterAttackTimer?.cancel();
     if (currentMonster == null || _isProcessingVictory) return;
 
-    // 몬스터의 공격 속도를 1.5초(1500ms)마다 공격하도록 조정
-    _monsterAttackTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
+    // 몬스터는 주인공의 속도와 무관하게 2.0초마다 정직하게 공격 (성장 체감 강화)
+    _monsterAttackTimer = Timer.periodic(const Duration(milliseconds: 2000), (timer) {
       if (!mounted || currentMonster == null || _isProcessingVictory) {
         timer.cancel();
         return;
@@ -552,126 +549,98 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   void _startBattleLoop() {
-    battleTimer?.cancel();
-    
-    if (!mounted || currentMonster == null || _isProcessingVictory) return;
-    
-    // 첫 공격 즉시 시도
+  battleTimer?.cancel();
+  
+  // 첫 공격 즉시 시도 (이벤트 기반으로 스폰 직후 도달)
+  if (!mounted || currentMonster == null || _isProcessingVictory) return;
+  _processCombatTurn();
+  
+  // 이후 공속 주기에 맞춰 실행 (1 / 공격속도 공식 적용)
+  battleTimer = Timer.periodic(Duration(milliseconds: (1000 / player.attackSpeed).toInt()), (timer) {
+    if (!mounted || currentMonster == null || _isProcessingVictory) {
+      timer.cancel();
+      return;
+    }
     _processCombatTurn();
-    
-    // [v0.1.x] 공속 턴 주기 및 하드캡 적용 (초당 최대 4회 = 250ms)
-    int intervalMs = (1000 / player.attackSpeed).toInt();
-    if (intervalMs < 250) intervalMs = 250; // 하드캡
-
-    battleTimer = Timer.periodic(Duration(milliseconds: intervalMs), (timer) {
-      if (!mounted || currentMonster == null || _isProcessingVictory) {
-        timer.cancel();
-        return;
-      }
-      _processCombatTurn();
-    });
-  }
+  });
+}
 
   void _processCombatTurn() {
-    if (currentMonster == null || _isProcessingVictory) return;
-
-    setState(() {
-      // 1. 라운드 로빈 스킬 탐색
-      // 스킬 목록 중 [액티브 + 해금됨 + 쿨타임 완료]된 스킬을 인덱스부터 한바퀴 탐색
-      final activeSkills = player.skills.where((s) => s.type == SkillType.active && s.isUnlocked).toList();
-      Skill? selectedSkill;
-
-      if (activeSkills.isNotEmpty) {
-        int startIndex = _skillRoundRobinIndex % activeSkills.length;
-        
-        // 현재 인덱스부터 끝까지, 그 다음 처음부터 인덱스 직전까지 탐색
-        for (int i = 0; i < activeSkills.length; i++) {
-          int checkIdx = (startIndex + i) % activeSkills.length;
-          final s = activeSkills[checkIdx];
-          
-          if (s.isReady(player.cdr)) {
-            selectedSkill = s;
-            // 다음 턴에는 이 스킬 다음부터 확인하도록 인덱스 업데이트
-            _skillRoundRobinIndex = (checkIdx + 1) % activeSkills.length;
-            break;
-          }
-        }
-      }
-
-      // 2. 행동 실행 (스킬 또는 기본공격 중 하나만!)
-      if (selectedSkill != null) {
-        // 스킬 실행
-        _useSkill(selectedSkill);
-      } else {
-        // 모든 스킬이 쿨타임이면 기본공격 실행
-        _performBasicAttack();
-        // 스킬을 하나도 못 썼으므로 다음 턴에는 다시 처음(0번)부터 스킬 찬스 탐색
-        _skillRoundRobinIndex = 0;
-      }
-    });
-  }
-
-  // 기본공격 전용 메서드로 분리 (기존 _processCombatTurn 내부 로직)
-  void _performBasicAttack() {
     if (currentMonster == null) return;
-    
-    // 1. 데미지 계산
-    double effectiveDefense = currentMonster!.defense * _monsterDefenseMultiplier;
-    double defenseRating = 100 / (100 + effectiveDefense);
-    double variance = 0.9 + (Random().nextDouble() * 0.2);
-    double rawDamage = (player.attack * defenseRating) * variance * player.potentialFinalDamageMult;
-    double minDamage = (player.attack * 0.1) * variance * player.potentialFinalDamageMult;
-    int baseDmg = max(rawDamage, minDamage).toInt().clamp(1, 999999999);
+    setState(() {
+      // DOC_GAME_DESIGN.md 3.1 데미지 및 방어력 공식 적용
+      // 1. 방어 상산 방식 (Soft Cap): 데미지 배율 = 100 / (100 + 실질 방어력)
+      // 2. 실질 방어력: (몬스터 방어력 * 관리자 배율) * (1 - 방어 관통 %) -> 현재 방관 0으로 가정
+      double effectiveDefense = currentMonster!.defense * _monsterDefenseMultiplier;
+      double defenseRating = 100 / (100 + effectiveDefense);
+      
+      // 3. 최종 데미지: 공격력 * 데미지 배율 (±10% 분산 적용)
+      double variance = 0.9 + (Random().nextDouble() * 0.2); // 0.9 ~ 1.1 분산
+      double rawDamage = (player.attack * defenseRating) * variance * player.potentialFinalDamageMult;
+      double minDamage = (player.attack * 0.1) * variance * player.potentialFinalDamageMult;
+      int baseDmg = max(rawDamage, minDamage).toInt().clamp(1, 999999999);
 
-    bool isCrit = Random().nextDouble() * 100 < player.critChance;
-    int pDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
+      // 치명타 여부 계산
+      bool isCrit = Random().nextDouble() * 100 < player.critChance;
+      int pDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
 
-    if (pDmg > _sessionMaxDamage) _sessionMaxDamage = pDmg;
+      // 최대 데미지 갱신
+      if (pDmg > _sessionMaxDamage) _sessionMaxDamage = pDmg;
 
-    // 2. 연출
-    if (_selectedIndex == 0) {
-      _playerAnimController.forward().then((_) => _playerAnimController.reverse());
-      _addFloatingText(isCrit ? 'CRITICAL $pDmg' : '-$pDmg', true, isCrit: isCrit);
-    }
-    
-    // 3. 체력 차감
-    currentMonster!.hp -= pDmg;
-    monsterCurrentHp = currentMonster!.hp;
 
-    // 4. 승리 체크
-    _checkMonsterDeath();
-    
-    // 5. 흡혈 적용
-    if (player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
-      int lifestealAmt = (pDmg * player.lifesteal / 100).toInt();
-      if (lifestealAmt > 0) {
-        playerCurrentHp = (playerCurrentHp + lifestealAmt).clamp(0, player.maxHp);
-        if (_selectedIndex == 0) {
-          _addFloatingText('+$lifestealAmt', false, isHeal: true, offsetX: -20);
-        }
+      // 전투 탭(0번)일 때만 애니메이션 연출 실행
+      if (_selectedIndex == 0) {
+        _playerAnimController.forward().then((_) => _playerAnimController.reverse());
+        _addFloatingText(isCrit ? 'CRITICAL $pDmg' : '-$pDmg', true, isCrit: isCrit);
       }
-    }
-  }
+      
+      currentMonster!.hp -= pDmg;
+    monsterCurrentHp = currentMonster!.hp; // UI용 변수 동기화
+      // 치명타 로그 제거 (플로팅 텍스트로 대체)
 
-  // 몬스터 사망 체크를 위한 공통 메서드
-  void _checkMonsterDeath() {
-    if (currentMonster == null || !currentMonster!.isDead || _isProcessingVictory) return;
-    
-    _isProcessingVictory = true; 
-    battleTimer?.cancel();
-    _monsterAttackTimer?.cancel();
+      
+      // 자동 스킬 사용 체크 (준비된 스킬 중 첫 번째 사용)
+      final readySkill = player.skills.where((s) => s.type == SkillType.active && s.isUnlocked && s.isReady(player.cdr)).firstOrNull;
+      if (readySkill != null) {
+        _useSkill(readySkill);
+      }
+      
+      // 스킬 사용 후 몬스터가 이미 죽었을 수 있으므로 null 체크 추가
+      if (currentMonster == null) return;
+      
+      if (currentMonster!.isDead) {
+        if (_isProcessingVictory) return;
+        _isProcessingVictory = true; 
+        
+        battleTimer?.cancel();
+        _monsterAttackTimer?.cancel();
 
-    final killDuration = _lastMonsterSpawnTime != null 
-        ? DateTime.now().difference(_lastMonsterSpawnTime!) 
-        : null;
+        final killDuration = _lastMonsterSpawnTime != null 
+            ? DateTime.now().difference(_lastMonsterSpawnTime!) 
+            : null;
 
-    _handleVictory(killDuration);
-    
-    _monsterDeathController.forward(from: 0).whenComplete(() {
-      if (mounted) {
-        _monsterDeathController.reset();
-        if (_currentZone.id != ZoneId.tower) {
-          _spawnMonster();
+        _handleVictory(killDuration);
+        
+        _monsterDeathController.forward(from: 0).whenComplete(() {
+          if (mounted) {
+            _monsterDeathController.reset();
+            // 무한의탑은 사용자가 선택할 때까지 리젠하지 않음
+            if (_currentZone.id != ZoneId.tower) {
+              _spawnMonster();
+            }
+          }
+        });
+        return;
+      }
+      
+      // 실제 흡혈(Lifesteal) 적용 (공격 시에만 발동)
+      if (player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
+        int lifestealAmt = (pDmg * player.lifesteal / 100).toInt();
+        if (lifestealAmt > 0) {
+          playerCurrentHp = (playerCurrentHp + lifestealAmt).clamp(0, player.maxHp);
+          if (_selectedIndex == 0) {
+            _addFloatingText('+$lifestealAmt', false, isHeal: true, offsetX: -20); // 위치 약간 조정
+          }
         }
       }
     });
@@ -4803,35 +4772,33 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       void applySkillDamage(double powerMultiplier, {int hits = 1, String effectName = ""}) {
         if (currentMonster == null) return;
         
+        // 다단 히트는 시간차를 두고 적용 (타격감 향상)
         for (int i = 0; i < hits; i++) {
-          final hitDelay = i * 100;
+          final hitDelay = i * 100; // 각 히트마다 100ms 간격
           
           Future.delayed(Duration(milliseconds: hitDelay), () {
             if (!mounted || currentMonster == null) return;
             
             setState(() {
-              // Soft Cap 공식 적용 (Basic Attack과 통일)
-              double effectiveDefense = currentMonster!.defense * _monsterDefenseMultiplier;
-              double defenseRating = 100 / (100 + effectiveDefense);
-              double sVariance = 0.9 + (Random().nextDouble() * 0.2);
-              
-              double rawSkillDmg = (player.attack * powerMultiplier / 100 * defenseRating) * sVariance * player.potentialFinalDamageMult;
-              double minSkillDmg = (player.attack * powerMultiplier / 100 * 0.1) * sVariance * player.potentialFinalDamageMult;
-              int baseSkillDmg = max(rawSkillDmg, minSkillDmg).toInt().clamp(1, 999999999);
-
               bool isSkillCrit = Random().nextDouble() * 100 < player.critChance;
-              int finalDmg = isSkillCrit ? (baseSkillDmg * player.critDamage / 100).toInt() : baseSkillDmg;
+              double sVariance = 0.9 + (Random().nextDouble() * 0.2); // ±10% 분산
+              int skillDmg = (player.attack * powerMultiplier / 100 * sVariance * player.potentialFinalDamageMult).toInt();
+              int finalDmg = (skillDmg - currentMonster!.defense).clamp(1, 9999999);
+              if (isSkillCrit) finalDmg = (finalDmg * player.critDamage / 100).toInt();
 
+              // 최대 데미지 갱신 (스킬)
               if (finalDmg > _sessionMaxDamage) _sessionMaxDamage = finalDmg;
 
+
+              // 흡혈 적용 (패시브)
               if (player.lifesteal > 0) {
                 int healAmount = (finalDmg * player.lifesteal / 100).toInt();
                 playerCurrentHp = (playerCurrentHp + healAmount).clamp(0, player.maxHp);
               }
 
               currentMonster!.hp -= finalDmg;
-              monsterCurrentHp = currentMonster!.hp;
               
+              // 다단 히트 시 플로팅 텍스트 분산
               double ox = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
               double oy = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
               
@@ -4843,7 +4810,29 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 offsetY: oy
               );
               
-              _checkMonsterDeath();
+              // 스킬 사용 로그 제거 (플로팅 텍스트로 대체)
+
+              
+              if (currentMonster!.isDead) {
+                if (_isProcessingVictory) return;
+                _isProcessingVictory = true;
+
+                battleTimer?.cancel();
+                _monsterAttackTimer?.cancel();
+
+                final killDuration = _lastMonsterSpawnTime != null 
+                    ? DateTime.now().difference(_lastMonsterSpawnTime!) 
+                    : null;
+                
+                _handleVictory(killDuration);
+
+                _monsterDeathController.forward(from: 0).whenComplete(() {
+                  if (mounted) {
+                    _monsterDeathController.reset();
+                    _spawnMonster();
+                  }
+                });
+              }
             });
           });
         }
