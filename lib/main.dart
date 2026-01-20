@@ -191,8 +191,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _heroRotateController = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
     
     // 이벤트 기반 전투를 위한 신규 컨트롤러 (지연시간 제거용)
-    _monsterSpawnController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
-    _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
+    _monsterSpawnController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
     _uiTickerController.addListener(() {
       _updateParticles(); // 매 프레임 파티클 리스트 정기 청소
       damageManager.update(); // 🆕 데미지 텍스트 상태 업데이트 (+800ms 만료 처리)
@@ -772,9 +772,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       }
     });
 
-    // 4. 무거운 로직 분산 처리 (200ms 지연)
-    // 몬스터 사망 애니메이션이 한창 진행 중일 때 CPU 부하를 피함
-    Future.delayed(const Duration(milliseconds: 200), () {
+    // 4. 무거운 로직 즉시 처리 (지연 제거로 전투 흐름 개선)
+    // 애니메이션과 병렬로 실행하여 체감 속도 향상
+    Future.delayed(const Duration(milliseconds: 0), () {
       if (!mounted) return;
       
       // 드롭 로직

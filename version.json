@@ -1,6 +1,6 @@
 {
-  "version": "0.0.53",
-  "buildNumber": 53,
+  "version": "0.0.63",
+  "buildNumber": 63,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "사냥터 카테고리화, 무한의탑 시퀀스(카운트다운, 결과처리) 고도화 및 아이템 상세창 UI 개선"
+  "changelog": "몬스터 사망 시 프레임 최적화로 더욱 부드러운 전투 경험 제공"
 }
