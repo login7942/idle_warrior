@@ -1,0 +1,52 @@
+Analyzing lib...                                                
+
+   info - The private field _sessionItems could be 'final' - lib\main.dart:111:7 - prefer_final_fields
+   info - The private field _sessionStones could be 'final' - lib\main.dart:112:7 - prefer_final_fields
+   info - The private field _sessionPowder could be 'final' - lib\main.dart:113:7 - prefer_final_fields
+   info - The private field _sessionReroll could be 'final' - lib\main.dart:114:7 - prefer_final_fields
+   info - The private field _sessionCube could be 'final' - lib\main.dart:115:7 - prefer_final_fields
+   info - The private field _sessionProtection could be 'final' - lib\main.dart:116:7 - prefer_final_fields
+warning - The value of the field '_lastMonsterSpawnTime' isn't used - lib\main.dart:119:13 - unused_field
+warning - The declaration '_stageKills' isn't referenced - lib\main.dart:156:11 - unused_element
+warning - The declaration '_handlePlayerDeath' isn't referenced - lib\main.dart:358:8 - unused_element
+warning - The declaration '_buildTopSmallIconButton' isn't referenced - lib\main.dart:1656:10 - unused_element
+warning - The declaration '_buildMiniInventoryCounter' isn't referenced - lib\main.dart:1664:10 - unused_element
+   info - Unnecessary braces in a string interpolation - lib\main.dart:3070:19 - unnecessary_brace_in_string_interps
+   info - Statements in an if should be enclosed in a block - lib\main.dart:3571:53 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\main.dart:3572:44 - curly_braces_in_flow_control_structures
+warning - The declaration '_checkEncyclopedia' isn't referenced - lib\main.dart:4171:8 - unused_element
+warning - The value of the local variable 'opacity' isn't used - lib\main.dart:4473:14 - unused_local_variable
+warning - The value of the local variable 'magnetT' isn't used - lib\main.dart:4577:16 - unused_local_variable
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:330:25 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:331:29 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:332:30 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:338:27 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:339:31 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:340:32 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:349:33 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:350:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:372:41 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:373:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:374:46 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:375:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:376:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:377:48 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:378:16 - curly_braces_in_flow_control_structures
+   info - Unnecessary braces in a string interpolation - lib\models\item.dart:568:22 - unnecessary_brace_in_string_interps
+warning - The declaration '_getTypeName' isn't referenced - lib\models\item.dart:582:17 - unused_element
+warning - The declaration '_updateHpOption' isn't referenced - lib\models\item.dart:667:15 - unused_element
+warning - Unused import: 'item.dart' - lib\models\pet.dart:2:8 - unused_import
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:292:22 - avoid_function_literals_in_foreach_calls
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:329:22 - avoid_function_literals_in_foreach_calls
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:63:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:12:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:24:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:27:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:37:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:48:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:52:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:59:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:78:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:94:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:97:7 - avoid_print
+

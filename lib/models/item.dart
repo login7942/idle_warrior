@@ -39,33 +39,17 @@ extension ItemTypeExtension on ItemType {
   }
 }
 
-enum ItemGrade { common, uncommon, rare, epic, legendary, mythic }
+enum ItemGrade {
+  common(Color(0xFF9CA3AF), '일반'),
+  uncommon(Color(0xFF22C55E), '고급'),
+  rare(Color(0xFF3B82F6), '희귀'),
+  epic(Color(0xFFA855F7), '에픽'),
+  legendary(Color(0xFFF59E0B), '전설'),
+  mythic(Color(0xFFEF4444), '신화');
 
-extension ItemGradeExtension on ItemGrade {
-  Color get color {
-    switch (this) {
-      case ItemGrade.common: return const Color(0xFF9CA3AF);    // 일반: 회색
-      case ItemGrade.uncommon: return const Color(0xFF22C55E);  // 고급: 녹색
-      case ItemGrade.rare: return const Color(0xFF3B82F6);      // 희귀: 파란색
-      case ItemGrade.epic: return const Color(0xFFA855F7);      // 에픽: 보라색
-      case ItemGrade.legendary: return const Color(0xFFF59E0B); // 전설: 황금색 (Orange-Gold)
-      case ItemGrade.mythic: return const Color(0xFFEF4444);    // 신화: 빨간색
-    }
-  }
-
-  String get name {
-    switch (this) {
-      case ItemGrade.common: return '일반';
-      case ItemGrade.uncommon: return '고급';
-      case ItemGrade.rare: return '희귀';
-      case ItemGrade.epic: return '에픽';
-      case ItemGrade.legendary: return '전설';
-      case ItemGrade.mythic: return '신화';
-    }
-  }
-
-  // --- 프리미엄 UI 확장 데이터 ---
-  
+  final Color color;
+  final String name;
+  const ItemGrade(this.color, this.name);
   // 배경 그라데이션: 중앙에서 밖으로 퍼지는 입체감
   Gradient get bgGradient {
     return RadialGradient(
@@ -89,7 +73,7 @@ extension ItemGradeExtension on ItemGrade {
       case ItemGrade.rare: return 4.0;
       case ItemGrade.epic: return 8.0;
       case ItemGrade.legendary: return 12.0;
-      case ItemGrade.mythic: return 18.0; // 최상위 등급은 강렬한 빛발산
+      case ItemGrade.mythic: return 18.0;
     }
   }
 }
@@ -327,17 +311,25 @@ class Item {
     // 1. 주 능력치 1 점수
     int mStat1 = effectiveMainStat1;
     String name1 = mainStatName1;
-    if (name1 == '공격력') power += mStat1 * 2.0;
-    else if (name1 == '체력') power += mStat1 * 0.1;
-    else if (name1 == '방어력') power += mStat1 * 1.5;
+    if (name1 == '공격력') {
+      power += mStat1 * 2.0;
+    } else if (name1 == '체력') {
+      power += mStat1 * 0.1;
+    } else if (name1 == '방어력') {
+      power += mStat1 * 1.5;
+    }
 
     // 2. 주 능력치 2 점수 (있는 경우)
     if (mainStat2 != null) {
       int mStat2 = effectiveMainStat2;
       String? name2 = mainStatName2;
-      if (name2 == '공격력') power += mStat2 * 2.0;
-      else if (name2 == '체력') power += mStat2 * 0.1;
-      else if (name2 == '방어력') power += mStat2 * 1.5;
+      if (name2 == '공격력') {
+        power += mStat2 * 2.0;
+      } else if (name2 == '체력') {
+        power += mStat2 * 0.1;
+      } else if (name2 == '방어력') {
+        power += mStat2 * 1.5;
+      }
     }
 
     // 3. 보조 옵션 점수
@@ -346,8 +338,11 @@ class Item {
         case '공격력': power += opt.value * 2.0; break;
         case '체력': power += opt.value * 0.1; break;
         case '방어력': 
-          if (opt.isPercentage) power += opt.value * 10; // 방어력 %는 임의 가중치
-          else power += opt.value * 1.5;
+          if (opt.isPercentage) {
+            power += opt.value * 10;
+          } else {
+            power += opt.value * 1.5;
+          }
           break;
         case '치명타 확률': power += opt.value * 50.0; break;
         case '치명타 피해': power += opt.value * 5.0; break;
@@ -369,13 +364,21 @@ class Item {
         case '쿨타임 감소': power += 2000; break;
         default:
           // 일반 옵션과 동일 루틴
-          if (potential!.name == '공격력') power += potential!.value * 2.0;
-          else if (potential!.name == '체력') power += potential!.value * 0.1;
-          else if (potential!.name == '방어력') power += potential!.value * 1.5;
-          else if (potential!.name == '치명타 확률') power += potential!.value * 50.0;
-          else if (potential!.name == '치명타 피해') power += potential!.value * 5.0;
-          else if (potential!.name == '공격 속도') power += potential!.value * 500.0;
-          else power += potential!.value * 10.0;
+          if (potential!.name == '공격력') {
+            power += potential!.value * 2.0;
+          } else if (potential!.name == '체력') {
+            power += potential!.value * 0.1;
+          } else if (potential!.name == '방어력') {
+            power += potential!.value * 1.5;
+          } else if (potential!.name == '치명타 확률') {
+            power += potential!.value * 50.0;
+          } else if (potential!.name == '치명타 피해') {
+            power += potential!.value * 5.0;
+          } else if (potential!.name == '공격 속도') {
+            power += potential!.value * 500.0;
+          } else {
+            power += potential!.value * 10.0;
+          }
       }
     }
 
@@ -457,14 +460,10 @@ class Item {
         break;
     }
 
-    // ② 랜덤 보조 옵션 생성 (중복 방지)
-    Set<String> usedNames = options.map((e) => e.name).toSet();
-    while (options.length < optCount) {
+    // ② 랜덤 보조 옵션 생성 (중복 허용)
+    for (int i = 0; i < optCount; i++) {
       ItemOption newOpt = _generateRandomOption(rand, dropTier, grade: grade);
-      if (!usedNames.contains(newOpt.name)) {
-        options.add(newOpt);
-        usedNames.add(newOpt.name);
-      }
+      options.add(newOpt);
     }
 
     String prefix = getGradeName(grade);
@@ -565,7 +564,7 @@ class Item {
     if (message.isNotEmpty) return message;
     */
     
-    return "강화 성공! (+${enhanceLevel})";
+    return "강화 성공! (+$enhanceLevel)";
   }
 
   static String getGradeName(ItemGrade grade) {
@@ -579,7 +578,6 @@ class Item {
     }
   }
 
-  static String _getTypeName(ItemType type) => type.nameKr;
 
   static ItemOption _generateRandomOption(Random rand, int tier, {ItemGrade? grade}) {
     List<String> pool = ['공격력', '방어력', '체력', '치명타 확률', '치명타 피해', '공격 속도', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭'];
@@ -663,17 +661,6 @@ class Item {
   // 기존 gradeColor getter는 유지하거나 필요없으면 제거 가능
   Color get gradeColor => grade.color;
 
-  // 헬퍼: 체력 옵션 업데이트/추가
-  static void _updateHpOption(List<ItemOption> options, double value) {
-    bool hasHp = options.any((o) => o.name == '체력');
-    if (!hasHp) {
-      options.add(ItemOption(name: '체력', value: value, isPercentage: false));
-    } else {
-      for (var o in options) {
-        if (o.name == '체력') o.value = value;
-      }
-    }
-  }
 
   // --- [잠재능력 개방] (v0.0.50) ---
   void awakenPotential(Random rand) {

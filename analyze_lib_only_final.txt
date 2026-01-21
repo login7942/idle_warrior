@@ -1,0 +1,93 @@
+Analyzing lib...                                                
+
+warning - The value of the field '_inventoryFilter' isn't used - lib\main.dart:78:13 - unused_field
+   info - The private field _inventorySortMode could be 'final' - lib\main.dart:79:7 - prefer_final_fields
+warning - The value of the field '_inventorySortMode' isn't used - lib\main.dart:79:7 - unused_field
+   info - The private field _isInventoryScrolling could be 'final' - lib\main.dart:80:8 - prefer_final_fields
+warning - The value of the field '_isInventoryScrolling' isn't used - lib\main.dart:80:8 - unused_field
+warning - The value of the field '_maxDamageTexts' isn't used - lib\main.dart:94:20 - unused_field
+   info - The private field _sessionItems could be 'final' - lib\main.dart:115:7 - prefer_final_fields
+   info - The private field _sessionStones could be 'final' - lib\main.dart:116:7 - prefer_final_fields
+   info - The private field _sessionPowder could be 'final' - lib\main.dart:117:7 - prefer_final_fields
+   info - The private field _sessionReroll could be 'final' - lib\main.dart:118:7 - prefer_final_fields
+   info - The private field _sessionCube could be 'final' - lib\main.dart:119:7 - prefer_final_fields
+   info - The private field _sessionProtection could be 'final' - lib\main.dart:120:7 - prefer_final_fields
+warning - The value of the field '_lastMonsterSpawnTime' isn't used - lib\main.dart:123:13 - unused_field
+   info - The private field _autoDismantleLevel could be 'final' - lib\main.dart:148:7 - prefer_final_fields
+warning - The value of the field '_autoDismantleLevel' isn't used - lib\main.dart:148:7 - unused_field
+warning - The declaration '_stageKills' isn't referenced - lib\main.dart:161:11 - unused_element
+   info - The private field _skillRoundRobinIndex could be 'final' - lib\main.dart:179:7 - prefer_final_fields
+warning - The value of the field '_skillRoundRobinIndex' isn't used - lib\main.dart:179:7 - unused_field
+warning - The declaration '_handlePlayerDeath' isn't referenced - lib\main.dart:364:8 - unused_element
+   info - Statements in an if should be enclosed in a block - lib\main.dart:463:17 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\main.dart:464:23 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\main.dart:465:22 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\main.dart:466:22 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\main.dart:467:21 - curly_braces_in_flow_control_structures
+warning - The declaration '_buildTopSmallIconButton' isn't referenced - lib\main.dart:1662:10 - unused_element
+warning - The declaration '_buildMiniInventoryCounter' isn't referenced - lib\main.dart:1670:10 - unused_element
+warning - The value of the local variable 'textColor' isn't used - lib\main.dart:2704:11 - unused_local_variable
+warning - The value of the local variable 'fontWeight' isn't used - lib\main.dart:2705:16 - unused_local_variable
+   info - Unnecessary braces in a string interpolation - lib\main.dart:3078:19 - unnecessary_brace_in_string_interps
+   info - Statements in an if should be enclosed in a block - lib\main.dart:3579:53 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\main.dart:3580:44 - curly_braces_in_flow_control_structures
+warning - The declaration '_checkEncyclopedia' isn't referenced - lib\main.dart:4179:8 - unused_element
+warning - The value of the local variable 'opacity' isn't used - lib\main.dart:4481:14 - unused_local_variable
+warning - The value of the local variable 'magnetT' isn't used - lib\main.dart:4585:16 - unused_local_variable
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:330:25 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:331:29 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:332:30 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:338:27 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:339:31 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:340:32 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:349:33 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:350:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:372:41 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:373:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:374:46 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:375:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:376:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:377:48 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\item.dart:378:16 - curly_braces_in_flow_control_structures
+   info - Unnecessary braces in a string interpolation - lib\models\item.dart:568:22 - unnecessary_brace_in_string_interps
+warning - The declaration '_getTypeName' isn't referenced - lib\models\item.dart:582:17 - unused_element
+warning - The declaration '_updateHpOption' isn't referenced - lib\models\item.dart:667:15 - unused_element
+warning - Unused import: 'item.dart' - lib\models\pet.dart:2:8 - unused_import
+warning - Unused import: 'dart:convert' - lib\models\player.dart:2:8 - unused_import
+warning - Unused import: 'package:shared_preferences/shared_preferences.dart' - lib\models\player.dart:3:8 - unused_import
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:68:22 - avoid_function_literals_in_foreach_calls
+warning - The value of the local variable 'level' isn't used - lib\models\player.dart:98:18 - unused_local_variable
+warning - The value of the local variable 'level' isn't used - lib\models\player.dart:133:18 - unused_local_variable
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:288:22 - avoid_function_literals_in_foreach_calls
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:325:22 - avoid_function_literals_in_foreach_calls
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:356:22 - avoid_function_literals_in_foreach_calls
+   info - Statements in an if should be enclosed in a block - lib\models\player.dart:368:33 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\player.dart:369:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\player.dart:374:43 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\player.dart:375:14 - curly_braces_in_flow_control_structures
+   info - The private field _lastLocalSaveTime could be 'final' - lib\providers\game_state.dart:124:12 - prefer_final_fields
+warning - The value of the field '_lastLocalSaveTime' isn't used - lib\providers\game_state.dart:124:12 - unused_field
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:763:24 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:764:28 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:765:28 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:766:29 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:767:29 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:768:12 - curly_braces_in_flow_control_structures
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:63:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:12:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:24:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:27:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:37:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:48:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:52:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:59:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:78:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:94:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:97:7 - avoid_print
+warning - Unused import: 'package:google_fonts/google_fonts.dart' - lib\widgets\inventory_panel.dart:6:8 - unused_import
+   info - Statements in an if should be enclosed in a block - lib\widgets\inventory_panel.dart:301:34 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\widgets\inventory_panel.dart:302:39 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\widgets\inventory_panel.dart:303:10 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\widgets\inventory_panel.dart:681:29 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\widgets\inventory_panel.dart:682:18 - curly_braces_in_flow_control_structures
+

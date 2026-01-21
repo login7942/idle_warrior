@@ -1,28 +1,26 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/player.dart';
-import 'models/monster.dart';
+import 'providers/game_state.dart';
 import 'models/item.dart';
 import 'models/skill.dart';
 import 'models/pet.dart';
 import 'models/achievement.dart';
 import 'models/hunting_zone.dart';
+import 'models/monster.dart';
 import 'services/update_service.dart';
 import 'services/auth_service.dart';
-import 'services/cloud_save_service.dart';
-import 'providers/game_state.dart';
-import 'engine/game_loop.dart';
-import 'package:provider/provider.dart';
-import 'widgets/common_widgets.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
+import 'widgets/inventory_panel.dart';
+import 'widgets/common_widgets.dart';
+import 'engine/game_loop.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,9 +75,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   int _currentLogTab = 0;
 
   // 가방 필터 및 정렬용
-  ItemType? _inventoryFilter;
-  int _inventorySortMode = 0; // 0: 등급순, 1: 강화순
-  bool _isInventoryScrolling = false; // 스크롤 중 애니메이션 정지용
   Timer? _scrollStopTimer;
 
   late AnimationController _playerAttackController;
@@ -93,21 +88,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   late AnimationController _monsterSpawnController; // 몬스터 등장 연출
   late AnimationController _monsterDeathController; // 몬스터 사망 연출
   final DamageManager damageManager = DamageManager(); 
-  static const int _maxDamageTexts = 25; // 🆕 연타 스킬 대응을 위해 최댓값 확장 (10 -> 25)
+  int _sessionMaxDamage = 0; 
 
   // 효율 측정용 (UI 표시용 세션 데이터만 유지)
   final List<GainRecord> _recentGains = [];
   int _sessionGold = 0;
   int _sessionExp = 0;
-  int _sessionMaxDamage = 0; 
-
+  
 
   // 전리품 파티클 시스템
   final List<LootParticle> _lootParticles = [];
   final GlobalKey _battleSceneKey = GlobalKey(); // 🆕 배틀 장면 좌표 기준키
   final GlobalKey _monsterKey = GlobalKey();
-  final GlobalKey _goldTargetKey = GlobalKey();
-  final GlobalKey _expTargetKey = GlobalKey();
   
   // 관리자 모드
   bool _isAdminAuthenticated = false;
@@ -115,17 +107,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // 화면 모드 관리
   DisplayMode _displayMode = DisplayMode.normal;
-  
   // 세션 통합 통계 (절전 모드용)
-  int _sessionItems = 0;
-  int _sessionStones = 0;
-  int _sessionPowder = 0;
-  int _sessionReroll = 0;
-  int _sessionCube = 0;
-  int _sessionProtection = 0;
+  static const int _sessionItems = 0; // Const as they are 0 and never changed in this class
+  static const int _sessionStones = 0;
+  static const int _sessionPowder = 0;
+  static const int _sessionReroll = 0;
+  static const int _sessionCube = 0;
+  static const int _sessionProtection = 0;
 
   // 스테이지 가속(점프) 시스템 관련
-  DateTime? _lastMonsterSpawnTime;
   DateTime _lastUiTick = DateTime.now(); // 🆕 30FPS 쓰로틀링용
   
   // 알림 중착 방지용
@@ -150,7 +140,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   int _expandedCraftCategory = 0; // 0: 장외 제작, 그 외: 준비 중
 
   // --- [신규 v0.0.61] 자동 분해 시스템 ---
-  int _autoDismantleLevel = 0; // 0: 사용안함, 1: 일반, 2: 고급이하, 3: 희귀이하, 4: 전체
 
   // --- [신규 v0.1.x] 라운드 로빈 전투 시스템 ---
   // --- [신규 v0.1.x] 전역 게터 ---
@@ -163,8 +152,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   set _currentZone(HuntingZone val) => context.read<GameState>().currentZone = val;
   int get _currentStage => context.read<GameState>().currentStage;
   set _currentStage(int val) => context.read<GameState>().currentStage = val;
-  int get _stageKills => context.read<GameState>().stageKills;
-  set _stageKills(int val) => context.read<GameState>().stageKills = val;
   Map<ZoneId, int> get _zoneStages => context.read<GameState>().zoneStages;
   
   Monster? get currentMonster => context.read<GameState>().currentMonster;
@@ -180,7 +167,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   List<CombatLogEntry> get itemLogs => gameState.logs.where((l) => l.type == LogType.item).toList();
   List<CombatLogEntry> get eventLogs => gameState.logs.where((l) => l.type == LogType.event).toList();
 
-  int _skillRoundRobinIndex = 0; // 다음에 탐색할 스킬 인덱스
+  // 다음에 탐색할 스킬 인덱스
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 🔄 LIFECYCLE & DATA MANAGEMENT - 생명주기 및 데이터 관리
@@ -343,10 +330,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     }
   }
 
-  Future<void> _updateLastSaveTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('lastSaveTime', DateTime.now().toIso8601String());
-  }
 
   @override
   void dispose() {
@@ -369,85 +352,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   // ⚔️ COMBAT SYSTEM - 전투 시스템
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ⚔️ COMBAT SYSTEM - 전투 시스템
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  void _dropMaterials(int monsterLevel) {
-    final rand = Random();
-    
-    // 1. 강화석 드롭 (60% 확률)
-    if (rand.nextDouble() < 0.6) {
-      int amount = (monsterLevel / 2).ceil() + rand.nextInt(3);
-      player.enhancementStone += amount;
-      _sessionStones += amount; // 세션 강화석 증가
-      _addLog('[공명] 강화석 $amount개 획득!', LogType.item);
-    }
-    
-    // 2. 가루 드롭 (40% 확률)
-    if (rand.nextDouble() < 0.4) {
-      int amount = (monsterLevel * 2) + rand.nextInt(10);
-      player.powder += amount;
-      _sessionPowder += amount; // 세션 가루 증가
-      _addLog('[추출] 신비로운 가루 $amount개 획득!', LogType.item);
-    }
-    
-    // 3. 재설정석 드롭 (10% 확률 - 희귀)
-    if (rand.nextDouble() < 0.1) {
-      int amount = 1;
-      player.rerollStone += amount;
-      _sessionReroll += amount; // 세션 재설정석 증가
-      _addLog('[희귀] 옵션 재설정석 $amount개 획득!', LogType.item);
-    }
-    
-    // 4. 보호석/큐브 (매우 낮은 확률)
-    if (rand.nextDouble() < 0.02) {
-      int amount = 1;
-      player.protectionStone += amount;
-      _sessionProtection += amount; // 세션 보호석 증가
-      _addLog('[전설] 강화 보호석 $amount개 획득!', LogType.item);
-    }
-
-    // 5. 강화 큐브 드롭 (0.1% 확률)
-    if (rand.nextDouble() < 0.001) {
-      int amount = 1;
-      player.cube += amount;
-      _sessionCube += amount; // 세션 큐브 증가
-      _addLog('[신화] 강화 큐브 $amount개 획득!', LogType.item);
-    }
-
-    // --- [신규 v0.0.60] 스펙 기반 게이트 드랍 (심연의 구슬) ---
-    double avgLv = player.averageEnhanceLevel;
-    
-    // T2 코어: 평균 13강 이상 시 3% 확률로 드랍
-    if (avgLv >= 13.0 && rand.nextDouble() < 0.03) {
-      player.tierCores[2] = (player.tierCores[2] ?? 0) + 1;
-      _addLog('[게이트] 심연의 구슬 [T2] 획득!', LogType.event);
-    }
-    // T3 코어: 평균 15강 이상 시 1% 확률로 드랍
-    if (avgLv >= 15.0 && rand.nextDouble() < 0.01) {
-      player.tierCores[3] = (player.tierCores[3] ?? 0) + 1;
-      _addLog('[게이트] 심연의 구슬 [T3] 획득!', LogType.event);
-    }
-  }
-
-  void _handlePlayerDeath() {
-    final gameState = context.read<GameState>();
-    if (gameState.currentZone.id == ZoneId.tower) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showTowerResultDialog(false);
-      });
-      return;
-    }
-    _addLog('사망... 마을에서 부활 중 (스테이지 하락!)', LogType.event);
-    
-    gameState.handlePlayerDeath();
-
-    // 부활 대기 시간을 0.5초로 단축 (GameState 부활 로직 이후 UI 갱신 등 필요시)
-    Timer(const Duration(milliseconds: 500), () { 
-      if (mounted) gameState.spawnMonster(); 
-    });
-  }
 
   // --- 화면 모드 순환 (일반 -> 화면유지 -> 절전 -> 일반) ---
   // ═══════════════════════════════════════════════════════════════════════════
@@ -530,11 +434,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     
     // 타입 결정 (우선순위: 회복 > 스킬 > 크리티컬 > 기타)
     DamageType type = DamageType.normal;
-    if (isHeal) type = DamageType.heal;
-    else if (isSkill) type = DamageType.skill;
-    else if (isCrit) type = DamageType.critical;
-    else if (isGold) type = DamageType.gold;
-    else if (isExp) type = DamageType.exp;
+    if (isHeal) { type = DamageType.heal; }
+    else if (isSkill) { type = DamageType.skill; }
+    else if (isCrit) { type = DamageType.critical; }
+    else if (isGold) { type = DamageType.gold; }
+    else if (isExp) { type = DamageType.exp; }
 
     // 1. 기준 좌표 계산 (글로벌 -> 로컬 변환)
     Offset basePos = const Offset(200, 300); // 폴백값
@@ -596,7 +500,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     child: Stack(
                       children: [
                         // 핵심: 바디 콘텐츠를 RepaintBoundary로 감싸서 다른 UI와 렌더링 레이어 분리
-                        RepaintBoundary(child: _buildBodyContent()),
+                        Positioned.fill(child: RepaintBoundary(child: _buildBodyContent())),
                         Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomDock()),
                         // 최적화된 파티클 레이어 (전투 탭에서만 활성화)
                         if (_selectedIndex == 0)
@@ -687,7 +591,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       case 0: return _buildCombatTab();
       case 1: return _buildCharacterTab();
       case 2: return _buildHuntingZoneTab(); // 사냥터 이동 메뉴 연결
-      case 3: return _buildInventoryTab(); // 가방 메뉴 연결
+      case 3: return const InventoryPanel(); // 가방 메뉴 연결
       case 4: return _buildCraftTab();
       case 5: return _buildSkillTab();
       case 6: return _buildPetTab();
@@ -804,14 +708,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         return GlassContainer(
           margin: const EdgeInsets.only(bottom: 12),
           borderRadius: 24,
-          color: isCurrent ? zone.color.withOpacity(0.2) : Colors.black,
-          border: Border.all(color: isCurrent ? zone.color.withOpacity(0.5) : Colors.white10, width: isCurrent ? 1.5 : 0.5),
+          color: isCurrent ? zone.color.withValues(alpha: 0.2) : Colors.black,
+          border: Border.all(color: isCurrent ? zone.color.withValues(alpha: 0.5) : Colors.white10, width: isCurrent ? 1.5 : 0.5),
           child: InkWell(
             onTap: () {
               if (zone.id == ZoneId.tower) {
                 _enterTower(zone);
               } else {
                 setState(() {
+                  // 🐛 버그 수정: 이전 사냥터의 스테이지를 저장
+                  gameState.zoneStages[gameState.currentZone.id] = gameState.currentStage;
+                  
+                  // 새 사냥터로 전환
                   gameState.currentZone = zone;
                   gameState.currentStage = stage;
                   gameState.stageKills = 0;
@@ -840,13 +748,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                               Container(
                                 margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.amberAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                decoration: BoxDecoration(color: Colors.amberAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                                 child: const Text('도전', style: TextStyle(color: Colors.amberAccent, fontSize: 9, fontWeight: FontWeight.bold)),
                               ),
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(zone.description, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6))),
+                        Text(zone.description, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
                         const SizedBox(height: 16),
                         Wrap(
                           spacing: 8,
@@ -854,7 +762,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           children: zone.keyDrops.map((drop) => Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
+                              color: Colors.white.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: Colors.white10),
                             ),
@@ -872,8 +780,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), shape: BoxShape.circle),
-                        child: Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.3)),
+                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), shape: BoxShape.circle),
+                        child: Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.3)),
                       ),
                     ],
                   ),
@@ -953,7 +861,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               const SizedBox(width: 12),
               Column(
                 children: [
-                  Text('MYTHIC WARRIOR', style: TextStyle(color: Colors.blueAccent.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 3)),
+                  Text('MYTHIC WARRIOR', style: TextStyle(color: Colors.blueAccent.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 3)),
                   const SizedBox(height: 4),
                   ShadowText(player.name, fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white),
                 ],
@@ -975,7 +883,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   width: 220, height: 220,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.blueAccent.withOpacity(0.05), width: 1),
+                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.05), width: 1),
                   ),
                   child: Stack(
                     children: List.generate(4, (i) => Align(
@@ -1001,7 +909,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blueAccent.withOpacity(0.12 * (1 - _heroPulseController.value)),
+                              color: Colors.blueAccent.withValues(alpha: 0.12 * (1 - _heroPulseController.value)),
                               blurRadius: 60 + (40 * _heroPulseController.value),
                               spreadRadius: 5,
                             )
@@ -1015,7 +923,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.cyanAccent.withOpacity(0.15),
+                              color: Colors.cyanAccent.withValues(alpha: 0.15),
                               blurRadius: 30 + (10 * _heroPulseController.value),
                               spreadRadius: 2,
                             )
@@ -1046,8 +954,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                             width: 60 - (10 * _heroPulseController.value),
                             height: 10,
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3 + (0.1 * _heroPulseController.value)),
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
+                              color: Colors.black.withValues(alpha: 0.3 + (0.1 * _heroPulseController.value)),
+                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10)],
                               borderRadius: const BorderRadius.all(Radius.elliptical(60, 10)),
                             ),
                           ),
@@ -1105,15 +1013,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return GlassContainer(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       borderRadius: 18,
-      color: Colors.white.withOpacity(0.04),
-      border: Border.all(color: Colors.blueAccent.withOpacity(0.2), width: 1),
+      color: Colors.white.withValues(alpha: 0.04),
+      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.2), width: 1),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('COMBAT READINESS', style: TextStyle(color: Colors.blueAccent.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+              Text('COMBAT READINESS', style: TextStyle(color: Colors.blueAccent.withValues(alpha: 0.6), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
               const SizedBox(height: 2),
               ShadowText('OVERPOWERING', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
             ],
@@ -1217,186 +1125,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // --- 가방 (인벤토리) 메뉴 구현 ---
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎒 INVENTORY SYSTEM - 인벤토리 시스템
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildInventoryTab() {
-    return Consumer<GameState>(
-      builder: (context, gameState, child) {
-        return Column(
-          children: [
-            // 상단 타이틀 제거 및 카운터 이동 (공간 확보)
-            const SizedBox(height: 12),
-            
-            // 재료 바 (이미지 스타일의 콤팩트 한 줄 바)
-            _buildResourceBar(),
-            
-            // 자동 분해 설정 패널
-            _buildAutoDismantlePanel(),
-            
-            // 장착 슬롯
-            _buildEquippedSlots(),
-            
-            // 필터 및 버튼
-            _buildInventoryControls(),
-            
-            // 아이템 그리드
-            Expanded(child: _buildInventoryGrid()),
-            
-            const SizedBox(height: 100), // 하단 독 공간
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildResourceBar() {
-    return Consumer<GameState>(
-      builder: (context, gameState, child) {
-        final player = gameState.player;
-        return GlassContainer(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          borderRadius: 20,
-          color: Colors.white.withOpacity(0.04),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('보유 재화', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
-                  Text(
-                    '가방 ${player.inventory.length}/${player.maxInventory}',
-                    style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 1줄로 압축된 재화 정보
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildCompactResource('✨', player.powder, Colors.greenAccent),
-                  _buildCompactResource('💎', player.enhancementStone, Colors.blueAccent),
-                  _buildCompactResource('🎲', player.rerollStone, Colors.purpleAccent),
-                  _buildCompactResource('🛡️', player.protectionStone, Colors.amberAccent),
-                  _buildCompactResource('🔮', player.cube, Colors.redAccent),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCompactResource(String emoji, int count, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(emoji, style: const TextStyle(fontSize: 12)),
-        const SizedBox(width: 4),
-        Text(
-          _formatNumber(count),
-          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAutoDismantlePanel() {
-    return GlassContainer(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      borderRadius: 16,
-      color: Colors.white.withOpacity(0.03),
-      border: Border.all(color: _autoDismantleLevel > 0 ? Colors.blueAccent.withOpacity(0.3) : Colors.white10),
-      child: Row(
-        children: [
-          Icon(
-            Icons.auto_delete_outlined,
-            size: 16,
-            color: _autoDismantleLevel > 0 ? Colors.blueAccent : Colors.white38,
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            '자동 분해',
-            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: DropdownButton<int>(
-              value: _autoDismantleLevel,
-              isDense: true,
-              underline: const SizedBox(),
-              dropdownColor: const Color(0xFF1a1d2e),
-              style: const TextStyle(color: Colors.white70, fontSize: 10),
-              items: const [
-                DropdownMenuItem(value: 0, child: Text('사용 안 함')),
-                DropdownMenuItem(value: 1, child: Text('T1 일반')),
-                DropdownMenuItem(value: 2, child: Text('T1 고급 이하')),
-                DropdownMenuItem(value: 3, child: Text('T1 희귀 이하')),
-                DropdownMenuItem(value: 4, child: Text('T1 전체')),
-              ],
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() => _autoDismantleLevel = v);
-                  _saveGameData();
-                  String msg = v == 0 ? '자동 분해를 비활성화했습니다.' : 'T1 ${_getAutoDismantleName(v)} 자동 분해 활성화';
-                  _showToast(msg);
-                }
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getAutoDismantleName(int level) {
-    switch (level) {
-      case 1: return '일반';
-      case 2: return '고급 이하';
-      case 3: return '희귀 이하';
-      case 4: return '전체';
-      default: return '';
-    }
-  }
-
-  Widget _buildResourceItem(String emoji, String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-            child: Text(emoji, style: const TextStyle(fontSize: 12)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 10, color: Colors.white38, fontWeight: FontWeight.bold)),
-                _AnimatedCountText(
-                  count: count,
-                  style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // 🔨 [신규 v0.0.60] 제작 탭 (Forge UI)
   Widget _buildCraftTab() {
@@ -1458,7 +1186,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.all(16),
       borderRadius: 20,
-      color: Colors.white.withOpacity(0.04),
+      color: Colors.white.withValues(alpha: 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1499,14 +1227,14 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     bool isExp = _expandedCraftCategory == index;
     return Column(
       children: [
-        _PressableScale(
+        PressableScale(
           onTap: isLocked ? null : () => setState(() => _expandedCraftCategory = isExp ? -1 : index),
           child: GlassContainer(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             margin: const EdgeInsets.only(bottom: 8),
             borderRadius: 20,
-            border: Border.all(color: isExp ? Colors.blueAccent.withOpacity(0.3) : Colors.white.withOpacity(0.05)),
-            color: isExp ? Colors.blueAccent.withOpacity(0.05) : Colors.white.withOpacity(0.03),
+            border: Border.all(color: isExp ? Colors.blueAccent.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05)),
+            color: isExp ? Colors.blueAccent.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.03),
             child: Row(
               children: [
                 Text(title, style: TextStyle(color: isLocked ? Colors.white24 : Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
@@ -1536,13 +1264,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           double reqAvg = t == 2 ? 13.0 : (t == 3 ? 15.0 : 18.0); // T2: 13, T3: 15, T4+: 18
           bool isLocked = player.averageEnhanceLevel < reqAvg;
           
-          return _PressableScale(
+          return PressableScale(
             onTap: isLocked ? null : () => setState(() => _selectedCraftTier = t),
             child: Container(
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: isSel ? Colors.blueAccent : (isLocked ? Colors.black26 : Colors.white.withOpacity(0.05)),
+                color: isSel ? Colors.blueAccent : (isLocked ? Colors.black26 : Colors.white.withValues(alpha: 0.05)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isSel ? Colors.white24 : Colors.white10),
               ),
@@ -1611,12 +1339,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return GlassContainer(
       padding: const EdgeInsets.all(12),
       borderRadius: 20,
-      color: Colors.white.withOpacity(0.03),
+      color: Colors.white.withValues(alpha: 0.03),
       child: Column(
         children: [
           Row(
             children: [
-              _getEmptyIcon(type, size: 24),
+              EmptyItemIcon(type: type, size: 24),
               const SizedBox(width: 8),
               Text(type.nameKr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
             ],
@@ -1681,7 +1409,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   void _showCraftResult(Item item) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.9),
+      barrierColor: Colors.black.withValues(alpha: 0.9),
       builder: (context) => Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1699,1293 +1427,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildEquippedSlots() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // 아이콘 크기를 적절히 고정하고 간격을 좁힙니다.
-          double slotSize = 52.0; 
-
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center, // 중앙으로 밀집
-            children: ItemType.values.map((type) {
-              final item = player.equipment[type];
-              bool isEmpty = item == null;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2), // 좌우 2px씩, 총 4px 간격
-                child: isEmpty 
-                  ? SizedBox(
-                      width: slotSize, 
-                      height: slotSize,
-                      child: GlassContainer(
-                        borderRadius: 12,
-                        color: Colors.black26,
-                        border: Border.all(color: Colors.white10),
-                        child: Center(
-                          child: Opacity(
-                            opacity: 0.5,
-                            child: _getEmptyIcon(type, size: slotSize * 0.5)
-                          )
-                        ),
-                      ),
-                    )
-                  : _buildPremiumItemSlot(
-                      item, 
-                      size: slotSize,
-                      onTap: () {
-                        final equipList = ItemType.values.map((t) => player.equipment[t]).whereType<Item>().toList();
-                        _showItemDetail(item, contextList: equipList);
-                      },
-                    ),
-              );
-            }).toList(),
-          );
-        },
-      ),
-    );
-  }
-
-  // 빈 슬롯용 흐릿한 실루엣 아이콘
-  Widget _getEmptyIcon(ItemType t, {double size = 20}) {
-    IconData icon;
-    switch (t) {
-      case ItemType.weapon: icon = Icons.skateboarding; break;
-      case ItemType.helmet: icon = Icons.smart_toy; break;
-      case ItemType.armor: icon = Icons.shield; break;
-      case ItemType.boots: icon = Icons.not_started; break;
-      case ItemType.ring: icon = Icons.adjust; break;
-      case ItemType.necklace: icon = Icons.all_out; break;
-    }
-    return Icon(icon, color: Colors.white24, size: size);
-  }
-
-  // 스킬 전용 아이콘 빌더
-  Widget _getSkillIcon(String id, {double size = 24}) {
-    final skill = player.skills.firstWhere((s) => s.id == id);
-    return Text(skill.iconEmoji, style: TextStyle(fontSize: size));
-  }
-
-  Widget _buildInventoryControls() {
-    return GlassContainer(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(12),
-      borderRadius: 24,
-      child: Column(
-        children: [
-          // 필터 탭 (슬림 디자인)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: [
-                _buildFilterChip(null, '전체'),
-                ...ItemType.values.map((t) => _buildFilterChip(t, t.nameKr)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // 액션 버튼 (통합 레이아웃)
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionBtn(
-                  '등급순', 
-                  _inventorySortMode == 0 ? Colors.blueAccent : Colors.white.withOpacity(0.05), 
-                  () => setState(() => _inventorySortMode = 0),
-                  icon: Icons.sort,
-                  isSelected: _inventorySortMode == 0
-                )
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildActionBtn(
-                  '전투력순', 
-                  _inventorySortMode == 1 ? Colors.amberAccent : Colors.white.withOpacity(0.05), 
-                  () => setState(() => _inventorySortMode = 1),
-                  icon: Icons.bolt,
-                  isSelected: _inventorySortMode == 1
-                )
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildActionBtn(
-                  '강화순', 
-                  _inventorySortMode == 2 ? Colors.blueAccent : Colors.white.withOpacity(0.05), 
-                  () => setState(() => _inventorySortMode = 2),
-                  icon: Icons.upgrade,
-                  isSelected: _inventorySortMode == 2
-                )
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 1,
-                child: _buildActionBtn(
-                  '일괄분해', 
-                  Colors.redAccent.withOpacity(0.8), 
-                  _showBulkDismantleDialog,
-                  icon: Icons.auto_delete_outlined,
-                )
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(ItemType? type, String label) {
-    bool isSel = _inventoryFilter == type;
-    return _PressableScale(
-      onTap: () => setState(() => _inventoryFilter = type),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSel ? Colors.blueAccent.withOpacity(0.2) : Colors.white.withOpacity(0.03),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSel ? Colors.blueAccent.withOpacity(0.5) : Colors.white.withOpacity(0.05),
-            width: 1
-          ),
-          boxShadow: isSel ? [
-            BoxShadow(color: Colors.blueAccent.withOpacity(0.1), blurRadius: 8, spreadRadius: 0)
-          ] : [],
-        ),
-        child: Text(
-          label, 
-          style: TextStyle(
-            color: isSel ? Colors.blueAccent : Colors.white38, 
-            fontSize: 11, 
-            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-            letterSpacing: 0.5
-          )
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionBtn(String label, Color color, VoidCallback onTap, {bool isSelected = false, IconData? icon}) {
-    return _PressableScale(
-      onTap: onTap,
-      child: Container(
-        height: 34,
-        width: 90, // _buildPopBtn과 동일하게 90으로 통일
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: isSelected ? color : color.withOpacity(0.1),
-          border: Border.all(
-            color: isSelected ? color.withOpacity(0.5) : Colors.white.withOpacity(0.05),
-            width: 1
-          ),
-          gradient: isSelected ? LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [color, color.withOpacity(0.7)],
-          ) : null,
-          boxShadow: isSelected ? [
-            BoxShadow(color: color.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))
-          ] : [],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) Icon(icon, size: 12, color: isSelected ? Colors.white : color),
-            if (icon != null) const SizedBox(width: 4),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label, 
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold, 
-                    fontSize: 11, 
-                    color: isSelected ? Colors.white : color.withOpacity(0.8),
-                    letterSpacing: 0.5
-                  )
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInventoryGrid() {
-    List<Item> filtered = _inventoryFilter == null 
-        ? List.from(player.inventory) 
-        : player.inventory.where((i) => i.type == _inventoryFilter).toList();
-
-    // 정렬 적용
-    if (_inventorySortMode == 0) {
-      // 등급순 (mythic -> common)
-      filtered.sort((a, b) => b.grade.index.compareTo(a.grade.index));
-    } else if (_inventorySortMode == 1) {
-      // 전투력순
-      filtered.sort((a, b) => b.combatPower.compareTo(a.combatPower));
-    } else {
-      // 강화순
-      filtered.sort((a, b) => b.enhanceLevel.compareTo(a.enhanceLevel));
-    }
-
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollStartNotification) {
-          if (!_isInventoryScrolling) setState(() => _isInventoryScrolling = true);
-        } else if (notification is ScrollEndNotification) {
-          _scrollStopTimer?.cancel();
-          _scrollStopTimer = Timer(const Duration(milliseconds: 200), () {
-            if (mounted) setState(() => _isInventoryScrolling = false);
-          });
-        }
-        return false;
-      },
-      child: GridView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 7, // 5개에서 7개로 확장
-          mainAxisSpacing: 8, 
-          crossAxisSpacing: 8,
-        ),
-        itemCount: filtered.length,
-        itemBuilder: (context, i) {
-          final item = filtered[i];
-          return _buildPremiumItemSlot(
-            item,
-            isPaused: _isInventoryScrolling,
-            onTap: () => _showItemDetail(item, contextList: filtered),
-          );
-        },
-      ),
-    );
-  }
-
-  // [v0.0.61] 자동 분해 판별 로직
-  bool _shouldAutoDismantleItem(Item item) {
-    if (_autoDismantleLevel == 0) return false; // 비활성화
-    if (item.tier != 1) return false; // T1만 대상
-    
-    switch (_autoDismantleLevel) {
-      case 1: // T1 일반만
-        return item.grade == ItemGrade.common;
-      case 2: // T1 고급 이하
-        return item.grade.index <= ItemGrade.uncommon.index;
-      case 3: // T1 희귀 이하
-        return item.grade.index <= ItemGrade.rare.index;
-      case 4: // T1 전체
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  void _showBulkDismantleDialog() {
-    ItemGrade selectedGrade = ItemGrade.uncommon; // 기본값
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1D2E),
-          title: const Text('일괄 분해 설정', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('선택한 등급 이하의 모든 아이템을 분해합니다.', style: TextStyle(color: Colors.white54, fontSize: 13)),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.center,
-                  children: ItemGrade.values.map((grade) {
-                    bool isSel = selectedGrade == grade;
-                    // 부모 너비에서 마진을 뺀 3분할 너비 계산
-                    return InkWell(
-                      key: ValueKey('bulk_grade_${grade.index}'),
-                      onTap: () => setDialogState(() => selectedGrade = grade),
-                      borderRadius: BorderRadius.circular(10),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 85, // 고정 너비로 3x2 대칭 유지
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isSel ? grade.color.withOpacity(0.3) : Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSel ? grade.color : Colors.white10,
-                            width: isSel ? 2 : 1,
-                          ),
-                          boxShadow: isSel ? [
-                            BoxShadow(color: grade.color.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)
-                          ] : [],
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isSel) Icon(Icons.check, size: 14, color: grade.color),
-                            if (isSel) const SizedBox(width: 4),
-                            Text(
-                              grade.name,
-                              style: TextStyle(
-                                color: isSel ? Colors.white : Colors.white38,
-                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text('${selectedGrade.name} 등급 이하를 모두 분해하시겠습니까?', style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Colors.white54))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              onPressed: () {
-                // UI 트리를 안정화하기 위해 먼저 팝업을 닫고 데이터를 처리
-                Navigator.pop(context);
-                _executeBulkDismantle(selectedGrade);
-              },
-              child: const Text('분해 실행', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Map<String, int> _calculateDismantleRewards(Item item) {
-    final rand = Random();
-    int gold = item.tier * (item.grade.index + 1) * 500;
-    int powder = item.tier * (item.grade.index + 1) * 2;
-    int stone = item.grade.index >= 1 ? item.grade.index : 0;
-    int reroll = (item.grade.index >= 2 && rand.nextDouble() < 0.3) ? 1 : 0;
-    int protection = (item.grade.index >= 3 && rand.nextDouble() < 0.2) ? 1 : 0;
-    int cube = (item.grade.index >= 4 && rand.nextDouble() < 0.1) ? 1 : 0;
-
-    // 티어 파편 (등급별 차등)
-    int shards = 0;
-    switch (item.grade) {
-      case ItemGrade.common: shards = 1; break;
-      case ItemGrade.uncommon: shards = 3; break;
-      case ItemGrade.rare: shards = 10; break;
-      case ItemGrade.epic: shards = 30; break;
-      case ItemGrade.legendary: shards = 100; break;
-      case ItemGrade.mythic: shards = 500; break;
-    }
-
-    return {
-      'gold': gold,
-      'powder': powder,
-      'stone': stone,
-      'reroll': reroll,
-      'protection': protection,
-      'cube': cube,
-      'shards': shards,
-      'tier': item.tier,
-    };
-  }
-
-  void _executeBulkDismantle(ItemGrade maxGrade) {
-    int dismantleCount = 0;
-    int totalGold = 0;
-    int totalPowder = 0;
-    int totalStone = 0;
-    int totalReroll = 0;
-    int totalProtection = 0;
-    int totalCube = 0;
-
-    setState(() {
-      player.inventory.removeWhere((item) {
-        if (item.grade.index <= maxGrade.index && !item.isLocked) {
-          dismantleCount++;
-          var rewards = _calculateDismantleRewards(item);
-          totalGold += rewards['gold']!;
-          totalPowder += rewards['powder']!;
-          totalStone += rewards['stone']!;
-          totalReroll += rewards['reroll']!;
-          totalProtection += rewards['protection']!;
-          totalCube += rewards['cube']!;
-          
-          // 파편 추가
-          int tier = rewards['tier']!;
-          int shards = rewards['shards']!;
-          player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
-          
-          return true;
-        }
-        return false;
-      });
-      
-      player.gold += totalGold;
-      player.powder += totalPowder;
-      player.enhancementStone += totalStone;
-      player.rerollStone += totalReroll;
-      player.protectionStone += totalProtection;
-      player.cube += totalCube;
-    });
-
-    if (dismantleCount > 0) {
-      _showDismantleResultDialog(
-        dismantleCount,
-        totalGold,
-        totalPowder,
-        totalStone,
-        totalReroll,
-        totalProtection,
-        totalCube,
-      );
-      
-      String rewardText = '골드 +${_formatNumber(totalGold)}, 가루 +$totalPowder, 강화석 +$totalStone';
-      if (totalReroll > 0) rewardText += ', 재설정석 +$totalReroll';
-      // 일괄 분해 로그 제거
-
-    } else {
-      _showToast('해당 조건의 분해할 아이템이 없습니다.');
-    }
-    _saveGameData(); 
-  }
-
-  void _showDismantleResultDialog(int count, int gold, int powder, int stone, int reroll, int protection, int cube) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (context) => Center(
-        child: Material(
-          type: MaterialType.transparency,
-          child: SizedBox(
-            width: 320,
-          child: GlassContainer(
-            padding: const EdgeInsets.all(24),
-            borderRadius: 28,
-            color: const Color(0xFF1A1D2D).withOpacity(0.9),
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 헤더
-                const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 40),
-                const SizedBox(height: 16),
-                ShadowText('분해 완료', fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
-                ShadowText('$count개의 장비를 분해했습니다', fontSize: 13, color: Colors.white54),
-                const SizedBox(height: 24),
-                
-                // 결과 리스트
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildResultRow('💰', '골드', _formatNumber(gold), Colors.amberAccent),
-                      _buildResultRow('✨', '마법 가루', powder.toString(), Colors.blueAccent),
-                      _buildResultRow('🧩', '티어 파편', '획득 완료', Colors.tealAccent),
-                      if (stone > 0) _buildResultRow('💎', '강화석', stone.toString(), Colors.cyanAccent),
-                      if (reroll > 0) _buildResultRow('🌀', '재설정석', reroll.toString(), Colors.purpleAccent),
-                      if (protection > 0) _buildResultRow('🛡️', '보호석', protection.toString(), Colors.orangeAccent),
-                      if (cube > 0) _buildResultRow('📦', '강화 큐브', cube.toString(), Colors.redAccent),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // 확인 버튼
-                PopBtn(
-                  '확인', 
-                  Colors.blueAccent, 
-                  () => Navigator.pop(context),
-                  isFull: true,
-                  icon: Icons.check,
-                ),
-              ],
-            ),
-          ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultRow(String emoji, String label, String value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12))),
-          Text('+$value', style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w900)),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _getItemIcon(ItemType t, {double size = 20, Color? color}) {
-    String iconStr;
-    switch (t) {
-      case ItemType.weapon: iconStr = '🗡️'; break;
-      case ItemType.helmet: iconStr = '🪖'; break;
-      case ItemType.armor: iconStr = '🛡️'; break;
-      case ItemType.boots: iconStr = '👢'; break;
-      case ItemType.ring: iconStr = '💍'; break;
-      case ItemType.necklace: iconStr = '🧿'; break;
-    }
-    
-    return Text(
-      iconStr,
-      style: TextStyle(
-        fontSize: size,
-        shadows: const [
-          Shadow(offset: Offset(1, 1), blurRadius: 2, color: Colors.black),
-        ],
-      ),
-    );
-  }
-
-  // --- 아이템 상세 정보 팝업 ---
-  void _showItemDetail(Item initialItem, {List<Item>? contextList}) {
-    Item currentItem = initialItem;
-    if (currentItem.isNew) setState(() => currentItem.isNew = false);
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        bool isCompareExpanded = false;
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isEquipped = player.equipment[currentItem.type]?.id == currentItem.id;
-            final currentEquip = player.equipment[currentItem.type];
-            int currentIndex = contextList?.indexWhere((i) => i.id == currentItem.id) ?? -1;
-            bool hasPrev = (contextList != null && currentIndex > 0);
-            bool hasNext = (contextList != null && currentIndex >= 0 && currentIndex < contextList.length - 1);
-
-            void navigate(int dir) {
-              if (contextList == null) return;
-              int nextIdx = currentIndex + dir;
-              if (nextIdx >= 0 && nextIdx < contextList.length) {
-                setDialogState(() {
-                  currentItem = contextList[nextIdx];
-                  if (currentItem.isNew) setState(() => currentItem.isNew = false);
-                });
-              }
-            }
-
-            return Dialog(
-              backgroundColor: const Color(0xFF141622),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-                side: BorderSide(color: currentItem.grade.color.withOpacity(0.4), width: 1.5),
-              ),
-              child: Container(
-                width: 350,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [const Color(0xFF1A1D2E), const Color(0xFF0F111A)],
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  child: GestureDetector(
-                    onHorizontalDragEnd: (details) {
-                      if (details.primaryVelocity! > 500) {
-                        if (hasPrev) navigate(-1);
-                      } else if (details.primaryVelocity! < -500) {
-                        if (hasNext) navigate(1);
-                      }
-                    },
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // --- [상단 헤더 영역] ---
-                          Stack(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.fromLTRB(20, 24, 20, 4),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                                    colors: [currentItem.grade.color.withOpacity(0.12), Colors.transparent],
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      children: [
-                                        _buildNavArrow(hasPrev, () => navigate(-1), Icons.chevron_left),
-                                        Expanded(
-                                          child: Center(
-                                            child: FittedBox(
-                                              fit: BoxFit.scaleDown,
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  GestureDetector(
-                                                    onTap: () => setDialogState(() {
-                                                      currentItem.isLocked = !currentItem.isLocked;
-                                                      _saveGameData();
-                                                    }),
-                                                    child: Icon(
-                                                      currentItem.isLocked ? Icons.lock : Icons.lock_open, 
-                                                      size: 18, 
-                                                      color: currentItem.isLocked ? Colors.amberAccent : Colors.white24
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  _buildTierBadge(currentItem.tier),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    '${currentItem.name.replaceAll(RegExp(r" T[1-6]$"), "")} +${currentItem.enhanceLevel}',
-                                                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: currentItem.grade.color, letterSpacing: -0.5),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        _buildNavArrow(hasNext, () => navigate(1), Icons.chevron_right),
-                                       ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // 우측 상단: 닫기 버튼
-                              Positioned(
-                                right: 16,
-                                top: 16,
-                                child: GestureDetector(
-                                  onTap: () => Navigator.pop(context),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.05),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.close, color: Colors.white24, size: 20),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-  
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // --- [슬림 전투력 표시] ---
-                                Center(child: _buildCPBadge(currentItem.combatPower)),
-                                const SizedBox(height: 4),
-
-                                // --- [비교 카드 (확장형)] ---
-                                if (!isEquipped && currentEquip != null)
-                                  _buildExpandableCompareCard(currentItem, currentEquip, isCompareExpanded, (v) => setDialogState(() => isCompareExpanded = v)),
-                                
-                                const SizedBox(height: 4),
-                                // --- [주 능력치 섹션] ---
-                                _buildMainStatSection(currentItem),
-                                
-                                const SizedBox(height: 16),
-                                // --- [보조 옵션 리스트] ---
-                                const Text('아이템 옵션', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white38, letterSpacing: 1.0)),
-                                const SizedBox(height: 8),
-                                ...currentItem.subOptions.map((opt) {
-                                  bool isFixedHp = (currentItem.type == ItemType.ring || currentItem.type == ItemType.necklace) && opt.name == '체력';
-                                  if (isFixedHp) return const SizedBox();
-                                  return _buildDenseOptionRow(opt, setDialogState);
-                                }).toList(),
-  
-                                // --- [잠재능력 섹션] ---
-                                if (currentItem.potential != null)
-                                  _buildPotentialSection(currentItem.potential!),
-  
-                                const SizedBox(height: 20),
-                                // --- [기능 버튼 그룹] ---
-                                _buildActionButtonsGrid(currentItem, setDialogState),
-                                
-                                const SizedBox(height: 16),
-                                // --- [강화 상세 정보 카드] ---
-                                _buildEnhanceInfoCard(currentItem),
-  
-                                const SizedBox(height: 24),
-                                // --- [하단 착용/분해 액션] ---
-                                Row(
-                                  children: [
-                                    Expanded(child: _buildPrimaryActionBtn(
-                                      isEquipped ? '해제하기' : '착용하기', 
-                                      isEquipped ? Colors.white24 : Colors.lightBlueAccent,
-                                      () {
-                                        setState(() {
-                                          if (isEquipped) player.unequipItem(currentItem.type);
-                                          else player.equipItem(currentItem);
-                                          _saveGameData();
-                                          _startBattleLoop();
-                                        });
-                                        Navigator.pop(context);
-                                      },
-                                      icon: isEquipped ? Icons.link_off : Icons.link,
-                                    )),
-                                    const SizedBox(width: 10),
-                                    _buildDismantleBtn(currentItem, setDialogState),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // --- [UI HELPER WIDGETS] ---
-
-  Widget _buildNavArrow(bool active, VoidCallback onTap, IconData icon) {
-    return IconButton(
-      visualDensity: VisualDensity.compact,
-      icon: Icon(icon, color: active ? Colors.white70 : Colors.white10, size: 28),
-      onPressed: active ? onTap : null,
-    );
-  }
-
-  Widget _buildTierBadge(int tier) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white24, width: 1),
-      ),
-      child: Text(
-        'Tier $tier', 
-        style: const TextStyle(
-          fontSize: 11, 
-          fontWeight: FontWeight.w900, 
-          color: Colors.white,
-          letterSpacing: 0.5
-        )
-      ),
-    );
-  }
-
-  Widget _buildCPBadge(int cp) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.bolt, size: 14, color: Colors.amberAccent),
-        const SizedBox(width: 4),
-        Text(
-          NumberFormat('#,###').format(cp), 
-          style: const TextStyle(
-            color: Colors.amberAccent, 
-            fontSize: 14, 
-            fontWeight: FontWeight.w900, 
-            letterSpacing: 0.5
-          )
-        ),
-      ],
-    );
-  }
-
-  Widget _buildExpandableCompareCard(Item item, Item equip, bool expanded, Function(bool) onToggle) {
-    final diff = item.combatPower - equip.combatPower;
-    final isBetter = diff >= 0;
-
-    return GestureDetector(
-      onTap: () => onToggle(!expanded),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.03),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: expanded ? Colors.white24 : Colors.transparent),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                _getItemIcon(equip.type, size: 14),
-                const SizedBox(width: 8),
-                const Text('착용 장비와 비교', style: TextStyle(fontSize: 12, color: Colors.white38, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                Text(
-                  '${isBetter ? '+' : ''}${NumberFormat('#,###').format(diff)}',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: isBetter ? Colors.greenAccent : Colors.redAccent),
-                ),
-                Icon(expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 16, color: Colors.white24),
-              ],
-            ),
-            if (expanded) ...[
-              const Divider(color: Colors.white12, height: 20),
-              ...() {
-                final myStats = <String, double>{};
-                final targetStats = <String, double>{};
-                myStats[item.mainStatName1] = (myStats[item.mainStatName1] ?? 0) + item.effectiveMainStat1.toDouble();
-                if (item.mainStat2 != null) {
-                  myStats[item.mainStatName2!] = (myStats[item.mainStatName2!] ?? 0) + item.effectiveMainStat2.toDouble();
-                }
-                for (var o in item.subOptions) myStats[o.name] = (myStats[o.name] ?? 0) + o.value;
-
-                targetStats[equip.mainStatName1] = (targetStats[equip.mainStatName1] ?? 0) + equip.effectiveMainStat1.toDouble();
-                if (equip.mainStat2 != null) {
-                  targetStats[equip.mainStatName2!] = (targetStats[equip.mainStatName2!] ?? 0) + equip.effectiveMainStat2.toDouble();
-                }
-                for (var o in equip.subOptions) targetStats[o.name] = (targetStats[o.name] ?? 0) + o.value;
-                final allKeys = {...myStats.keys, ...targetStats.keys}.toList()..sort();
-                return allKeys.map((k) {
-                  final isPerc = (item.subOptions.any((o) => o.name == k && o.isPercentage)) || (equip.subOptions.any((o) => o.name == k && o.isPercentage)) || (k == '공격 속도' || k.contains('%') || k.contains('확률') || k.contains('피해'));
-                  return _buildCompareStat(k, myStats[k] ?? 0, targetStats[k] ?? 0, isPercentage: isPerc);
-                }).toList();
-              }(),
-            ]
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMainStatSection(Item item) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), 
-      decoration: BoxDecoration(
-        color: Colors.blueAccent.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(item.mainStatName1, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
-              Text(NumberFormat('#,###').format(item.effectiveMainStat1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
-            ],
-          ),
-          if (item.mainStat2 != null) ...[
-            const Divider(color: Colors.white10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(item.mainStatName2!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
-                Text(NumberFormat('#,###').format(item.effectiveMainStat2), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDenseOptionRow(ItemOption opt, StateSetter setDialogState) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: opt.isLocked ? Colors.amberAccent.withOpacity(0.04) : Colors.white.withOpacity(0.02),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: opt.isLocked ? Colors.amberAccent.withOpacity(0.2) : Colors.transparent),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                _getStatIcon(opt.name, color: opt.isLocked ? Colors.amberAccent : Colors.cyanAccent),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      children: [
-                        Text(opt.toString(), style: TextStyle(color: opt.isLocked ? Colors.amberAccent : Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                        const SizedBox(width: 8),
-                        // 별점 표시
-                        Row(
-                          children: List.generate(opt.stars, (index) => Icon(Icons.star, size: 10, color: _getStarColor(opt.stars))),
-                        ),
-                        if (opt.maxValue > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: Text(
-                              '(Max: ${opt.isPercentage ? '${opt.maxValue.toStringAsFixed(1)}%' : (opt.name == '공격 속도' ? opt.maxValue.toStringAsFixed(1) : opt.maxValue.toInt().toString())})',
-                              style: TextStyle(color: Colors.white10.withOpacity(0.15), fontSize: 9, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () => setDialogState(() => opt.isLocked = !opt.isLocked),
-            child: Icon(opt.isLocked ? Icons.lock : Icons.lock_open, size: 16, color: opt.isLocked ? Colors.amberAccent : Colors.white12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getStarColor(int stars) {
-    switch (stars) {
-      case 1: return Colors.white38;
-      case 2: return Colors.greenAccent;
-      case 3: return Colors.blueAccent;
-      case 4: return Colors.purpleAccent;
-      case 5: return Colors.amberAccent;
-      default: return Colors.white38;
-    }
-  }
-
-  Widget _buildActionButtonsGrid(Item item, StateSetter setDialogState) {
-    int lockCount = item.subOptions.where((o) => o.isLocked).length;
-    int powderCost = lockCount == 0 ? 0 : (1000 * pow(10, lockCount - 1)).toInt();
-    
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(child: _buildCompactActionBtn(
-              '옵션 재설정 (${item.rerollCount}/5)', Icons.refresh, Colors.cyanAccent, 
-              (player.rerollStone >= 1 && player.powder >= powderCost && item.rerollCount < 5 && !item.isLocked),
-              () => setDialogState(() {
-                player.rerollStone -= 1; player.powder -= powderCost;
-                item.rerollCount += 1; item.rerollSubOptions(Random());
-                _saveGameData();
-                _addLog('[아이템] ${item.name} 옵션 재설정 완료!', LogType.item);
-              }),
-              costTitle: '재설정석 1개',
-              costSub: lockCount > 0 ? '${_formatNumber(powderCost)} 가루' : null,
-            )),
-            const SizedBox(width: 8),
-            Expanded(child: _buildCompactActionBtn(
-              '잠재능력', Icons.auto_awesome, Colors.purpleAccent,
-              (player.cube >= 10 && !item.isLocked),
-              () => setDialogState(() {
-                player.cube -= 10; item.awakenPotential(Random());
-                _saveGameData();
-                _showSuccess('잠재능력 개방', '새로운 힘이 각성했습니다.');
-              }),
-              costTitle: '큐브 10개',
-            )),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _buildEnhanceBtn(item, setDialogState),
-      ],
-    );
-  }
-
-  Widget _buildCompactActionBtn(String title, IconData icon, Color color, bool enabled, VoidCallback onTap, {required String costTitle, String? costSub}) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(enabled ? 0.1 : 0.03),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(enabled ? 0.3 : 0.05)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 18, color: color.withOpacity(enabled ? 1.0 : 0.2)),
-            const SizedBox(height: 4),
-            Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.withOpacity(enabled ? 1.0 : 0.3))),
-            const SizedBox(height: 4),
-            Text(costTitle, style: TextStyle(fontSize: 9, color: Colors.white38)),
-            if (costSub != null) Text(costSub, style: const TextStyle(fontSize: 8, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhanceBtn(Item item, StateSetter setDialogState) {
-    final savedLevel = player.enhancementSuccession[item.tier] ?? 0;
-    bool enabled = !item.isLocked && !item.isBroken;
-    
-    if (item.isBroken) return _buildPrimaryActionBtn('파손됨 (수리 필요)', Colors.red, null, icon: Icons.build_circle);
-    if (savedLevel > 0) {
-      return _buildPrimaryActionBtn('+$savedLevel 계승하기', Colors.cyanAccent, () => setDialogState(() {
-        item.setEnhanceLevel(savedLevel); player.enhancementSuccession[item.tier] = 0;
-        Navigator.pop(context); _showSuccess('강화 계승', '강화도가 성공적으로 계승되었습니다!');
-      }), icon: Icons.swap_horiz);
-    }
-
-    return _buildPrimaryActionBtn(
-      '장비 강화', Colors.blueAccent, enabled ? () => _enhanceItem(item, setDialogState) : null,
-      subLabel: '${_formatNumber(item.enhanceCost)} G / 강화석 ${item.stoneCost}개',
-      icon: Icons.flash_on,
-    );
-  }
-
-  Widget _buildPotentialSection(ItemOption? potential) {
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.purpleAccent.withOpacity(0.15), Colors.pinkAccent.withOpacity(0.05)]),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.purpleAccent.withOpacity(0.4), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.purpleAccent.withOpacity(0.1), blurRadius: 10)],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.stars, color: Colors.purpleAccent, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('잠재능력', style: TextStyle(color: Colors.purpleAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(potential!.toString(), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
-                    const SizedBox(width: 8),
-                    // 별점 표시
-                    Row(
-                      children: List.generate(potential!.stars, (index) => Icon(Icons.star, size: 10, color: _getStarColor(potential!.stars))),
-                    ),
-                    if (potential!.maxValue > 0 && !potential!.isSpecial)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Text(
-                          '(Max: ${potential!.isPercentage ? '${potential!.maxValue.toStringAsFixed(1)}%' : (potential!.name == '공격 속도' ? potential!.maxValue.toStringAsFixed(1) : potential!.maxValue.toInt().toString())})',
-                          style: TextStyle(color: Colors.white10.withOpacity(0.15), fontSize: 9, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEnhanceInfoCard(Item item) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.2), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.05))),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('내구도 및 성공률', style: TextStyle(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.bold)),
-              Text('${(item.successChance * 100).toInt()}%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: item.successChance > 0.5 ? Colors.greenAccent : Colors.redAccent)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: (item.durability / item.maxDurability).clamp(0, 1),
-              minHeight: 6, backgroundColor: Colors.white12,
-              color: item.durability < 30 ? Colors.redAccent : (item.durability < 60 ? Colors.orangeAccent : Colors.greenAccent),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPrimaryActionBtn(String title, Color color, VoidCallback? onTap, {String? subLabel, IconData? icon}) {
-    bool enabled = onTap != null;
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color.withOpacity(enabled ? 0.2 : 0.05),
-        foregroundColor: color.withOpacity(enabled ? 1.0 : 0.3),
-        elevation: 0, padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: color.withOpacity(enabled ? 0.4 : 0.1))),
-      ),
-      onPressed: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          if (subLabel != null) ...[const SizedBox(height: 2), Text(subLabel, style: const TextStyle(fontSize: 10, color: Colors.white38))],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDismantleBtn(Item item, StateSetter setDialogState) {
-    bool locked = item.isLocked;
-    return GestureDetector(
-      onTap: locked ? null : () {
-        var rewards = _calculateDismantleRewards(item);
-        setState(() {
-          player.inventory.removeWhere((i) => i.id == item.id);
-          player.gold += rewards['gold']!; player.powder += rewards['powder']!;
-          player.enhancementStone += rewards['stone']!; player.rerollStone += rewards['reroll']!;
-          player.protectionStone += rewards['protection']!; player.cube += rewards['cube']!;
-          
-          // 파편 추가
-          int tier = rewards['tier']!;
-          int shards = rewards['shards']!;
-          player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
-        });
-        Navigator.pop(context);
-        _showToast('분해 완료! 보상을 획득했습니다.', isError: false);
-        _saveGameData();
-      },
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.redAccent.withOpacity(locked ? 0.05 : 0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.redAccent.withOpacity(locked ? 0.1 : 0.3)),
-        ),
-        child: Icon(locked ? Icons.lock : Icons.delete_sweep, color: Colors.redAccent.withOpacity(locked ? 0.3 : 1.0), size: 24),
-      ),
-    );
-  }
-
-  Widget _getStatIcon(String name, {Color? color}) {
-    IconData icon;
-    if (name.contains('공격력')) icon = Icons.colorize;
-    else if (name.contains('체력') || name.contains('HP')) icon = Icons.favorite;
-    else if (name.contains('방어력')) icon = Icons.shield;
-    else if (name.contains('속도')) icon = Icons.speed;
-    else if (name.contains('치명타')) icon = Icons.gps_fixed;
-    else if (name.contains('획득')) icon = Icons.monetization_on;
-    else icon = Icons.add_circle_outline;
-    return Icon(icon, size: 14, color: color ?? Colors.white54);
-  }
-
-  Widget _buildCompareStat(String label, double val, double cur, {bool isPercentage = false}) {
-    double diff = val - cur;
-    if (diff.abs() < 0.01) return const SizedBox.shrink(); // 차이가 거의 없으면 미표시
-
-    String sign = diff > 0 ? '+' : '';
-    String diffText = isPercentage ? '$sign${diff.toStringAsFixed(1)}%' : '$sign${diff.toInt()}';
-    Color color = diff > 0 ? Colors.greenAccent : Colors.redAccent;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.white60)),
-          Row(
-            children: [
-              Icon(diff > 0 ? Icons.arrow_drop_up : Icons.arrow_drop_down, size: 16, color: color),
-              Text(diffText, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  // 아이템 상세 다이얼로그 전용 버튼 (크기 고정)
-  Widget _buildItemDetailBtn(String label, Color color, VoidCallback? onTap, {String? subLabel, bool isFull = false, IconData? icon}) {
-    return _PressableScale(
-      onTap: onTap,
-      child: Container(
-        // 고정 높이 제거 - 패딩으로만 크기 조정
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color,
-              color.withOpacity(0.7),
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(color: color.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8), // 패딩 증가
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) Icon(icon, size: 14, color: Colors.white),
-                  if (icon != null) const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      label, 
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 13, 
-                        color: Colors.white,
-                        letterSpacing: 0.3,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              if (subLabel != null) 
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    subLabel, 
-                    style: TextStyle(
-                      fontSize: 10, 
-                      color: Colors.white.withOpacity(0.8), 
-                      fontWeight: FontWeight.bold
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   // --- 기존 UI 컴포넌트들 ---
   Widget _buildTopDashboard() {
@@ -3006,11 +1447,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       const SizedBox(width: 4),
                       ShadowText('${gameState.player.level}', fontSize: 18, color: Colors.white, fontWeight: FontWeight.w900),
                       const SizedBox(width: 12),
-                      ShadowText('CP', fontSize: 12, color: Colors.amber.withOpacity(0.8), fontWeight: FontWeight.bold),
+                      ShadowText('CP', fontSize: 12, color: Colors.amber.withValues(alpha: 0.8), fontWeight: FontWeight.bold),
                       const SizedBox(width: 4),
                       ShadowText('${gameState.player.combatPower}', fontSize: 18, color: Colors.amber, fontWeight: FontWeight.w900),
                       const SizedBox(width: 12),
-                      ShadowText('Gold', fontSize: 12, color: Colors.amber.withOpacity(0.6), fontWeight: FontWeight.bold),
+                      ShadowText('Gold', fontSize: 12, color: Colors.amber.withValues(alpha: 0.6), fontWeight: FontWeight.bold),
                       const SizedBox(width: 4),
                       ShadowText(_formatNumber(gameState.player.gold), fontSize: 18, color: Colors.amberAccent, fontWeight: FontWeight.w900),
                       const SizedBox(width: 8),
@@ -3064,10 +1505,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.75),
+                color: Colors.black.withValues(alpha: 0.75),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: Colors.amber.withOpacity(0.6),
+                  color: Colors.amber.withValues(alpha: 0.6),
                   width: 1.5,
                 ),
               ),
@@ -3178,7 +1619,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildDashboardActionBtn(IconData icon, String label, VoidCallback onTap, {Color color = Colors.greenAccent}) {
-    return _PressableScale(
+    return PressableScale(
       onTap: onTap,
       child: GlassContainer(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -3196,55 +1637,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildTopSmallIconButton(IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(6)),
-      child: Icon(icon, size: 12, color: Colors.white70),
-    );
-  }
-
-  Widget _buildMiniResource(IconData icon, int count, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 10, color: color),
-        const SizedBox(width: 3),
-        Text(
-          _formatNumber(count),
-          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMiniInventoryCounter() {
-    bool isFull = player.inventory.length >= player.maxInventory;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.inventory_2, size: 10, color: isFull ? Colors.redAccent : Colors.white54),
-        const SizedBox(width: 3),
-        Text(
-          '${player.inventory.length}',
-          style: TextStyle(
-            color: isFull ? Colors.redAccent : Colors.white70,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
 
 
-  Widget _buildTopSmallButton(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8)),
-      child: Row(children: [Icon(icon, size: 10, color: Colors.greenAccent), const SizedBox(width: 4), Text(label, style: const TextStyle(fontSize: 9))]),
-    );
-  }
+
 
   Widget _buildStageBarLarge() {
     return Consumer<GameState>(
@@ -3257,11 +1652,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           height: 14, 
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), 
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(7),
             // 보스 스테이지일 경우 바 전체에 미세한 붉은 광운 추가
             boxShadow: isBossStage ? [
-              BoxShadow(color: Colors.redAccent.withOpacity(0.15), blurRadius: 8, spreadRadius: 1)
+              BoxShadow(color: Colors.redAccent.withValues(alpha: 0.15), blurRadius: 8, spreadRadius: 1)
             ] : null,
           ),
           child: Stack(
@@ -3277,7 +1672,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(7),
                       boxShadow: isBossStage ? [
-                        BoxShadow(color: Colors.redAccent.withOpacity(0.6), blurRadius: 10, spreadRadius: 2)
+                        BoxShadow(color: Colors.redAccent.withValues(alpha: 0.6), blurRadius: 10, spreadRadius: 2)
                       ] : null,
                       gradient: LinearGradient(
                         colors: isBossStage 
@@ -3356,7 +1751,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return Container(
       width: double.infinity,
       height: 14,
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), borderRadius: BorderRadius.circular(7)),
+      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(7)),
       child: Stack(
         children: [
           TweenAnimationBuilder<double>(
@@ -3391,11 +1786,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F111A).withOpacity(0.50), // 불투명도 50% 적용
+            color: const Color(0xFF0F111A).withValues(alpha: 0.50), // 불투명도 50% 적용
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1), // 살짝 가미된 테두리
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1), // 살짝 가미된 테두리
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
+              BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10, offset: const Offset(0, 4))
             ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -3444,7 +1839,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     },
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(color: Colors.blueAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
                       child: const Icon(Icons.refresh, size: 14, color: Colors.blueAccent),
                     ),
                   ),
@@ -3472,7 +1867,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return Row(
       children: [
         Text('$label: ', style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)), // 폰트 축소 (12 -> 10)
-        Text(_formatNumber(value), style: TextStyle(color: color.withOpacity(0.9), fontSize: 11, fontWeight: FontWeight.w900)), // 폰트 축소 (13 -> 11)
+        Text(_formatNumber(value), style: TextStyle(color: color.withValues(alpha: 0.9), fontSize: 11, fontWeight: FontWeight.w900)), // 폰트 축소 (13 -> 11)
       ],
     );
   }
@@ -3491,11 +1886,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         margin: const EdgeInsets.symmetric(horizontal: 12),
         height: 56, 
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1D2E).withOpacity(0.92), // 배경색 통일감 있게 조정
+          color: const Color(0xFF1A1D2E).withValues(alpha: 0.92), // 배경색 통일감 있게 조정
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, offset: const Offset(0, 5)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 15, offset: const Offset(0, 5)),
           ],
         ),
         child: ClipRRect(
@@ -3514,7 +1909,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               itemCount: emojis.length,
               itemBuilder: (context, idx) {
                 bool isSel = _selectedIndex == idx;
-                return _PressableScale(
+                return PressableScale(
                   onTap: () {
                     if (_selectedIndex != idx) {
                       setState(() {
@@ -3533,10 +1928,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     width: 62,
                     margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
                     decoration: BoxDecoration(
-                      color: isSel ? Colors.blueAccent.withOpacity(0.15) : Colors.transparent,
+                      color: isSel ? Colors.blueAccent.withValues(alpha: 0.15) : Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                       border: isSel 
-                        ? Border.all(color: Colors.blueAccent.withOpacity(0.3), width: 1)
+                        ? Border.all(color: Colors.blueAccent.withValues(alpha: 0.3), width: 1)
                         : null,
                     ),
                     child: Column(
@@ -3547,7 +1942,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           style: TextStyle(
                             fontSize: isSel ? 18 : 16,
                             shadows: [
-                              Shadow(color: Colors.black.withOpacity(0.4), blurRadius: 3, offset: const Offset(1, 1))
+                              Shadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 3, offset: const Offset(1, 1))
                             ],
                           ),
                         ),
@@ -3660,7 +2055,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 if (_towerCountdown > 0)
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black.withOpacity(0.5),
+                      color: Colors.black.withValues(alpha: 0.5),
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -3756,7 +2151,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       width: 90, height: 90,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: p ? Colors.cyan.withOpacity(0.08) : Colors.red.withOpacity(0.05), width: 0.5),
+                        border: Border.all(color: p ? Colors.cyan.withValues(alpha: 0.08) : Colors.red.withValues(alpha: 0.05), width: 0.5),
                       ),
                       child: Stack(
                         children: List.generate(4, (i) => Align(
@@ -3776,13 +2171,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       boxShadow: [
                         // Core Glow
                         BoxShadow(
-                          color: p ? Colors.blueAccent.withOpacity(0.25) : Colors.red.withOpacity(0.2),
+                          color: p ? Colors.blueAccent.withValues(alpha: 0.25) : Colors.red.withValues(alpha: 0.2),
                           blurRadius: 20 + (15 * _heroPulseController.value),
                           spreadRadius: 2,
                         ),
                         // Outer Bloom
                         BoxShadow(
-                          color: p ? Colors.cyan.withOpacity(0.12) : Colors.redAccent.withOpacity(0.1),
+                          color: p ? Colors.cyan.withValues(alpha: 0.12) : Colors.redAccent.withValues(alpha: 0.1),
                           blurRadius: 40 + (30 * _heroPulseController.value),
                           spreadRadius: 5 + (10 * _heroPulseController.value),
                         ),
@@ -3795,9 +2190,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     width: 55 - (8 * _heroPulseController.value),
                     height: 10,
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
+                      color: Colors.black.withValues(alpha: 0.5),
                       borderRadius: const BorderRadius.all(Radius.elliptical(55, 10)),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 12)],
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 12)],
                     ),
                   ),
 
@@ -3816,7 +2211,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           // 실루엣 이너 글로우 효과 (Shadow Trick)
                           SizedBox(
                             width: 88, height: 88,
-                            child: Image.asset(img, fit: BoxFit.contain, color: p ? Colors.blueAccent.withOpacity(0.15) : Colors.red.withOpacity(0.1), colorBlendMode: BlendMode.srcATop),
+                            child: Image.asset(img, fit: BoxFit.contain, color: p ? Colors.blueAccent.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.1), colorBlendMode: BlendMode.srcATop),
                           ),
                           // 실제 이미지
                           SizedBox(
@@ -3892,9 +2287,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   decoration: BoxDecoration(
                     color: Colors.black45,
                     shape: BoxShape.circle,
-                    border: Border.all(color: pet.grade.color.withOpacity(0.6), width: 2.0),
+                    border: Border.all(color: pet.grade.color.withValues(alpha: 0.6), width: 2.0),
                     boxShadow: [
-                      BoxShadow(color: pet.grade.color.withOpacity(0.3), blurRadius: 10, spreadRadius: 2),
+                      BoxShadow(color: pet.grade.color.withValues(alpha: 0.3), blurRadius: 10, spreadRadius: 2),
                     ],
                   ),
                   child: Text(
@@ -3939,14 +2334,14 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         width: 50, height: 50,
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha: 0.6),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: skill.isUnlocked ? Colors.white24 : Colors.white10),
-                          boxShadow: skill.isUnlocked ? [BoxShadow(color: Colors.blueAccent.withOpacity(0.1), blurRadius: 4)] : null,
+                          boxShadow: skill.isUnlocked ? [BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.1), blurRadius: 4)] : null,
                         ),
                         child: Stack(
                           children: [
-                            Center(child: Opacity(opacity: skill.isUnlocked ? 1.0 : 0.3, child: _getSkillIcon(skill.id, size: 28))),
+                            Center(child: Opacity(opacity: skill.isUnlocked ? 1.0 : 0.3, child: SkillIcon(skill: skill, size: 28))),
                             if (skill.isUnlocked)
                               Positioned.fill(
                                 child: AnimatedBuilder(
@@ -3997,9 +2392,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                     color: Colors.redAccent,
                                     shape: BoxShape.circle,
                                     boxShadow: [
-                                      BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 4, spreadRadius: 1)
+                                      BoxShadow(color: Colors.red.withValues(alpha: 0.4), blurRadius: 4, spreadRadius: 1)
                                     ],
-                                    border: Border.all(color: Colors.white.withOpacity(0.5), width: 0.5),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 0.5),
                                   ),
                                 ),
                               ),
@@ -4024,7 +2419,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ],
                 );
               }
-              return Container(width: 50, height: 50, margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 15), decoration: BoxDecoration(color: Colors.white.withOpacity(0.02), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)), child: const Icon(Icons.add, size: 14, color: Colors.white10));
+              return Container(width: 50, height: 50, margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 15), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.02), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)), child: const Icon(Icons.add, size: 14, color: Colors.white10));
             }),
           ),
         );
@@ -4074,7 +2469,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           borderRadius: 20,
-          border: Border.all(color: skill.isUnlocked ? Colors.orangeAccent.withOpacity(0.3) : Colors.white10),
+          border: Border.all(color: skill.isUnlocked ? Colors.orangeAccent.withValues(alpha: 0.3) : Colors.white10),
           child: Row(
             children: [
               // 스킬 아이콘 영역
@@ -4092,7 +2487,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           GlassContainer(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             borderRadius: 6,
-                            color: Colors.orangeAccent.withOpacity(0.2),
+                            color: Colors.orangeAccent.withValues(alpha: 0.2),
                             child: Text('Lv.${skill.level}', style: const TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                           )
                         else
@@ -4100,7 +2495,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(skill.description, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                    Text(skill.description, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12)),
                     const SizedBox(height: 6),
                     _buildSkillEffectInfo(skill),
                   ],
@@ -4155,7 +2550,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       decoration: BoxDecoration(
         color: Colors.black38, 
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: skill.isUnlocked ? Colors.orangeAccent.withOpacity(0.5) : Colors.white10),
+        border: Border.all(color: skill.isUnlocked ? Colors.orangeAccent.withValues(alpha: 0.5) : Colors.white10),
       ),
       child: Center(
         child: Opacity(
@@ -4205,18 +2600,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  // 🆕 _useSkill (UI 레거시) -> GameState._useSkill을 호출하도록 래핑하거나 기존 로직 제거
-  // 현재 GameState 기반으로 개편되었으므로 _useSkill(Skill skill) { gameState._useSkill(skill); } 형태가 권장됨
-  // 단, gameState의 _useSkill은 private일 수 있으므로 GameState에 공개 메서드를 만들거나 
-  // 기존 수동 클릭 시에도 processCombatTurn() 등이 동작하도록 기획에 맞춰 조정.
-  // 여기서는 레거시 로직이 자동 전투와 충돌하여 데미지가 안 박히는 것처럼 보일 수 있으므로 제거하거나 우회함.
-  void _useSkill(Skill skill) {
-    if (!skill.isReady(player.cdr)) return;
-    // GameState의 processCombatTurn이나 직접 호출 방식을 통해 통합 관리
-    // 여기서는 주석 처리하여 중복 호출 방지
-    // gameState.processCombatTurn(); // 턴을 가속시키거나
-    // [임시] GameState 쪽에 수동 사용 메서드가 아직 private이므로 main.dart에서 직접 처리하던 부분을 정리만 함
-  }
+
 
   Widget _buildTabbedLogs() {
     List<String> tabs = ['전체', '데미지', '아이템', '이벤트'];
@@ -4233,7 +2617,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4), // 유리 느낌의 투명도
+        color: Colors.black.withValues(alpha: 0.4), // 유리 느낌의 투명도
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white10),
       ),
@@ -4270,8 +2654,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // 화려한 커스텀 로그 아이템 빌더
   Widget _buildModernLogItem(CombatLogEntry log) {
-    Color textColor = Colors.white70;
-    FontWeight fontWeight = FontWeight.normal;
     List<TextSpan> spans = [];
 
     // [시간] 태그
@@ -4307,7 +2689,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.03),
+          color: Colors.white.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(4),
         ),
         child: RichText(
@@ -4316,23 +2698,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       ),
     );
   }
-
-
-  Widget _buildDockIcon(int idx, IconData icon, String label) {
-    bool isSel = _selectedIndex == idx;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedIndex = idx),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: isSel ? Colors.amberAccent : Colors.white54, size: 22),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: isSel ? Colors.amberAccent : Colors.white38, fontSize: 9)),
-        ]),
-      ),
-    );
-  }
-
 
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -4383,9 +2748,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.amber.withOpacity(0.2) : Colors.transparent,
+          color: isSelected ? Colors.amber.withValues(alpha: 0.2) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          border: isSelected ? Border.all(color: Colors.amber.withOpacity(0.5)) : null,
+          border: isSelected ? Border.all(color: Colors.amber.withValues(alpha: 0.5)) : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -4437,13 +2802,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   GlassContainer(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     borderRadius: 8,
-                    color: Colors.amber.withOpacity(0.15),
+                    color: Colors.amber.withValues(alpha: 0.15),
                     child: ShadowText('${currentStep + 1}단계', color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(achievement.description, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
+              Text(achievement.description, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
               const SizedBox(height: 20),
               // 프리미엄 단계 바
               Stack(
@@ -4460,7 +2825,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(colors: [Colors.orange, Colors.amber]),
                         borderRadius: BorderRadius.circular(7),
-                        boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 8)],
+                        boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha: 0.3), blurRadius: 8)],
                       ),
                     ),
                   ),
@@ -4507,8 +2872,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(16),
           borderRadius: 20,
-          color: Colors.cyanAccent.withOpacity(0.05),
-          border: Border.all(color: Colors.cyanAccent.withOpacity(0.2)),
+          color: Colors.cyanAccent.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.2)),
           child: Column(
             children: [
               Row(
@@ -4613,7 +2978,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.cyanAccent.withOpacity(0.1),
+        color: Colors.cyanAccent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text('${(percent * 100).toInt()}%', style: const TextStyle(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold)),
@@ -4634,7 +2999,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       child: GlassContainer(
         padding: const EdgeInsets.all(8),
         borderRadius: 12,
-        color: hasUnlockedAny ? Colors.white.withOpacity(0.05) : Colors.black26,
+        color: hasUnlockedAny ? Colors.white.withValues(alpha: 0.05) : Colors.black26,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -4648,7 +3013,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [_getItemIcon(type, size: 28, color: hasUnlockedAny ? null : Colors.white24)],
+                    children: [ItemIcon(type: type, size: 28, color: hasUnlockedAny ? null : Colors.white24)],
                   ),
                 ),
                 if (hasRewardToClaim)
@@ -4661,7 +3026,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             ),
             const SizedBox(height: 6),
             Text(_getItemTypeName(type), style: TextStyle(color: hasUnlockedAny ? Colors.white70 : Colors.white24, fontSize: 11)),
-            Text('${claimedCount}/21', style: TextStyle(color: hasUnlockedAny ? Colors.cyanAccent : Colors.white10, fontSize: 9, fontWeight: FontWeight.bold)),
+            Text('$claimedCount/21', style: TextStyle(color: hasUnlockedAny ? Colors.cyanAccent : Colors.white10, fontSize: 9, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -4694,7 +3059,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             title: Row(
               children: [
-                _getItemIcon(type, size: 24, color: Colors.cyanAccent),
+                ItemIcon(type: type, size: 24, color: Colors.cyanAccent),
                 const SizedBox(width: 12),
                 Text('T$tier ${_getItemTypeName(type)} 도감', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               ],
@@ -4884,9 +3249,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               ),
               Row(
                 children: [
-                  _buildSlimSummonBtn('1회', () => _summonPet(1), '10,000 G'),
+                  _buildSlimSummonBtn('1회', () => gameState.summonPet(1), '10,000 G'),
                   const SizedBox(width: 8),
-                  _buildSlimSummonBtn('10회', () => _summonPet(10), '90,000 G', isHighlight: true),
+                  _buildSlimSummonBtn('10회', () => gameState.summonPet(10), '90,000 G', isHighlight: true),
                 ],
               ),
             ],
@@ -4897,7 +3262,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildSlimSummonBtn(String label, VoidCallback onTap, String cost, {bool isHighlight = false}) {
-    return _PressableScale(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -4997,7 +3362,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildPetCard(Pet pet, bool isOwned, bool isActive) {
-    return _PressableScale(
+    return PressableScale(
       onTap: () => _showPetDetailDialog(pet, isOwned, isActive),
       child: Container(
         decoration: BoxDecoration(
@@ -5096,7 +3461,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             opacity: anim1.value,
             child: AlertDialog(
               backgroundColor: const Color(0xFF1A1A1A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: pet.grade.color.withOpacity(0.5))),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: pet.grade.color.withValues(alpha: 0.5))),
               contentPadding: EdgeInsets.zero,
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -5162,8 +3527,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                   isActive ? Colors.redAccent : Colors.greenAccent,
                                   () {
                                     setState(() {
-                                      if (isActive) player.activePet = null;
-                                      else player.activePet = pet;
+                                      if (isActive) {
+                                        player.activePet = null;
+                                      } else {
+                                        player.activePet = pet;
+                                      }
                                       _saveGameData();
                                     });
                                     Navigator.pop(context);
@@ -5205,100 +3573,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  void _enhanceItem(Item item, StateSetter setDialogState) {
-    if (item.isBroken) {
-      _showToast('아이템이 파손되었습니다! 마을에서 수리하세요.', isError: true);
-      return;
-    }
-    if (player.gold < item.enhanceCost) {
-      _showToast('골드가 부족합니다! (필요: ${_formatNumber(item.enhanceCost)} G)', isError: true);
-      return;
-    }
-    if (player.enhancementStone < item.stoneCost) {
-      _showToast('강화석이 부족합니다! (필요: ${item.stoneCost}개)', isError: true);
-      return;
-    }
 
-    bool isSuccess = false;
-    setState(() {
-      player.gold -= item.enhanceCost;
-      player.enhancementStone -= item.stoneCost;
-      
-      isSuccess = Random().nextDouble() < item.successChance;
-      String resultMsg = item.processEnhance(isSuccess);
-      
-      // [강화 계승 로직] 파손 시 플레이어 데이터 업데이트
-      if (!isSuccess && item.isBroken) {
-        int successionLevel = (item.enhanceLevel * 0.7).floor();
-        player.enhancementSuccession[item.tier] = successionLevel;
-        resultMsg = "아이템 파손! 능력치 20% 감소 및 ${item.tier}티어 ${successionLevel}강 계승 데이터 저장됨";
-      }
-      
-      if (isSuccess) {
-        _addLog(resultMsg, LogType.event);
-        _showSuccess('강화 성공!', '+${item.enhanceLevel} 단계를 달성했습니다.');
-        _checkEncyclopedia(item); // 강화 성공 시 도감 체크
-      } else {
-        _addLog(resultMsg, LogType.event);
-        _showToast(resultMsg, isError: true);
-      }
-    });
-    setDialogState(() {}); // 다이얼로그 UI 즉시 갱신
-    _saveGameData(forceCloud: isSuccess); // [v0.0.82] 강화 성공 시 즉시 클라우드 저장
-  }
-    
-
-  void _summonPet(int count) {
-    int cost = count == 1 ? 10000 : 90000;
-    if (player.gold < cost) {
-      _showToast('골드가 부족합니다!', isError: true);
-      return;
-    }
-
-    setState(() {
-      player.gold -= cost;
-      List<Pet> allPets = PetData.getInitialPets();
-      
-      for (int i = 0; i < count; i++) {
-        double rand = Random().nextDouble() * 100;
-        Pet selected;
-        int subIdx = Random().nextInt(5); // 각 등급별 5종 중 하나 선택
-
-        if (rand < 0.05) {
-          // 신화 (Mythic) - 0.05%
-          selected = allPets[25 + subIdx];
-        } else if (rand < 0.5) {
-          // 유물 (Legendary) - 0.45%
-          selected = allPets[20 + subIdx];
-        } else if (rand < 3.0) {
-          // 고대 (Epic) - 2.5%
-          selected = allPets[15 + subIdx];
-        } else if (rand < 10.0) {
-          // 희귀 (Rare) - 7.0%
-          selected = allPets[10 + subIdx];
-        } else if (rand < 40.0) {
-          // 고급 (Uncommon) - 30.0%
-          selected = allPets[5 + subIdx];
-        } else {
-          // 일반 (Common) - 60.0%
-          selected = allPets[0 + subIdx];
-        }
-
-        // 중복 체크 및 추가
-        if (!player.pets.any((p) => p.id == selected.id)) {
-          player.pets.add(selected);
-          _addLog('펫 획득! [${selected.grade.name}] ${selected.name}', LogType.event);
-        } else {
-          // 이미 있으면 레벨업 처리
-          player.pets.firstWhere((p) => p.id == selected.id).level++;
-        }
-      }
-
-      
-      _showSuccess('소환 완료', '${count}회의 소환을 완료했습니다.');
-    });
-    _saveGameData(forceCloud: true); // [v0.0.82] 펫 소환 시 즉시 클라우드 저장
-  }
 
 
   // --- 시스템 및 관리자 모드 UI ---
@@ -5373,7 +3648,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 // 관리자 모드 진입 버튼
                 PopBtn(
                   '관리자 모드', 
-                  Colors.redAccent.withOpacity(0.8), 
+                  Colors.redAccent.withValues(alpha: 0.8), 
                   _showAdminPasswordDialog,
                   icon: Icons.admin_panel_settings,
                 ),
@@ -5381,7 +3656,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 // 🆕 클라우드 수동 동기화 버튼
                 PopBtn(
                   '클라우드 수동 동기화', 
-                  Colors.blueAccent.withOpacity(0.8), 
+                  Colors.blueAccent.withValues(alpha: 0.8), 
                   () async {
                     await _saveGameData(forceCloud: true);
                     if (_isCloudSynced) {
@@ -5409,7 +3684,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             ),
           ),
           const SizedBox(height: 20),
-          Text('Version: 0.1.0 (Alpha Test)', style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 11)),
+          Text('Version: 0.1.0 (Alpha Test)', style: TextStyle(color: Colors.white.withValues(alpha: 0.2), fontSize: 11)),
         ],
       ),
     );
@@ -5520,7 +3795,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return GlassContainer(
       padding: const EdgeInsets.all(16),
       borderRadius: 20,
-      color: Colors.blueAccent.withOpacity(0.05),
+      color: Colors.blueAccent.withValues(alpha: 0.05),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -5610,7 +3885,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildPremiumItemSlot(Item item, {double size = 52, required VoidCallback onTap, bool isPaused = false}) {
     final grade = item.grade;
-    return _PressableScale(
+    return PressableScale(
       onTap: onTap,
       child: AnimatedBuilder(
         animation: _shimmerController,
@@ -5640,7 +3915,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 // 쉬머 광택 효과 (최상위 등급 전용)
                 if (grade == ItemGrade.mythic && !isPaused)
                   Positioned.fill(
-                    child: _ShimmerSheen(progress: _shimmerController.value),
+                    child: ShimmerSheen(progress: _shimmerController.value),
                   ),
 
                 // 중앙 아이콘 후광 (Glow)
@@ -5662,7 +3937,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 ),
 
                 // 아이콘 (크기 확대)
-                Center(child: _getItemIcon(item.type, size: size * 0.55)),
+                Center(child: ItemIcon(type: item.type, size: size * 0.55)),
         
         // --- 강화 계승/파손 비주얼 레이어 ---
         if (item.isBroken)
@@ -5768,7 +4043,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     setState(() {
       _currentZone = towerZone;
       _currentStage = _zoneStages[towerZone.id] ?? 1;
-      _stageKills = 0;
+      gameState.stageKills = 0;
       _selectedIndex = 0; // 전투 탭으로 이동
       currentMonster = null; // 카운트다운 동안 몬스터 없음
       _towerCountdown = 3;
@@ -5801,7 +4076,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       setState(() {
         _currentZone = _previousZone!;
         _currentStage = _previousStage ?? 1;
-        _stageKills = 0;
+        gameState.stageKills = 0;
         _spawnMonster();
         _showToast('${_currentZone.name} 지역으로 복귀했습니다.', isError: false);
       });
@@ -5854,13 +4129,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   void _spawnMonster() => context.read<GameState>().spawnMonster();
   Future<void> _saveGameData({bool forceCloud = false}) => context.read<GameState>().saveGameData(forceCloud: forceCloud);
   void _startBattleLoop() {} // GameLoop가 관리하므로 빈 함수로 둠
-  void _checkMonsterDeath() {
-    // GameState 내부에서 자동으로 승리 처리를 수행하며, 
-    // onVictory 콜백을 통해 UI 연출이 실행됩니다.
-  }
-  void _checkEncyclopedia(Item item) {
-    player.updateEncyclopedia(item);
-  }
+
   void _claimEncyclopediaReward(String key, int lv) {
     player.claimAllEncyclopediaRewards();
     _saveGameData();
@@ -5973,8 +4242,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogCtx) => WillPopScope(
-        onWillPop: () async => false,
+      builder: (dialogCtx) => PopScope(
+        canPop: false,
         child: Dialog(
           backgroundColor: Colors.transparent,
           child: GlassContainer(
@@ -6001,7 +4270,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       ? '수호자를 처치하고 다음 층으로 가는 길이 열렸습니다.' 
                       : '탑의 기운에 압도되어 층을 오르지 못했습니다.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
                 ),
                 if (isSuccess) ...[
                   const SizedBox(height: 20),
@@ -6041,7 +4310,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     Expanded(
                       child: PopBtn(
                         isSuccess ? '포기' : '확인', 
-                        isSuccess ? Colors.white12 : Colors.redAccent.withOpacity(0.2), 
+                        isSuccess ? Colors.white12 : Colors.redAccent.withValues(alpha: 0.2), 
                         () {
                           _isTowerResultShowing = false;
                           Navigator.of(dialogCtx).pop();
@@ -6160,21 +4429,18 @@ class DamagePainter extends CustomPainter {
       final double progress = elapsedMs / 800; // 0.0 ~ 1.0 (0.8s)
       
       double scale = 1.0;
-      double opacity = 1.0;
       double offsetY = 0.0;
 
       // 1단계: 0~0.16s (0~20%) - Bounce Bounce (튀어오름)
       if (progress <= 0.2) {
         final p = progress / 0.2; // 0.0 ~ 1.0
         scale = 0.5 + (0.7 * p); // 0.5 -> 1.2
-        opacity = p; // 0.0 -> 1.0
         offsetY = -25 * p; // 0 -> -25px
       } 
       // 2단계: 0.16~0.8s (20~100%) - ScaleDown & Rise & Fade (부드러운 소멸)
       else {
         final p = (progress - 0.2) / 0.8; // 0.0 ~ 1.0
         scale = 1.2 - (0.2 * p); // 1.2 -> 1.0
-        opacity = 1.0 - p; // 1.0 -> 0.0
         offsetY = -25 - (75 * p); // -25 -> -100px
       }
 
@@ -6263,8 +4529,6 @@ class LootParticlePainter extends CustomPainter {
             ? Offset(110, -45) // 대시보드 내 골드 수치 텍스트 정확한 위치
             : Offset(size.width / 2, 10); // 전투 탭 상단 파란색 EXP 바 위치
         
-        // 목적지 근처에서 더 강력하게 끌려가는 자석 효과 (Exponential)
-        double magnetT = Curves.easeInQuint.transform(subT);
         
         // 유기적인 흔들림 (Wobble) 추가 - 목적지에 가까워질수록 진동 감소
         double wobble = sin(subT * 20) * 12 * (1 - subT);
@@ -6500,7 +4764,7 @@ class _SuccessOverlayWidgetState extends State<_SuccessOverlayWidget> with Singl
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.amber.withOpacity(0.9), Colors.orange.withOpacity(0.9)],
+                    colors: [Colors.amber.withValues(alpha: 0.9), Colors.orange.withValues(alpha: 0.9)],
                   ),
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: [
@@ -6531,168 +4795,7 @@ class _SuccessOverlayWidgetState extends State<_SuccessOverlayWidget> with Singl
   }
 }
 
-/// 수치 변화 애니메이션 위젯 (Count-up)
-class _AnimatedCountText extends StatefulWidget {
-  final int count;
-  final TextStyle style;
-  final String suffix;
 
-  const _AnimatedCountText({
-    required this.count,
-    required this.style,
-    this.suffix = '',
-  });
-
-  @override
-  State<_AnimatedCountText> createState() => _AnimatedCountTextState();
-}
-
-class _AnimatedCountTextState extends State<_AnimatedCountText> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-  int _currentValue = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentValue = widget.count;
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _animation = Tween<double>(begin: _currentValue.toDouble(), end: widget.count.toDouble()).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutExpo),
-    );
-  }
-
-  @override
-  void didUpdateWidget(_AnimatedCountText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.count != widget.count) {
-      _animation = Tween<double>(
-        begin: _currentValue.toDouble(),
-        end: widget.count.toDouble(),
-      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutExpo));
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        _currentValue = _animation.value.toInt();
-        return Text(
-          '${_formatNumber(_currentValue)}${widget.suffix}',
-          style: widget.style,
-        );
-      },
-    );
-  }
-
-  String _formatNumber(int n) {
-    return n.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
-  }
-}
-
-/// 클릭 시 크기 변화 애니메이션 위젯 (Press Scale)
-class _PressableScale extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-
-  const _PressableScale({required this.child, this.onTap});
-
-  @override
-  State<_PressableScale> createState() => _PressableScaleState();
-}
-
-class _PressableScaleState extends State<_PressableScale> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 100),
-      lowerBound: 0.95,
-      upperBound: 1.0,
-      value: 1.0,
-    );
-    _scale = _controller;
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque, // 터치 영역 확장
-      onTapDown: (_) => _controller.reverse(),
-      onTapUp: (_) {
-        _controller.forward();
-        widget.onTap?.call();
-      },
-      onTapCancel: () => _controller.forward(),
-      child: ScaleTransition(
-        scale: _scale,
-        child: widget.child,
-      ),
-    );
-  }
-}
-
-// --- 쉬머 광택 효과 위젯 ---
-// --- 쉬머 광택 효과 위젯 ---
-class _ShimmerSheen extends StatelessWidget {
-  final double progress;
-  const _ShimmerSheen({required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight;
-        // -1.5 ~ 2.5 범위로 이동하여 자연스러운 순환 구현
-        final double slide = (progress * 4) - 2;
-        
-        return Transform.translate(
-          offset: Offset(w * slide, h * slide),
-          child: Transform.rotate(
-            angle: pi / 4,
-            child: Container(
-              width: w * 0.4,
-              height: h * 4,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(0),
-                    Colors.white.withOpacity(0.4),
-                    Colors.white.withOpacity(0),
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 
 // --- 화면 모드 관리 (일반 / 화면유지 / 절전) ---
