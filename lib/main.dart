@@ -126,8 +126,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // 스테이지 가속(점프) 시스템 관련
   DateTime? _lastMonsterSpawnTime;
+  DateTime _lastUiTick = DateTime.now(); // 🆕 30FPS 쓰로틀링용
   
-  // 알림 중첩 방지용
+  // 알림 중착 방지용
   OverlayEntry? _activeNotification;
   bool _showJumpEffect = false; // [v0.0.79] 경량화된 점프 애니메이션 상태
   Timer? _jumpEffectTimer;
@@ -204,6 +205,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
     
     _uiTickerController.addListener(() {
+      final now = DateTime.now();
+      // 🆕 30FPS 쓰로틀링: 33ms가 경과하지 않았으면 업데이트 스킵
+      if (now.difference(_lastUiTick).inMilliseconds < 33) return;
+      _lastUiTick = now;
+
       _updateParticles(); 
       damageManager.update(); 
     });
@@ -284,10 +290,57 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _monsterSpawnController.forward(from: 0);
     }
     
+    // 🆕 분당 효율 계산 타이머 (5초마다 갱신)
+    Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      _updateEfficiencyStats();
+    });
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkOfflineRewards();
       UpdateService.checkUpdate(context);
     });
+  }
+
+  // 🆕 분당 효율 통계 계산
+  void _updateEfficiencyStats() {
+    final now = DateTime.now();
+    final cutoff = now.subtract(const Duration(seconds: 60));
+    
+    // 60초 이전 데이터 제거
+    _recentGains.removeWhere((g) => g.time.isBefore(cutoff));
+    
+    if (_recentGains.isEmpty) {
+      gameState.goldPerMin = 0;
+      gameState.expPerMin = 0;
+      gameState.killsPerMin = 0;
+      return;
+    }
+    
+    // 최근 60초간의 총합 계산
+    int totalGold = 0;
+    int totalExp = 0;
+    int totalKills = 0;
+    
+    for (var record in _recentGains) {
+      totalGold += record.gold;
+      totalExp += record.exp;
+      totalKills += record.kills;
+    }
+    
+    // 실제 경과 시간 계산 (초 단위)
+    final oldestTime = _recentGains.first.time;
+    final elapsedSeconds = now.difference(oldestTime).inSeconds;
+    
+    if (elapsedSeconds > 0) {
+      // 분당 환산 (초당 * 60)
+      gameState.goldPerMin = (totalGold / elapsedSeconds * 60);
+      gameState.expPerMin = (totalExp / elapsedSeconds * 60);
+      gameState.killsPerMin = (totalKills / elapsedSeconds * 60);
+    }
   }
 
   Future<void> _updateLastSaveTime() async {
@@ -507,22 +560,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     double ox = offsetX ?? (rand.nextDouble() * 80) - 40; // ±40px 범위
     double oy = offsetY ?? (rand.nextDouble() * 50) - 25; // ±25px 범위
     
-    // 수치 값 추출
-    double val = double.tryParse(text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-
+    // 🆕 최적화: 데미지 생성 시 텍스트 스타일과 레이아웃이 1회 계산됨
     damageManager.add(DamageEntry(
       text: text,
-      value: val,
-      isMonsterTarget: isMonsterTarget,
       createdAt: DateTime.now(),
       type: type,
       basePosition: basePos + Offset(ox, oy),
     ));
-
-    // 최대 개수 초과 시 오래된 것 제거
-    if (damageManager.texts.length > _maxDamageTexts) {
-      damageManager.texts.removeAt(0);
-    }
   }
 
   @override
@@ -1629,7 +1673,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       Item newItem = Item.generate(player.level, tier: tier, forcedType: type);
       
       player.inventory.add(newItem);
-      _saveGameData();
+      _saveGameData(forceCloud: true); // [v0.0.82] 제작 완료 시 즉시 클라우드 저장
       _showCraftResult(newItem);
     });
   }
@@ -3012,56 +3056,40 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     
     return Positioned.fill(
       child: IgnorePointer(
-        child: AnimatedOpacity(
-          opacity: _showJumpEffect ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-          child: Container(
-            color: Colors.black.withOpacity(0.3),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.amber.withOpacity(0.9),
-                      Colors.orange.withOpacity(0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        child: Center(
+          child: AnimatedOpacity(
+            opacity: _showJumpEffect ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.75),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.amber.withOpacity(0.6),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.flash_on,
+                    color: Colors.amber,
+                    size: 18,
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.amber.withOpacity(0.5),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    )
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.bolt, color: Colors.white, size: 32),
-                    const SizedBox(width: 12),
-                    Text(
-                      'JUMP STAGE!!',
-                      style: GoogleFonts.outfit(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.0,
-                        color: Colors.white,
-                        shadows: const [
-                          Shadow(
-                            offset: Offset(2, 2),
-                            blurRadius: 4,
-                            color: Colors.black45,
-                          ),
-                        ],
-                      ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'STAGE JUMP',
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -5191,11 +5219,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       return;
     }
 
+    bool isSuccess = false;
     setState(() {
       player.gold -= item.enhanceCost;
       player.enhancementStone -= item.stoneCost;
       
-      bool isSuccess = Random().nextDouble() < item.successChance;
+      isSuccess = Random().nextDouble() < item.successChance;
       String resultMsg = item.processEnhance(isSuccess);
       
       // [강화 계승 로직] 파손 시 플레이어 데이터 업데이트
@@ -5215,8 +5244,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       }
     });
     setDialogState(() {}); // 다이얼로그 UI 즉시 갱신
-    _saveGameData(); // 강화 시도 후 결과 즉시 저장
+    _saveGameData(forceCloud: isSuccess); // [v0.0.82] 강화 성공 시 즉시 클라우드 저장
   }
+    
 
   void _summonPet(int count) {
     int cost = count == 1 ? 10000 : 90000;
@@ -5267,6 +5297,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       
       _showSuccess('소환 완료', '${count}회의 소환을 완료했습니다.');
     });
+    _saveGameData(forceCloud: true); // [v0.0.82] 펫 소환 시 즉시 클라우드 저장
   }
 
 
@@ -5385,6 +5416,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildAdminPanel() {
+    // GameState의 현재 값을 동기화
+    final gameState = context.read<GameState>();
+    _monsterDefenseMultiplier = gameState.monsterDefenseMultiplier;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -5426,7 +5461,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 _buildAdminSliderCard(
                   label: "몬스터 방어력 배율",
                   value: _monsterDefenseMultiplier,
-                  onChanged: (val) => setState(() => _monsterDefenseMultiplier = val),
+                  onChanged: (val) {
+                    setState(() => _monsterDefenseMultiplier = val);
+                    // GameState에 즉시 반영
+                    context.read<GameState>().monsterDefenseMultiplier = val;
+                  },
                 ),
                 const SizedBox(height: 30),
                 PopBtn('모든 재화 1억 추가', Colors.amber, () {
@@ -5770,6 +5809,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   void _checkOfflineRewards() async {
+    final gameState = context.read<GameState>();
+    // 🆕 데이터 로드가 완료될 때까지 대기
+    await gameState.initialized;
+    
     final prefs = await SharedPreferences.getInstance();
     String? lastSaveStr = prefs.getString('lastSaveTime');
     if (lastSaveStr == null) return;
@@ -5778,12 +5821,30 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     int minutes = DateTime.now().difference(lastSave).inMinutes;
     if (minutes < 5) return;
 
-    final gameState = context.read<GameState>();
+    // 🆕 효율 데이터가 0일 경우를 대비한 최소 보전 로직 (스테이지 기반)
+    // 분당 획득량이 기록되지 않았더라도 최소한의 보상은 지급되도록 함
+    double effectiveGoldMin = gameState.goldPerMin;
+    double effectiveExpMin = gameState.expPerMin;
+    double effectiveKillsMin = gameState.killsPerMin;
+
+    if (effectiveKillsMin <= 0) {
+      // 처치 수 기록이 없으면 1분당 5마리 기본 가정
+      effectiveKillsMin = 5.0; 
+    }
+    if (effectiveGoldMin <= 0) {
+      // 골드 기록이 없으면 현재 스테이지 기준 몬스터 골드의 5배 가정
+      effectiveGoldMin = (gameState.currentMonster?.goldReward.toDouble() ?? (gameState.currentStage * 10.0)) * 5.0;
+    }
+    if (effectiveExpMin <= 0) {
+      // 경험치 기록이 없으면 현재 스테이지 기준 몬스터 경험치의 5배 가정
+      effectiveExpMin = (gameState.currentMonster?.expReward.toDouble() ?? (gameState.currentStage * 5.0)) * 5.0;
+    }
+
     final rewards = gameState.player.calculateOfflineRewards(
       lastSave, 
-      gameState.goldPerMin, 
-      gameState.expPerMin, 
-      gameState.killsPerMin
+      effectiveGoldMin, 
+      effectiveExpMin, 
+      effectiveKillsMin
     );
 
     if (rewards.isEmpty) return;
@@ -5839,19 +5900,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               ],
               if (rewards.containsKey('powder'))
                 _buildOfflineRewardItem('✨', '가루', rewards['powder']),
-              const Divider(color: Colors.white24, height: 24),
-              const Text(
-                '강화 재료',
-                style: TextStyle(color: Colors.blueAccent, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              _buildOfflineRewardItem('💎', '강화석', rewards['bonusStones']),
-              if (rewards.containsKey('rerollStone'))
-                _buildOfflineRewardItem('🎲', '재설정석', rewards['rerollStone']),
-              if (rewards.containsKey('protectionStone'))
-                _buildOfflineRewardItem('🛡️', '보호석', rewards['protectionStone']),
-              if (rewards.containsKey('cube'))
-                _buildOfflineRewardItem('🔮', '큐브', rewards['cube']),
+              if (rewards['bonusStones'] > 0 || rewards.containsKey('rerollStone') || rewards.containsKey('protectionStone') || rewards.containsKey('cube')) ...[
+                const Divider(color: Colors.white24, height: 24),
+                const Text(
+                  '강화 재료',
+                  style: TextStyle(color: Colors.blueAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _buildOfflineRewardItem('💎', '강화석', rewards['bonusStones']),
+                if (rewards.containsKey('rerollStone'))
+                  _buildOfflineRewardItem('🎲', '재설정석', rewards['rerollStone']),
+                if (rewards.containsKey('protectionStone'))
+                  _buildOfflineRewardItem('🛡️', '보호석', rewards['protectionStone']),
+                if (rewards.containsKey('cube'))
+                  _buildOfflineRewardItem('🔮', '큐브', rewards['cube']),
+              ],
             ],
           ),
         ),
@@ -6019,20 +6082,47 @@ enum DamageType { normal, critical, skill, heal, gold, exp }
 /// 🆕 데미지 텍스트 데이터 모델
 class DamageEntry {
   final String text;
-  final double value;
-  final bool isMonsterTarget;
-  final DateTime createdAt;
   final DamageType type;
+  final DateTime createdAt;
   final Offset basePosition;
-  
+  // 🆕 최적화: 레이아웃이 완료된 객체를 캐싱
+  late final TextPainter textPainter;
+
   DamageEntry({
     required this.text,
-    required this.value,
-    required this.isMonsterTarget,
     required this.createdAt,
     required this.type,
     required this.basePosition,
-  });
+  }) {
+    // 생성 시점에 텍스트 스타일과 레이아웃을 한 번만 계산합니다.
+    final style = _getStaticTextStyle(type);
+    textPainter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: ui.TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+  }
+
+  static TextStyle _getStaticTextStyle(DamageType type) {
+    Color color;
+    double fontSize = 18.0;
+    
+    switch (type) {
+      case DamageType.critical: color = const Color(0xFFEF4444); break;
+      case DamageType.skill: color = Colors.white; break;
+      case DamageType.heal: color = const Color(0xFF22C55E); break;
+      case DamageType.gold: color = const Color(0xFFEAB308); fontSize = 17.0; break;
+      case DamageType.exp: color = const Color(0xFF3B82F6); fontSize = 17.0; break;
+      default: color = Colors.white;
+    }
+
+    return GoogleFonts.luckiestGuy(
+      color: color,
+      fontSize: fontSize,
+      letterSpacing: 0.5,
+      shadows: [], 
+    );
+  }
 }
 
 /// 🆕 데미지 텍스트 생명주기 관리 매니저
@@ -6040,6 +6130,8 @@ class DamageManager {
   final List<DamageEntry> texts = [];
   
   void add(DamageEntry entry) {
+    // 최대 텍스트 수 제한 (너무 많으면 메모리 부하 방지)
+    if (texts.length > 30) texts.removeAt(0);
     texts.add(entry);
   }
   
@@ -6089,65 +6181,19 @@ class DamagePainter extends CustomPainter {
       // 최종 좌표 계산 (basePosition + 애니메이션 오프셋)
       final position = ft.basePosition + Offset(0, offsetY);
 
-      // 텍스트 스타일 설정 (FontWeight.w800 적용으로 웅장함 강조)
-      TextStyle style = _getTextStyle(ft.type, opacity);
-      
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: ft.text, 
-          style: style,
-        ),
-        textDirection: ui.TextDirection.ltr,
-        textAlign: TextAlign.center,
-      );
-      
-      textPainter.layout();
-
-      // 2. 텍스트 바디 렌더링
       canvas.save();
       canvas.translate(position.dx, position.dy);
       canvas.scale(scale);
       
-      // 메인 텍스트 그리기 (TextStyle 내의 Shadow로 충분하므로 중복 그림자 제거)
-      textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
+      // 투명도만 적용하여 그리기 (layout 재호출 없음)
+      // canvas.saveLayer를 쓰지 않고 효율적으로 투명도 처리 (TextPainter의 Opacity는 생성 시점이 아닌 그릴 때 제어)
+      // 실제로는 Paint 객체를 통해 제어 가능하지만 TextPainter는 내부 span style을 따르므로 
+      // 최적화를 위해 drawText 시점에 opacity를 입히는 방식은 canvas.saveLayer가 필요하나 부하가 큼.
+      // 따라서 생성된 Painter를 그대로 사용하되 opacity 연산은 TextStyle에서 하던대로 유지하거나
+      // 여기서는 성능을 위해 saveLayer 없이 그립니다.
+      ft.textPainter.paint(canvas, Offset(-ft.textPainter.width / 2, -ft.textPainter.height / 2));
       canvas.restore();
     }
-  }
-
-  TextStyle _getTextStyle(DamageType type, double opacity) {
-    Color color;
-    double fontSize = 18.0; // [변경] 모든 폰트 사이즈 18.0으로 통일
-    
-    switch (type) {
-      case DamageType.critical:
-        color = const Color(0xFFEF4444); // 크리티컬만 붉은색 강조 유지
-        break;
-      case DamageType.skill:
-        color = Colors.white; // [변경] 스킬도 일반 데미지와 동일한 흰색
-        break;
-      case DamageType.heal:
-        color = const Color(0xFF22C55E);
-        break;
-      case DamageType.gold:
-        color = const Color(0xFFEAB308);
-        fontSize = 17.0; // 재화는 약간 작게 유지하거나 요청대로 18로 맞출 수 있으나, '일반데미지와 동등' 요청이므로 데미지류만 18로 설정.
-        break;
-      case DamageType.exp:
-        color = const Color(0xFF3B82F6);
-        fontSize = 17.0;
-        break;
-      case DamageType.normal:
-      default:
-        color = Colors.white;
-    }
-
-    return GoogleFonts.luckiestGuy(
-      color: color.withOpacity(opacity),
-      fontSize: fontSize,
-      letterSpacing: 0.5,
-      // [변경] 그림자 효과 제거
-      shadows: [], 
-    );
   }
 
   @override

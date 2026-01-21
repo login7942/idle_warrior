@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/player.dart';
@@ -21,6 +22,23 @@ class CombatLogEntry {
   CombatLogEntry(this.message, this.type) : time = DateTime.now();
 }
 
+// 🆕 연타 스킬 타격 정보 (Ticker 기반 처리용)
+class PendingHit {
+  final int damage;
+  final bool isSkill;
+  final double offsetX;
+  final double offsetY;
+  final DateTime scheduledTime;
+
+  PendingHit({
+    required this.damage,
+    required this.isSkill,
+    required this.offsetX,
+    required this.offsetY,
+    required this.scheduledTime,
+  });
+}
+
 class GameState extends ChangeNotifier {
   // --- 서비스 레이어 ---
   final AuthService authService = AuthService();
@@ -31,16 +49,19 @@ class GameState extends ChangeNotifier {
   int _playerCurrentHp = 0;
   int get playerCurrentHp => _playerCurrentHp;
   set playerCurrentHp(int val) {
+    if (_playerCurrentHp == val) return;
     _playerCurrentHp = val;
-    notifyListeners();
+    // 💡 최적화: 전투 중 소량 변화는 Ticker가 처리하므로, 
+    // 유의미한 상태 변화가 있을 때만 명시적으로 알리거나 
+    // 외부에서 알림 주기를 제어하도록 유도
   }
 
   Monster? currentMonster;
   int _monsterCurrentHp = 0;
   int get monsterCurrentHp => _monsterCurrentHp;
   set monsterCurrentHp(int val) {
+    if (_monsterCurrentHp == val) return;
     _monsterCurrentHp = val;
-    notifyListeners();
   }
   
   // --- 진행 데이터 ---
@@ -74,6 +95,9 @@ class GameState extends ChangeNotifier {
   double expPerMin = 0;
   double killsPerMin = 0;
   int autoDismantleLevel = 0;
+  
+  // --- 관리자 설정 ---
+  double monsterDefenseMultiplier = 1.0; // 몬스터 방어력 배율 (0.0 ~ 1.0)
 
   // --- 전투 로그 ---
   List<CombatLogEntry> logs = [];
@@ -86,6 +110,19 @@ class GameState extends ChangeNotifier {
   DateTime? lastMonsterSpawnTime;
   int _skillRoundRobinIndex = 0;
   
+  // 🆕 연타 스킬 처리용 큐
+  final Queue<PendingHit> pendingHits = Queue<PendingHit>();
+  
+  // 🆕 몬스터 소환 대기 플래그 (GameLoop에서 접근)
+  bool pendingMonsterSpawn = false;
+  DateTime? monsterSpawnScheduledTime;
+  
+  
+  // --- [최적화] 배치 저장용 ---
+  int _victoryCountSinceSave = 0;
+  DateTime _lastLocalSaveTime = DateTime.now();
+  Timer? _autoSaveTimer;
+  
   // --- UI 통신용 콜백 ---
   Function(String text, bool isCrit, bool isSkill, {double? ox, double? oy})? onDamageDealt;
   Function(int damage)? onPlayerDamageTaken;
@@ -94,9 +131,25 @@ class GameState extends ChangeNotifier {
   Function(int healAmount)? onHeal;
   VoidCallback? onStageJump; // [v0.0.79] 스테이지 점프 발생 시 호출
 
+  // 🆕 초기화 완료 여부 확인용
+  final Completer<void> initializationCompleter = Completer<void>();
+  Future<void> get initialized => initializationCompleter.future;
+
   // --- 초기화 ---
   GameState() {
     _initializeGame();
+    // 🆕 10초마다 자동 저장 타이머 시작
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (_victoryCountSinceSave > 0) {
+        saveGameData(); 
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeGame() async {
@@ -108,6 +161,11 @@ class GameState extends ChangeNotifier {
     } catch (e) {
       debugPrint('초기화 중 오류 발생: $e');
       await loadGameData();
+    } finally {
+      // 🆕 초기화 완료 알림 (성공/실패 무관하게 완료 처리)
+      if (!initializationCompleter.isCompleted) {
+        initializationCompleter.complete();
+      }
     }
   }
 
@@ -142,7 +200,7 @@ class GameState extends ChangeNotifier {
     if (authService.isLoggedIn) {
       final bool shouldSaveToCloud = forceCloud || 
           lastCloudSaveTime == null || 
-          nowTime.difference(lastCloudSaveTime!).inSeconds >= 30;
+          nowTime.difference(lastCloudSaveTime!).inSeconds >= 300; // 300초 (5분)
 
       if (shouldSaveToCloud) {
         lastCloudSaveTime = nowTime;
@@ -308,29 +366,15 @@ class GameState extends ChangeNotifier {
   void _performBasicAttack() {
     if (currentMonster == null) return;
     
-    double defenseRating = 100 / (100 + currentMonster!.defense);
+    // 몬스터 방어력에 배율 적용 (관리자 설정)
+    double effectiveDefense = currentMonster!.defense * monsterDefenseMultiplier;
+    double defenseRating = 100 / (100 + effectiveDefense);
     double variance = 0.9 + (Random().nextDouble() * 0.2);
     double rawDamage = (player.attack * defenseRating) * variance * player.potentialFinalDamageMult;
     int baseDmg = max(rawDamage.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
-
-    bool isCrit = Random().nextDouble() * 100 < player.critChance;
-    int pDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
-
-    currentMonster!.hp -= pDmg;
-    monsterCurrentHp = currentMonster!.hp;
     
-    onDamageDealt?.call(pDmg.toString(), isCrit, false);
-    
-    _checkMonsterDeath();
-    
-    if (player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
-      int lifestealAmt = (pDmg * player.lifesteal / 100).toInt();
-      if (lifestealAmt > 0) {
-        playerCurrentHp = (playerCurrentHp + lifestealAmt).clamp(0, player.maxHp);
-        onHeal?.call(lifestealAmt);
-      }
-    }
-    notifyListeners();
+    damageMonster(baseDmg, false, false);
+    // notifyListeners(); // 💡 최적화: Ticker가 이미 UI를 60FPS로 갱신 중임
   }
 
   void _useSkill(Skill skill) {
@@ -342,41 +386,68 @@ class GameState extends ChangeNotifier {
     int hits = 1;
     if (skill.id == 'act_1') hits = 3; // 바람 베기는 3연타
 
+    // 몬스터 방어력에 배율 적용 (관리자 설정)
+    double effectiveDefense = currentMonster!.defense * monsterDefenseMultiplier;
+    double defenseRating = 100 / (100 + effectiveDefense);
+    
+    // 연타 스킬의 경우, 각 타격의 UI 위치를 미리 계산
+    List<Offset> offsets = List.generate(hits, (index) => Offset(
+      hits > 1 ? (Random().nextDouble() * 60 - 30) : 0,
+      hits > 1 ? (Random().nextDouble() * 40 - 20) : 0,
+    ));
+
+    // 🆕 Ticker 기반 처리: 각 타격을 큐에 추가
+    final now = DateTime.now();
     for (int i = 0; i < hits; i++) {
-      Future.delayed(Duration(milliseconds: i * 150), () {
-        if (currentMonster == null || currentMonster!.isDead) return;
-
-        double defenseRating = 100 / (100 + currentMonster!.defense);
-        double variance = 0.9 + (Random().nextDouble() * 0.2);
-        
-        // 연타 스킬은 타당 데미지 분산 (예: 3연타면 각각 1/hits 만큼 계산되어야 함)
-        // 하지만 기존 기획상 currentValue가 총합이 아닌 타당 배율일 수 있으므로 그대로 사용하되, 
-        // 필요 시 밸런스 파일(DOC_BALANCE) 참고하여 조정 가능.
-        double powerMult = skill.currentValue;
-        
-        double rawDmg = (player.attack * (powerMult / 100) * defenseRating) * variance * player.potentialFinalDamageMult;
-        int baseDmg = max(rawDmg.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
-
-        // 스킬도 치명타 확률 적용
-        bool isCrit = Random().nextDouble() * 100 < player.critChance;
-        int sDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
-
-        currentMonster!.hp -= sDmg;
-        monsterCurrentHp = currentMonster!.hp;
-
-        // UI 표현용 텍스트 (아이콘 포함)
-        String prefix = isCrit ? '⚡CRITICAL ' : '🔥SKILL ';
-        
-        // 연타 시 위치 분산
-        double ox = hits > 1 ? (Random().nextDouble() * 60 - 30) : 0;
-        double oy = hits > 1 ? (Random().nextDouble() * 40 - 20) : 0;
-
-        onDamageDealt?.call('$prefix$sDmg', isCrit, true, ox: ox, oy: oy);
-
-        _checkMonsterDeath();
-        notifyListeners();
-      });
+      double variance = 0.9 + (Random().nextDouble() * 0.2);
+      double powerMult = skill.currentValue;
+      
+      double rawDmg = (player.attack * (powerMult / 100) * defenseRating) * variance * player.potentialFinalDamageMult;
+      int baseDmg = max(rawDmg.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
+      
+      // 타격 시간 예약 (0ms, 150ms, 300ms)
+      final scheduledTime = now.add(Duration(milliseconds: i * 150));
+      
+      pendingHits.add(PendingHit(
+        damage: baseDmg,
+        isSkill: true,
+        offsetX: offsets[i].dx,
+        offsetY: offsets[i].dy,
+        scheduledTime: scheduledTime,
+      ));
     }
+  }
+
+  // 🆕 데미지 처리 통합 헬퍼 (최적화) - GameLoop에서도 접근 가능하도록 public
+  void damageMonster(int baseDmg, bool isMonsterAtk, bool isSkill, {double ox = 0, double oy = 0}) {
+    if (currentMonster == null || currentMonster!.isDead) return;
+
+    // 치명타 적용
+    bool isCrit = Random().nextDouble() * 100 < player.critChance;
+    int finalDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
+
+    // 실제 HP 차감
+    currentMonster!.hp -= finalDmg;
+    _monsterCurrentHp = currentMonster!.hp; // 직접 변수 수정 (notifyListeners 억제)
+
+    // UI 알림 (Floating Text)
+    String text = isSkill 
+      ? (isCrit ? '⚡CRITICAL $finalDmg' : '🔥SKILL $finalDmg')
+      : finalDmg.toString();
+    
+    onDamageDealt?.call(text, isCrit, isSkill, ox: ox, oy: oy);
+
+    // 흡혈 처리
+    if (!isMonsterAtk && player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
+      int lifestealAmt = (finalDmg * player.lifesteal / 100).toInt();
+      if (lifestealAmt > 0) {
+        _playerCurrentHp = (_playerCurrentHp + lifestealAmt).clamp(0, player.maxHp);
+        onHeal?.call(lifestealAmt);
+      }
+    }
+
+    // 사망 체크
+    _checkMonsterDeath();
   }
 
   void _checkMonsterDeath() {
@@ -415,6 +486,11 @@ class GameState extends ChangeNotifier {
         onStageJump?.call(); // [v0.0.79] UI에 점프 발생 알림
       }
 
+      if (isBossStage) {
+        // [v0.0.82] 보스 처치 시 즉시 클라우드 저장
+        saveGameData(forceCloud: true);
+      }
+
       if (!jumped) {
         stageKills++;
         if (stageKills >= targetKills) {
@@ -431,10 +507,17 @@ class GameState extends ChangeNotifier {
 
     _dropMaterials(currentMonster!.level);
     _dropItem();
-    saveGameData(); 
     
-    // 처치 후 다음 몬스터 스폰 (즉시)
-    spawnMonster();
+    // 💡 최적화: 매 처치마다 저장하지 않고 배치(Batch) 처리
+    _victoryCountSinceSave++;
+    if (_victoryCountSinceSave >= 10) {
+      saveGameData();
+      _victoryCountSinceSave = 0;
+    }
+    
+    // 🆕 전투 리듬 개선: 100ms 대기 후 다음 몬스터 소환 (타격감 확보)
+    pendingMonsterSpawn = true;
+    monsterSpawnScheduledTime = DateTime.now().add(const Duration(milliseconds: 100));
   }
 
   void _dropItem() {

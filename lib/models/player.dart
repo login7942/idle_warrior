@@ -192,7 +192,7 @@ class Player {
   int baseHp;
   int baseAttack;
   int baseDefense;
-  double baseAttackSpeed = 1.0; 
+  double baseAttackSpeed = 1.5; // 초반 밸런스 개선: 1.0 → 1.5 
   double baseCritChance = 5.0; 
   double baseCritDamage = 150.0; // 기본 치명타 피해 150%
   double baseHpRegen = 1.0;    
@@ -204,7 +204,7 @@ class Player {
   // 스킬 목록 (v0.0.62 밸런스 개편)
   List<Skill> skills = [
     Skill(id: 'act_1', name: '바람 베기', description: '초반 주력기 (3연타 공격)', type: SkillType.active, iconEmoji: '🌪️', unlockLevel: 5, unlockCost: 1000, baseUpgradeCost: 1000, costMultiplier: 1.5, baseValue: 80, valuePerLevel: 8, baseCooldown: 6),
-    Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 1.4, baseCooldown: 0),
+    Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 30, valuePerLevel: 2.0, baseCooldown: 0), // 밸런스: 10→30, 1.4→2.0
     Skill(id: 'act_2', name: '강격', description: '강력한 한방 데미지를 입힙니다.', type: SkillType.active, iconEmoji: '🔨', unlockLevel: 15, unlockCost: 2000, baseUpgradeCost: 2000, costMultiplier: 1.6, baseValue: 200, valuePerLevel: 20, baseCooldown: 12),
     Skill(id: 'pas_2', name: '철벽', description: '방어력이 % 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '🛡️', unlockLevel: 20, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
     Skill(id: 'act_3', name: '얼음 화살', description: '고위력 공격 및 적을 빙결시킵니다.', type: SkillType.active, iconEmoji: '❄️', unlockLevel: 30, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 1.8, baseValue: 300, valuePerLevel: 40, baseCooldown: 15),
@@ -233,7 +233,7 @@ class Player {
     this.level = 1,
     this.exp = 0,
     this.maxExp = 100,
-    this.gold = 1000,
+    this.gold = 5000, // 초반 밸런스: 1000 → 5000
     this.baseHp = 100,
     this.baseAttack = 10,
     this.baseDefense = 3,
@@ -387,7 +387,7 @@ class Player {
       if (item.potential?.name == '공격 속도') itemBonus += item.potential!.value;
     });
     double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus;
-    return total.clamp(0.1, 4.0); // 최대 공격 속도를 4.0으로 하향 조정 (전투 엔진 250ms와 일치)
+    return total.clamp(0.1, 6.0); // 최대 공격 속도 6.0 (하드캡 상향: 4.0 → 6.0)
   }
 
   double get critChance {
