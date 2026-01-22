@@ -1,0 +1,15 @@
+Analyzing lib...                                                
+
+warning - The declaration '_stageKills' isn't referenced - lib\main.dart:155:11 - unused_element
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:63:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:12:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:24:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:27:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:37:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:48:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:52:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:59:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:78:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:94:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:97:7 - avoid_print
+

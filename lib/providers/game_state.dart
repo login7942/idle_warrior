@@ -10,6 +10,7 @@ import '../models/item.dart';
 import '../models/skill.dart';
 import '../models/hunting_zone.dart';
 import '../models/pet.dart';
+import '../models/achievement.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_save_service.dart';
 
@@ -234,28 +235,26 @@ class GameState extends ChangeNotifier {
       targetData = cloudDataMap;
       isFromCloud = true;
     } else if (localData != null) {
-      try {
-        player = Player.fromJson(jsonDecode(localData));
-        playerCurrentHp = player.maxHp;
-        currentStage = prefs.getInt('current_stage') ?? 1;
-        String? zoneName = prefs.getString('current_zone_id');
-        if (zoneName != null) {
-          currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
-        }
-        goldPerMin = prefs.getDouble('gold_per_min') ?? 0;
-        expPerMin = prefs.getDouble('exp_per_min') ?? 0;
-        killsPerMin = prefs.getDouble('kills_per_min') ?? 0;
-        autoDismantleLevel = prefs.getInt('auto_dismantle_level') ?? 0;
-        
-        isCloudSynced = cloudDataMap != null;
-      } catch (e) {
-        debugPrint('로컬 데이터 로드 실패: $e');
-      }
+      // 로컬 데이터가 최신이거나 클라우드 데이터가 없는 경우
+      targetData = {
+        'player': jsonDecode(localData),
+        'current_stage': prefs.getInt('current_stage') ?? 1,
+        'current_zone_id': prefs.getString('current_zone_id'),
+        'gold_per_min': prefs.getDouble('gold_per_min') ?? 0,
+        'exp_per_min': prefs.getDouble('exp_per_min') ?? 0,
+        'kills_per_min': prefs.getDouble('kills_per_min') ?? 0,
+        'auto_dismantle_level': prefs.getInt('auto_dismantle_level') ?? 0,
+      };
     }
 
     if (targetData != null) {
       _applyLoadedData(targetData);
-      if (isFromCloud) addLog('클라우드에서 데이터를 불러왔습니다.', LogType.event);
+      if (isFromCloud) {
+        addLog('클라우드에서 데이터를 불러왔습니다.', LogType.event);
+        isCloudSynced = true;
+      } else {
+        isCloudSynced = cloudDataMap != null;
+      }
     } else {
       _initializeStarterData();
     }
@@ -537,16 +536,16 @@ class GameState extends ChangeNotifier {
   void _dropMaterials(int monsterLevel) {
     final rand = Random();
     
-    // 1. 강화석 드롭 (60% 확률)
-    if (rand.nextDouble() < 0.6) {
-      int amount = (monsterLevel / 2).ceil() + rand.nextInt(3);
+    // 1. 강화석 드롭 (10% 확률로 대폭 하향 - 분해 가치 증대)
+    if (rand.nextDouble() < 0.1) {
+      int amount = 1 + (monsterLevel / 50).floor() + rand.nextInt(3);
       player.enhancementStone += amount;
       addLog('[공명] 강화석 $amount개 획득!', LogType.item);
     }
     
-    // 2. 가루 드롭 (40% 확률)
+    // 2. 가루 드롭 (수량 밸런스 조정)
     if (rand.nextDouble() < 0.4) {
-      int amount = (monsterLevel * 2) + rand.nextInt(10);
+      int amount = (monsterLevel / 5).ceil() + rand.nextInt(10);
       player.powder += amount;
       addLog('[추출] 신비로운 가루 $amount개 획득!', LogType.item);
     }
@@ -627,8 +626,31 @@ class GameState extends ChangeNotifier {
 
   // --- [v0.0.85] 아이템 및 펫 비즈니스 로직 ---
 
+  void toggleItemLock(Item item) {
+    item.isLocked = !item.isLocked;
+    saveGameData();
+    notifyListeners();
+  }
+
+  void rerollItemOptions(Item item) {
+    if (item.rerollCount >= 5 || item.isLocked) return;
+    
+    int lockCount = item.subOptions.where((o) => o.isLocked).length;
+    int powderCost = lockCount == 0 ? 0 : (1000 * pow(10, lockCount - 1)).toInt();
+    
+    if (player.rerollStone < 1 || player.powder < powderCost) return;
+
+    player.rerollStone -= 1;
+    player.powder -= powderCost;
+    
+    item.rerollSubOptions(Random());
+    
+    saveGameData();
+    notifyListeners();
+  }
+
   void enhanceItem(Item item) {
-    if (player.gold < item.enhanceCost || player.enhancementStone < item.stoneCost) return;
+    if (item.isLocked || player.gold < item.enhanceCost || player.enhancementStone < item.stoneCost) return;
 
     player.gold -= item.enhanceCost;
     player.enhancementStone -= item.stoneCost;
@@ -651,8 +673,25 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void executeDismantle(Item item) {
-    if (item.isLocked) return;
+  void promoteItem(Item item) {
+    if (!item.canPromote) return;
+    if (player.gold < item.promotionGoldCost || player.cube < item.promotionCubeCost) return;
+
+    player.gold -= item.promotionGoldCost;
+    player.cube -= item.promotionCubeCost;
+    
+    int oldTier = item.tier;
+    item.promote();
+    
+    addLog("[승급 성공] ${item.name}이(가) T$oldTier에서 T${item.tier}로 진화했습니다! (+10 계승)", LogType.event);
+    player.updateEncyclopedia(item);
+    
+    saveGameData();
+    notifyListeners();
+  }
+
+  Map<String, int> executeDismantle(Item item) {
+    if (item.isLocked) return {};
     
     player.inventory.removeWhere((i) => i.id == item.id);
     var rewards = _calculateDismantleRewards(item);
@@ -671,9 +710,11 @@ class GameState extends ChangeNotifier {
     addLog('[분해] ${item.name}을(를) 분해하여 재료를 획득했습니다.', LogType.item);
     saveGameData();
     notifyListeners();
+
+    return rewards;
   }
 
-  void executeBulkDismantle(ItemGrade maxGrade) {
+  Map<String, int> executeBulkDismantle(ItemGrade maxGrade) {
     int dismantleCount = 0;
     int totalGold = 0;
     int totalPowder = 0;
@@ -681,6 +722,7 @@ class GameState extends ChangeNotifier {
     int totalReroll = 0;
     int totalProtection = 0;
     int totalCube = 0;
+    Map<int, int> totalShards = {}; // 티어별 합산
 
     player.inventory.removeWhere((item) {
       if (item.grade.index <= maxGrade.index && !item.isLocked) {
@@ -696,6 +738,7 @@ class GameState extends ChangeNotifier {
         int tier = rewards['tier']!;
         int shards = rewards['shards']!;
         player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
+        totalShards[tier] = (totalShards[tier] ?? 0) + shards;
         
         return true;
       }
@@ -714,6 +757,17 @@ class GameState extends ChangeNotifier {
       saveGameData();
       notifyListeners();
     }
+
+    return {
+      'count': dismantleCount,
+      'gold': totalGold,
+      'powder': totalPowder,
+      'stone': totalStone,
+      'reroll': totalReroll,
+      'protection': totalProtection,
+      'cube': totalCube,
+      // shards 정보는 복잡하므로 count와 핵심 재화 위주로 반환하거나 필요시 확장
+    };
   }
 
   Map<String, int> _calculateDismantleRewards(Item item) {
@@ -781,6 +835,59 @@ class GameState extends ChangeNotifier {
       }
     }
     
+    saveGameData();
+    notifyListeners();
+  }
+
+  void upgradeSkill(Skill skill) {
+    if (player.gold < skill.upgradeCost || player.level < skill.unlockLevel) return;
+
+    player.gold -= skill.upgradeCost;
+    skill.level++;
+    addLog('[스킬] ${skill.name} ${skill.level}레벨 달성!', LogType.event);
+    saveGameData(); // 스킬 업글 후 저장
+    notifyListeners();
+  }
+
+  void togglePetActive(Pet? pet) {
+    if (player.activePet?.id == pet?.id) {
+      player.activePet = null;
+    } else {
+      player.activePet = pet;
+    }
+    saveGameData();
+    notifyListeners();
+  }
+
+  void claimAchievement(Achievement achievement) {
+    int currentStep = player.achievementSteps[achievement.id] ?? 0;
+    int target = achievement.getTargetForStep(currentStep);
+    int reward = achievement.getRewardForStep(currentStep);
+    
+    int progress = 0;
+    switch (achievement.type) {
+      case AchievementType.monsterKill: progress = player.totalKills; break;
+      case AchievementType.goldEarned: progress = player.totalGoldEarned; break;
+      case AchievementType.playerLevel: progress = player.level; break;
+      case AchievementType.itemAcquired: progress = player.totalItemsFound; break;
+      case AchievementType.skillUsed: progress = player.totalSkillsUsed; break;
+    }
+
+    if (progress >= target) {
+      String? msg = player.checkAchievement(achievement.id, progress, target, reward);
+      if (msg != null) {
+        addLog(msg, LogType.event);
+        // UI 알림을 위해 notifyListeners()가 호출되지만, 
+        // 팝업 연출은 리턴된 메시지로 UI단에서 처리하도록 유도할 수 있습니다.
+        // 여기서는 메시지를 이벤트로 남기는 것에 집중합니다.
+      }
+      saveGameData();
+      notifyListeners();
+    }
+  }
+
+  void claimEncyclopediaRewards() {
+    player.claimAllEncyclopediaRewards();
     saveGameData();
     notifyListeners();
   }

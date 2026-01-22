@@ -1,0 +1,46 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 릴리즈 생성 권한
+      packages: write # 패키지 권한 (혹시 몰라 추가)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 모든 기록을 확실히 가져옴
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable' # 버전을 특정하지 않고 최신 안정 버전을 사용합니다.
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Create Release and Upload
+        run: |
+          # 1. 릴리즈가 없으면 생성 (이미 있으면 에러가 나지만 || true로 무시하고 넘어감)
+          gh release create ${{ github.ref_name }} --title "Release ${{ github.ref_name }}" --generate-notes || true
+          
+          # 2. 확실하게 파일을 업로드 (이미 있으면 덮어씀)
+          gh release upload ${{ github.ref_name }} build/app/outputs/flutter-apk/app-release.apk --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

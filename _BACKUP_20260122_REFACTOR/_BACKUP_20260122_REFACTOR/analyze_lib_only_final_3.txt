@@ -1,0 +1,90 @@
+Analyzing lib...                                                
+
+  error - Undefined name '_stageKills' - lib\main.dart:4042:7 - undefined_identifier
+  error - Undefined name '_stageKills' - lib\main.dart:4075:9 - undefined_identifier
+warning - The value of the local variable 'opacity' isn't used - lib\main.dart:4428:14 - unused_local_variable
+warning - The value of the local variable 'magnetT' isn't used - lib\main.dart:4532:16 - unused_local_variable
+warning - Unused import: 'item.dart' - lib\models\pet.dart:2:8 - unused_import
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:67:18 - invalid_assignment
+  error - Undefined class 'Item' - lib\models\player.dart:78:27 - undefined_class
+  error - The name 'Item' isn't a type, so it can't be used as a type argument - lib\models\player.dart:223:8 - non_type_as_type_argument
+  error - The name 'ItemType' isn't a type, so it can't be used as a type argument - lib\models\player.dart:225:7 - non_type_as_type_argument
+  error - The name 'Item' isn't a type, so it can't be used as a type argument - lib\models\player.dart:225:17 - non_type_as_type_argument
+  error - Undefined name 'ItemType' - lib\models\player.dart:226:5 - undefined_identifier
+  error - Undefined name 'ItemType' - lib\models\player.dart:227:5 - undefined_identifier
+  error - Undefined name 'ItemType' - lib\models\player.dart:228:5 - undefined_identifier
+  error - Undefined name 'ItemType' - lib\models\player.dart:229:5 - undefined_identifier
+  error - Undefined name 'ItemType' - lib\models\player.dart:230:5 - undefined_identifier
+  error - Undefined name 'ItemType' - lib\models\player.dart:231:5 - undefined_identifier
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:253:17 - undefined_getter
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:253:57 - invalid_assignment
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:253:62 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:261:17 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:261:62 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:269:17 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:269:58 - undefined_getter
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:298:17 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:301:17 - invalid_assignment
+  error - Undefined name 'ItemType' - lib\models\player.dart:308:29 - undefined_identifier
+  error - Undefined name 'ItemType' - lib\models\player.dart:308:59 - undefined_identifier
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:309:21 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:311:21 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:318:17 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:337:17 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:340:17 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:346:19 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:352:17 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:367:17 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:370:17 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:378:21 - invalid_assignment
+  error - A value of type 'double' can't be assigned to a variable of type 'int' - lib\models\player.dart:387:19 - invalid_assignment
+  error - The getter 'subOptions' isn't defined for the type 'Object' - lib\models\player.dart:397:29 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:400:16 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:400:62 - undefined_getter
+  error - The getter 'subOptions' isn't defined for the type 'Object' - lib\models\player.dart:409:29 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:412:16 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:412:63 - undefined_getter
+  error - The getter 'subOptions' isn't defined for the type 'Object' - lib\models\player.dart:420:29 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:423:16 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:423:63 - undefined_getter
+  error - The getter 'subOptions' isn't defined for the type 'Object' - lib\models\player.dart:431:29 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:434:16 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:434:62 - undefined_getter
+  error - The getter 'subOptions' isn't defined for the type 'Object' - lib\models\player.dart:442:29 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:445:16 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:445:66 - undefined_getter
+  error - The getter 'subOptions' isn't defined for the type 'Object' - lib\models\player.dart:455:29 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:458:16 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:458:67 - undefined_getter
+  error - The getter 'subOptions' isn't defined for the type 'Object' - lib\models\player.dart:466:29 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:469:16 - undefined_getter
+  error - The getter 'potential' isn't defined for the type 'Object' - lib\models\player.dart:469:67 - undefined_getter
+  error - Undefined class 'Item' - lib\models\player.dart:477:16 - undefined_class
+  error - Undefined class 'Item' - lib\models\player.dart:483:18 - undefined_class
+  error - Undefined class 'Item' - lib\models\player.dart:484:5 - undefined_class
+  error - The property 'id' can't be unconditionally accessed because the receiver can be 'null' - lib\models\player.dart:487:36 - unchecked_use_of_nullable_value
+  error - Undefined class 'ItemType' - lib\models\player.dart:490:20 - undefined_class
+  error - Undefined class 'Item' - lib\models\player.dart:491:5 - undefined_class
+  error - The method 'toJson' can't be unconditionally invoked because the receiver can be 'null' - lib\models\player.dart:617:41 - unchecked_use_of_nullable_value
+  error - The property 'name' can't be unconditionally accessed because the receiver can be 'null' - lib\models\player.dart:618:53 - unchecked_use_of_nullable_value
+  error - The method 'toJson' isn't defined for the type 'Object' - lib\models\player.dart:618:62 - undefined_method
+  error - Undefined name 'Item' - lib\models\player.dart:670:60 - undefined_identifier
+  error - Undefined name 'ItemType' - lib\models\player.dart:677:23 - undefined_identifier
+  error - Undefined name 'Item' - lib\models\player.dart:677:52 - undefined_identifier
+  error - The property 'id' can't be unconditionally accessed because the receiver can be 'null' - lib\providers\game_state.dart:657:43 - unchecked_use_of_nullable_value
+  error - The property 'grade' can't be unconditionally accessed because the receiver can be 'null' - lib\providers\game_state.dart:686:16 - unchecked_use_of_nullable_value
+  error - The property 'isLocked' can't be unconditionally accessed because the receiver can be 'null' - lib\providers\game_state.dart:686:55 - unchecked_use_of_nullable_value
+  error - The argument type 'Object?' can't be assigned to the parameter type 'Item'.  - lib\providers\game_state.dart:688:50 - argument_type_not_assignable
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:63:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:12:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:24:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:27:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:37:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:48:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:52:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:59:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:78:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:94:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\cloud_save_service.dart:97:7 - avoid_print
+  error - The property 'type' can't be unconditionally accessed because the receiver can be 'null' - lib\widgets\inventory_panel.dart:298:53 - unchecked_use_of_nullable_value
+
