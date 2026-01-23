@@ -70,6 +70,24 @@ class Player {
     ItemType.ring: 0,
     ItemType.necklace: 0,
   };
+  
+  // [v0.3.5] 슬롯 강화 3.0 전용 데이터: 실패 횟수(천장용) 및 연속 성공 횟수(스트릭용)
+  Map<ItemType, int> slotEnhanceFailCounts = {
+    ItemType.weapon: 0,
+    ItemType.helmet: 0,
+    ItemType.armor: 0,
+    ItemType.boots: 0,
+    ItemType.ring: 0,
+    ItemType.necklace: 0,
+  };
+  Map<ItemType, int> slotEnhanceStreakCounts = {
+    ItemType.weapon: 0,
+    ItemType.helmet: 0,
+    ItemType.armor: 0,
+    ItemType.boots: 0,
+    ItemType.ring: 0,
+    ItemType.necklace: 0,
+  };
 
   // 장착 중인 모든 부위(6개)의 평균 강화 수치 (기존 아이템 강화 기준)
   double get averageEnhanceLevel {
@@ -80,6 +98,25 @@ class Player {
       }
     }
     return total / 6.0; // 6개 슬롯 기준 평균 (미장착 시 0강 취급)
+  }
+
+  // 🆕 [v0.3.6] 장착 슬롯 평균 강화 수치 (적정 사냥터 보너스 판정용)
+  double get averageSlotEnhanceLevel {
+    if (slotEnhanceLevels.isEmpty) return 0.0;
+    int total = slotEnhanceLevels.values.fold(0, (sum, lv) => sum + lv);
+    return total / 6.0;
+  }
+
+  // 🆕 [v0.3.8] 최고 슬롯 강화 수치
+  int get maxSlotEnhanceLevel {
+    if (slotEnhanceLevels.isEmpty) return 0;
+    return slotEnhanceLevels.values.fold(0, (maxIv, lv) => lv > maxIv ? lv : maxIv);
+  }
+
+  // 🆕 [v0.3.9] 장착 슬롯 강화 레벨 총합 (티어 해금의 새로운 기준)
+  int get totalSlotEnhanceLevel {
+    if (slotEnhanceLevels.isEmpty) return 0;
+    return slotEnhanceLevels.values.fold(0, (sum, lv) => sum + lv);
   }
 
   // 장비 도감 시스템 (v0.0.35 추가)
@@ -297,10 +334,22 @@ class Player {
   }
 
   // --- [슬롯 강화 계수 계산] ---
-  // 레벨당 2%씩 주 능력치 증폭 (100강 시 3배)
+  // 기본: 레벨당 2%씩 주 능력치 증폭
+  // 마일스톤 보너스: 1000 도달 시 강화 효과 +20%, 1500 도달 시 모든 슬롯 강화 효율 +15%
   double _getSlotMultiplier(ItemType type) {
     int level = slotEnhanceLevels[type] ?? 0;
-    return 1.0 + (level * 0.02);
+    double efficiency = 0.02;
+
+    // [마일스톤] 1500 도달 시 모든 슬롯 강화 효율 +15%
+    bool globalBonus = slotEnhanceLevels.values.any((v) => v >= 1500);
+    if (globalBonus) efficiency *= 1.15;
+
+    double baseMulti = 1.0 + (level * efficiency);
+
+    // [마일스톤] 1000 도달 시 해당 슬롯 강화 효과 +0.2 (20%) 추가
+    if (level >= 1000) baseMulti += 0.2;
+
+    return baseMulti;
   }
 
   int get maxHp {
@@ -654,6 +703,8 @@ class Player {
     'tierShards': tierShards.map((k, v) => MapEntry(k.toString(), v)),
     'tierCores': tierCores.map((k, v) => MapEntry(k.toString(), v)),
     'slotEnhanceLevels': slotEnhanceLevels.map((k, v) => MapEntry(k.name, v)),
+    'slotEnhanceFailCounts': slotEnhanceFailCounts.map((k, v) => MapEntry(k.name, v)),
+    'slotEnhanceStreakCounts': slotEnhanceStreakCounts.map((k, v) => MapEntry(k.name, v)),
   };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -767,6 +818,24 @@ class Player {
       map.forEach((k, v) {
         try {
           p.slotEnhanceLevels[ItemType.values.byName(k)] = v as int;
+        } catch (_) {}
+      });
+    }
+
+    if (json['slotEnhanceFailCounts'] != null) {
+      var map = Map<String, dynamic>.from(json['slotEnhanceFailCounts']);
+      map.forEach((k, v) {
+        try {
+          p.slotEnhanceFailCounts[ItemType.values.byName(k)] = v as int;
+        } catch (_) {}
+      });
+    }
+
+    if (json['slotEnhanceStreakCounts'] != null) {
+      var map = Map<String, dynamic>.from(json['slotEnhanceStreakCounts']);
+      map.forEach((k, v) {
+        try {
+          p.slotEnhanceStreakCounts[ItemType.values.byName(k)] = v as int;
         } catch (_) {}
       });
     }

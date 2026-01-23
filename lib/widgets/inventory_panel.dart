@@ -458,10 +458,23 @@ class _InventoryPanelState extends State<InventoryPanel> {
           final goldCost = info['goldCost'] as int;
           final stoneCost = info['stoneCost'] as int;
           final chance = info['chance'] as double;
+          final baseChance = info['baseChance'] as double;
+          final bonusChance = info['bonusChance'] as double;
           final isMax = info['isMax'] as bool;
-          final player = gs.player;
+          final failCount = info['failCount'] as int;
+          final streakCount = info['streakCount'] as int;
+          final isGuaranteed = info['isGuaranteed'] as bool;
+          final hasPity = info['hasPity'] as bool;
+          final hasStreakBonus = info['hasStreakBonus'] as bool;
           
+          final player = gs.player;
           final canAfford = player.gold >= goldCost && player.enhancementStone >= stoneCost;
+
+          // 보너스 요약 텍스트
+          String bonusInfo = "";
+          if (hasStreakBonus) bonusInfo += "🔥 스트릭 보너스(+10%) ";
+          if (hasPity) bonusInfo += "🍀 천장 보너스(x2) ";
+          if (isGuaranteed) bonusInfo = "✨ 확정 성공 ✨";
 
           return Dialog(
             backgroundColor: Colors.transparent,
@@ -469,41 +482,109 @@ class _InventoryPanelState extends State<InventoryPanel> {
               padding: const EdgeInsets.all(24),
               borderRadius: 32,
               color: const Color(0xFF1A1D2E).withOpacity(0.95),
-              border: Border.all(color: Colors.blueAccent.withOpacity(0.3), width: 1.5),
+              border: Border.all(color: isGuaranteed ? Colors.amberAccent : Colors.blueAccent.withOpacity(0.3), width: 1.5),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.upgrade, color: Colors.blueAccent, size: 24),
+                      const Icon(Icons.bolt, color: Colors.amberAccent, size: 24),
                       Text('${type.nameKr} 슬롯 강화', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: Colors.white24, size: 20)),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  
+                  // 마일스톤 진행도 간략 표시
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildMilestoneDot(level, 1000, "효과+20%"),
+                      _buildMilestoneLine(level, 1000, 1200),
+                      _buildMilestoneDot(level, 1200, "비용-10%"),
+                      _buildMilestoneLine(level, 1200, 1500),
+                      _buildMilestoneDot(level, 1500, "전체효율+15%"),
+                    ],
+                  ),
                   const SizedBox(height: 20),
-                  Text('Level +$level', style: const TextStyle(color: Colors.blueAccent, fontSize: 32, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 8),
-                  const Text('슬롯의 모든 주 능력치 증폭', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  
+                  Text('+$level', style: TextStyle(color: isGuaranteed ? Colors.amberAccent : Colors.blueAccent, fontSize: 42, fontWeight: FontWeight.w900)),
+                  
+                  if (bonusInfo.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(bonusInfo, style: TextStyle(color: isGuaranteed ? Colors.amberAccent : Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+
                   const SizedBox(height: 24),
                   
-                  // 스탯 변화 표시
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(16)),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('${(level * 2)}%', style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Icon(Icons.arrow_forward_rounded, color: Colors.white24, size: 16),
+                  // 스탯 변화 표시 및 스트릭
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(16)),
+                          child: Column(
+                            children: [
+                              const Text('증폭 효율', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('${(level * 2)}%', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                                  const Icon(Icons.arrow_forward_rounded, color: Colors.white24, size: 14),
+                                  Text('${(level + 1) * 2}%', style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                        Text('${(level + 1) * 2}%', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.w900)),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(16)),
+                          child: Column(
+                            children: [
+                              const Text('연속 성공', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                              const SizedBox(height: 4),
+                              Text('$streakCount Streak', style: TextStyle(color: streakCount >= 3 ? Colors.orangeAccent : Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   
+                  const SizedBox(height: 20),
+                  
+                  // 천장 게이지
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('천장 진행도 (Pity)', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                          Text('$failCount/50', style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: failCount / 50,
+                          backgroundColor: Colors.white10,
+                          valueColor: AlwaysStoppedAnimation<Color>(failCount >= 20 ? Colors.amberAccent : Colors.blueAccent),
+                          minHeight: 6,
+                        ),
+                      ),
+                    ],
+                  ),
+
                   const SizedBox(height: 24),
                   
                   // 비용 및 확률
@@ -515,36 +596,45 @@ class _InventoryPanelState extends State<InventoryPanel> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    '성공 확률: ${(chance * 100).toStringAsFixed(1)}%',
-                    style: TextStyle(color: isMax ? Colors.white24 : Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                  
+                  // 확률 디테일
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.04), borderRadius: BorderRadius.circular(10)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('성공 확률', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        Text(
+                          '${(chance * 100).toStringAsFixed(1)}%',
+                          style: TextStyle(color: isGuaranteed ? Colors.amberAccent : (chance > 0.5 ? Colors.greenAccent : Colors.orangeAccent), fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
                   ),
                   
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   
                   SizedBox(
                     width: double.infinity,
                     height: 54,
                     child: PressableScale(
-                      onTap: (!isMax && canAfford) ? () {
-                        gs.enhanceSlot(type);
-                        // 햅틱 피드백이나 애니메이션 효과를 여기에 추가할 수 있음
-                      } : null,
+                      onTap: (!isMax && canAfford) ? () => gs.enhanceSlot(type) : null,
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           gradient: LinearGradient(
                             colors: (!isMax && canAfford) 
-                              ? [Colors.blueAccent, Colors.blueAccent.withOpacity(0.7)] 
+                              ? (isGuaranteed ? [Colors.amber, Colors.orange] : [Colors.blueAccent, Colors.blueAccent.withOpacity(0.7)]) 
                               : [Colors.white10, Colors.white10],
                           ),
                           boxShadow: (!isMax && canAfford) ? [
-                            BoxShadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                             BoxShadow(color: (isGuaranteed ? Colors.amber : Colors.blueAccent).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
                           ] : null,
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          isMax ? '최대 레벨' : (canAfford ? '강화하기' : '재화 부족'),
+                          isMax ? '최대 레벨 도달' : (canAfford ? (isGuaranteed ? '확정 강화 실행' : '슬롯 강화') : '재화 부족'),
                           style: TextStyle(
                             color: (!isMax && canAfford) ? Colors.white : Colors.white24,
                             fontWeight: FontWeight.w900,
@@ -559,6 +649,38 @@ class _InventoryPanelState extends State<InventoryPanel> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildMilestoneDot(int current, int target, String label) {
+    bool reached = current >= target;
+    return Column(
+      children: [
+        Container(
+          width: 8, height: 8,
+          decoration: BoxDecoration(
+            color: reached ? Colors.greenAccent : Colors.white12,
+            shape: BoxShape.circle,
+            boxShadow: reached ? [const BoxShadow(color: Colors.greenAccent, blurRadius: 4)] : null,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(color: reached ? Colors.greenAccent : Colors.white12, fontSize: 7, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _buildMilestoneLine(int current, int start, int end) {
+    double progress = ((current - start) / (end - start)).clamp(0.0, 1.0);
+    return Container(
+      width: 30, height: 2,
+      margin: const EdgeInsets.only(left: 4, right: 4, bottom: 10),
+      color: Colors.white12,
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: progress,
+        child: Container(color: Colors.greenAccent.withOpacity(0.5)),
       ),
     );
   }

@@ -104,7 +104,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   
   // 관리자 모드
   bool _isAdminAuthenticated = false;
-  double _monsterDefenseMultiplier = 1.0; // 몬스터 방어력 배율 (0.0 ~ 1.0)
+  double _monsterDefenseMultiplier = 0.0; // 몬스터 방어력 배율 (0.0 ~ 1.0)
 
   // 화면 모드 관리
   DisplayMode _displayMode = DisplayMode.normal;
@@ -233,6 +233,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       // 몬스터 등장 애니메이션 초기화 및 실행
       _monsterDeathController.reset();
       _monsterSpawnController.forward(from: 0);
+    };
+
+    // 🆕 럭키 스트릭, 천장 성공 등 특수 연출 연결
+    gameState.onSpecialEvent = (title, message) {
+      if (!mounted) return;
+      _showSuccess(title, message);
     };
 
     gameState.onVictory = (gold, exp) {
@@ -752,17 +758,59 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         const SizedBox(height: 6),
                         Text(zone.description, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
                         const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (player.averageSlotEnhanceLevel >= zone.minEnhance && player.averageSlotEnhanceLevel <= zone.maxEnhance)
+                                  ? Colors.greenAccent.withValues(alpha: 0.1)
+                                  : Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: (player.averageSlotEnhanceLevel >= zone.minEnhance && player.averageSlotEnhanceLevel <= zone.maxEnhance)
+                                    ? Colors.greenAccent.withValues(alpha: 0.3)
+                                    : Colors.white10
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.bolt, 
+                                    size: 10, 
+                                    color: (player.averageSlotEnhanceLevel >= zone.minEnhance && player.averageSlotEnhanceLevel <= zone.maxEnhance)
+                                      ? Colors.greenAccent : Colors.white24
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '적정 강화: ${zone.minEnhance}~${zone.maxEnhance}',
+                                    style: TextStyle(
+                                      fontSize: 9, 
+                                      fontWeight: FontWeight.bold,
+                                      color: (player.averageSlotEnhanceLevel >= zone.minEnhance && player.averageSlotEnhanceLevel <= zone.maxEnhance)
+                                        ? Colors.greenAccent : Colors.white38
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // 🆕 [v0.3.8] 티어 재료 드랍 정보 및 해금 상태
+                        _buildTierDropInfo(zone),
+                        const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: zone.keyDrops.map((drop) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.white10),
+                              color: Colors.white.withValues(alpha: 0.03),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                             ),
-                            child: Text(drop, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                            child: Text(drop, style: const TextStyle(fontSize: 9, color: Colors.white54)),
                           )).toList(),
                         ),
                       ],
@@ -791,6 +839,62 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildTierDropInfo(HuntingZone zone) {
+    List<int> possibleTiers = [];
+    switch (zone.id) {
+      case ZoneId.forest: possibleTiers = [2]; break;
+      case ZoneId.mine: possibleTiers = [2, 3]; break;
+      case ZoneId.dungeon: possibleTiers = [3, 4]; break;
+      case ZoneId.volcano: possibleTiers = [4, 5]; break;
+      case ZoneId.snowfield: possibleTiers = [5, 6]; break;
+      case ZoneId.abyss: possibleTiers = [6]; break;
+      default: break;
+    }
+
+    if (possibleTiers.isEmpty) return const SizedBox.shrink();
+
+    final totalLv = context.read<GameState>().player.totalSlotEnhanceLevel;
+    Map<int, int> unlockLevels = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
+
+    return Row(
+      children: possibleTiers.map((tier) {
+        int unlockLv = unlockLevels[tier] ?? 0;
+        bool isUnlocked = totalLv >= unlockLv;
+        
+        return Container(
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isUnlocked ? Colors.purpleAccent.withValues(alpha: 0.1) : Colors.black26,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isUnlocked ? Colors.purpleAccent.withValues(alpha: 0.3) : Colors.white10
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isUnlocked ? Icons.auto_awesome : Icons.lock, 
+                size: 10, 
+                color: isUnlocked ? Colors.purpleAccent : Colors.white24
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isUnlocked ? 'T$tier 핵심 재료' : 'T$tier 잠금 (총합 $unlockLv 필요)',
+                style: TextStyle(
+                  fontSize: 9, 
+                  fontWeight: FontWeight.bold,
+                  color: isUnlocked ? Colors.purpleAccent : Colors.white38
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   // 👤 CHARACTER TAB - 캐릭터 정보 탭
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -822,9 +926,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           children: [
                             const Text('제작 티어 선택', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
                             Text(
-                              '현재 평균 강화: +${player.averageEnhanceLevel.toStringAsFixed(1)}',
+                              '현재 평균 슬롯 강화: +${player.averageSlotEnhanceLevel.toStringAsFixed(1)}',
                               style: TextStyle(
-                                color: player.averageEnhanceLevel >= 13.0 ? Colors.greenAccent : Colors.white38,
+                                color: player.averageSlotEnhanceLevel >= 60 ? Colors.greenAccent : Colors.white38,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold
                               ),
@@ -833,7 +937,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          '※ 평균강화 달성 시 상위재료가 드랍됩니다',
+                          '※ 적정 구간 사냥 시 골드/재료 보너스가 활성화됩니다',
                           style: TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.w500),
                         ),
                       ],
@@ -935,8 +1039,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       child: Row(
         children: [2, 3, 4, 5, 6].map((t) {
           bool isSel = _selectedCraftTier == t;
-          double reqAvg = t == 2 ? 13.0 : (t == 3 ? 15.0 : 18.0); // T2: 13, T3: 15, T4+: 18
-          bool isLocked = player.averageEnhanceLevel < reqAvg;
+          Map<int, int> unlockLevels = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
+          int reqTotal = unlockLevels[t] ?? 999999;
+          bool isLocked = player.totalSlotEnhanceLevel < reqTotal;
           
           return PressableScale(
             onTap: isLocked ? null : () => setState(() => _selectedCraftTier = t),
@@ -968,7 +1073,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ),
                   if (isLocked)
                     Text(
-                      '평균강화+${reqAvg.toInt()}',
+                      '강화합 +$reqTotal',
                       style: const TextStyle(color: Colors.redAccent, fontSize: 8, fontWeight: FontWeight.bold)
                     ),
                 ],
@@ -1712,7 +1817,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 ]),
                 // 플레이어 펫 표시 (전투 장면 최상상위에서 독립적으로 부유)
                 if (gameState.player.activePet != null)
-                  _buildIndependentPet(gameState.player.activePet!),
+                  _buildIndependentPet(gameState.player.activePet!, gameState.isOptimalZone),
                 
                 // 🆕 고성능 캔버스 기반 데미지 텍스트 레이어 (RepaintBoundary 최적화 적용)
                 Positioned.fill(
@@ -1942,7 +2047,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildIndependentPet(Pet pet) {
+  Widget _buildIndependentPet(Pet pet, bool isOptimalZone) {
     return AnimatedBuilder(
       animation: _uiTickerController,
       builder: (context, child) {
@@ -1952,13 +2057,14 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         final double floatingX = cos(time * 1.5) * 3.0;
         
         return Align(
-          alignment: const Alignment(-0.9, -0.85), // 좌측 상단 (캐릭터와 완전히 분리된 독립 영역)
+          alignment: const Alignment(-0.9, -0.85), // 좌측 상단
           child: Transform.translate(
             offset: Offset(floatingX, floatingY),
-            child: Column(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // 펫 아이콘 (Emoji) - 프리미엄 원형 카드 스타일
+                // 펫 아이콘
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -1974,7 +2080,29 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     style: const TextStyle(fontSize: 28),
                   ),
                 ),
-                // 이름 제거됨 (향후 하단/옆으로 버프 아이콘 배치 공간 확보)
+                if (isOptimalZone) ...[
+                  const SizedBox(width: 10),
+                  // 🆕 [v0.3.7] 지역 보너스 집 아이콘
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Colors.blueAccent, Colors.blueAccent.withValues(alpha: 0.6)],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.home_rounded, 
+                      color: Colors.white, 
+                      size: 20,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

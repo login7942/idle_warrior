@@ -99,7 +99,7 @@ class GameState extends ChangeNotifier {
   int autoDismantleLevel = 0;
   
   // --- 관리자 설정 ---
-  double monsterDefenseMultiplier = 1.0; // 몬스터 방어력 배율 (0.0 ~ 1.0)
+  double monsterDefenseMultiplier = 0.0; // 몬스터 방어력 배율 (0.0 ~ 1.0)
 
   // --- 전투 로그 ---
   List<CombatLogEntry> logs = [];
@@ -131,10 +131,17 @@ class GameState extends ChangeNotifier {
   Function(int gold, int exp)? onVictory;
   Function(int healAmount)? onHeal;
   VoidCallback? onStageJump; // [v0.0.79] 스테이지 점프 발생 시 호출
+  Function(String title, String message)? onSpecialEvent; // 🆕 럭키 스트릭 등 특수 연출용
 
   // 🆕 초기화 완료 여부 확인용
   final Completer<void> initializationCompleter = Completer<void>();
   Future<void> get initialized => initializationCompleter.future;
+
+  // 🆕 [v0.3.6] 적정 강화 구간 보너스 판정
+  bool get isOptimalZone {
+    double avgSlot = player.averageSlotEnhanceLevel;
+    return avgSlot >= currentZone.minEnhance && avgSlot <= currentZone.maxEnhance;
+  }
 
   // --- 초기화 ---
   GameState() {
@@ -463,6 +470,12 @@ class GameState extends ChangeNotifier {
 
   void handleVictory(Duration? killDuration) {
     int finalGold = (currentMonster!.goldReward * player.goldBonus / 100).toInt();
+    
+    // [v0.3.6] 적정 강화 구간 보너스: 골드 +30%
+    if (isOptimalZone) {
+      finalGold = (finalGold * 1.3).toInt();
+    }
+
     int expReward = currentMonster!.expReward;
     
     player.gainExp(expReward);
@@ -536,47 +549,86 @@ class GameState extends ChangeNotifier {
   void _dropMaterials(int monsterLevel) {
     final rand = Random();
     
-    // 1. 강화석 드롭 (10% 확률로 대폭 하향 - 분해 가치 증대)
-    if (rand.nextDouble() < 0.1) {
+    // [v0.3.6] 적정 강화 구간 보너스: 강화 재료 드랍율 +40%
+    double matBonus = isOptimalZone ? 1.4 : 1.0;
+    
+    // 1. 강화석 드롭 (기본 10% -> 보너스 적용 시 14%)
+    if (rand.nextDouble() < (0.1 * matBonus)) {
       int amount = 1 + (monsterLevel / 50).floor() + rand.nextInt(3);
       player.enhancementStone += amount;
       addLog('[공명] 강화석 $amount개 획득!', LogType.item);
     }
     
-    // 2. 가루 드롭 (수량 밸런스 조정)
-    if (rand.nextDouble() < 0.4) {
+    // 2. 가루 드롭 (기본 40% -> 보너스 적용 시 56%)
+    if (rand.nextDouble() < (0.4 * matBonus)) {
       int amount = (monsterLevel / 5).ceil() + rand.nextInt(10);
       player.powder += amount;
       addLog('[추출] 신비로운 가루 $amount개 획득!', LogType.item);
     }
     
-    // 3. 재설정석 드롭 (10% 확률 - 희귀)
-    if (rand.nextDouble() < 0.1) {
+    // 3. 재설정석 드롭 (기본 10% -> 보너스 적용 시 14%)
+    if (rand.nextDouble() < (0.1 * matBonus)) {
       player.rerollStone += 1;
       addLog('[희귀] 옵션 재설정석 획득!', LogType.item);
     }
     
-    // 4. 보호석 (2% 확률)
-    if (rand.nextDouble() < 0.02) {
+    // 4. 보호석 (기본 2% -> 보너스 적용 시 2.8%)
+    if (rand.nextDouble() < (0.02 * matBonus)) {
       player.protectionStone += 1;
       addLog('[전설] 강화 보호석 획득!', LogType.item);
     }
 
-    // 5. 강화 큐브 드롭 (0.1% 확률)
-    if (rand.nextDouble() < 0.001) {
+    // 5. 강화 큐브 드롭 (기본 0.1% -> 보너스 적용 시 0.14%)
+    if (rand.nextDouble() < (0.001 * matBonus)) {
       player.cube += 1;
       addLog('[신화] 강화 큐브 획득!', LogType.item);
     }
 
-    // --- [v0.0.60] 스펙 기반 게이트 드랍 (심연의 구슬) ---
-    double avgLv = player.averageEnhanceLevel;
-    if (avgLv >= 13.0 && rand.nextDouble() < 0.03) {
-      player.tierCores[2] = (player.tierCores[2] ?? 0) + 1;
-      addLog('[게이트] 심연의 구슬 [T2] 획득!', LogType.event);
+    // --- [v0.3.8] 티어 재료 해금 + 지역 연동 드랍 시스템 ---
+    _handleTierMaterialDrop(rand, isOptimalZone);
+  }
+
+  void _handleTierMaterialDrop(Random rand, bool isOptimal) {
+    if (currentMonster == null) return;
+
+    // 1. 현재 지역에서 드랍 가능한 잠정 티어 리스트 정리
+    List<int> possibleTiers = [];
+    switch (currentZone.id) {
+      case ZoneId.forest: possibleTiers = [2]; break;
+      case ZoneId.mine: possibleTiers = [2, 3]; break;
+      case ZoneId.dungeon: possibleTiers = [3, 4]; break;
+      case ZoneId.volcano: possibleTiers = [4, 5]; break;
+      case ZoneId.snowfield: possibleTiers = [5, 6]; break;
+      case ZoneId.abyss: possibleTiers = [6]; break;
+      default: break;
     }
-    if (avgLv >= 15.0 && rand.nextDouble() < 0.01) {
-      player.tierCores[3] = (player.tierCores[3] ?? 0) + 1;
-      addLog('[게이트] 심연의 구슬 [T3] 획득!', LogType.event);
+
+    if (possibleTiers.isEmpty) return;
+
+    // 2. 플레이어의 총 슬롯 강화 레벨 합계에 따른 해금 여부 체크
+    int totalLv = player.totalSlotEnhanceLevel;
+    Map<int, int> unlockLevels = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
+
+    for (int tier in possibleTiers) {
+      int unlockLv = unlockLevels[tier] ?? 999999;
+      if (totalLv < unlockLv) continue; // 해금 안됨
+
+      // 3. 드랍 확률 계산 (일반 2~4%, 보스 15~25%)
+      bool isBoss = currentStage % 50 == 0;
+      double baseProb = isBoss ? (0.15 + rand.nextDouble() * 0.1) : (0.02 + rand.nextDouble() * 0.02);
+      
+      // 적정 강화 구간 보너스 (x1.5배)
+      if (isOptimal) baseProb *= 1.5;
+
+      if (rand.nextDouble() < baseProb) {
+        player.tierCores[tier] = (player.tierCores[tier] ?? 0) + 1;
+        addLog('★ [파이널] $tier티어 핵심 재료 [T$tier 구슬] 획득!', LogType.event);
+        
+        // 보스인 경우 전용 알림
+        if (isBoss) {
+          onSpecialEvent?.call('BOSS LOOT!', '보스를 처치하고 $tier티어 핵심 재료를 획득했습니다!');
+        }
+      }
     }
   }
 
@@ -695,29 +747,85 @@ class GameState extends ChangeNotifier {
   // 슬롯 강화 비용 및 확률 계산 헬퍼
   Map<String, dynamic> getSlotEnhanceInfo(ItemType type) {
     int currentLevel = player.slotEnhanceLevels[type] ?? 0;
-    
-    // 비용 계산 (골드: 5000부터 레벨당 10% 복리 증가, 강화석: 10레벨당 1개씩 추가)
-    int goldCost = (5000 * pow(1.1, currentLevel)).toInt();
-    int stoneCost = 1 + (currentLevel ~/ 10);
-    
-    // 확률 계산
-    double chance = 1.0;
-    if (currentLevel < 20) {
-      chance = 1.0;
-    } else if (currentLevel < 50) {
-      // 20~50레벨: 80% -> 40%
-      chance = 0.8 - (currentLevel - 20) * (0.4 / 30);
+    int failCount = player.slotEnhanceFailCounts[type] ?? 0;
+    int streakCount = player.slotEnhanceStreakCounts[type] ?? 0;
+
+    // 1. 비용 계산 (3000 레벨 대응 곡선: 지수 함수보다 완만한 거듭제곱 사용)
+    int goldCost = (5000 + pow(currentLevel, 1.8) * 50).toInt();
+    int stoneCost = 1 + (currentLevel ~/ 50);
+
+    // [마일스톤] 1200 도달 시 강화 비용 -10%
+    bool costMilestone = player.slotEnhanceLevels.values.any((v) => v >= 1200);
+    if (costMilestone) goldCost = (goldCost * 0.9).toInt();
+
+    // 2. 기본 확률 테이블 (사용자 제안 5단계 구조 상세화)
+    double baseChance = 1.0;
+    if (currentLevel < 50) {
+      baseChance = 1.0;
+    } else if (currentLevel < 100) {
+      baseChance = 0.9;
+    } else if (currentLevel < 150) {
+      baseChance = 0.8;
+    } else if (currentLevel < 200) {
+      baseChance = 0.65;
+    } else if (currentLevel < 250) {
+      baseChance = 0.55;
+    } else if (currentLevel < 300) {
+      baseChance = 0.45;
+    } else if (currentLevel < 400) {
+      baseChance = 0.35;
+    } else if (currentLevel < 500) {
+      baseChance = 0.28;
+    } else if (currentLevel < 600) {
+      baseChance = 0.22;
+    } else if (currentLevel < 700) {
+      baseChance = 0.18;
+    } else if (currentLevel < 800) {
+      baseChance = 0.15;
+    } else if (currentLevel < 1000) {
+      baseChance = 0.12;
+    } else if (currentLevel < 1200) {
+      baseChance = 0.10;
+    } else if (currentLevel < 1500) {
+      baseChance = 0.08;
+    } else if (currentLevel < 1800) {
+      baseChance = 0.06;
+    } else if (currentLevel < 2200) {
+      baseChance = 0.05;
+    } else if (currentLevel < 2600) {
+      baseChance = 0.04;
     } else {
-      // 50~100레벨: 30% -> 5%
-      chance = 0.3 - (currentLevel - 50) * (0.25 / 50);
+      baseChance = 0.03;
     }
+
+    // 3. 보너스 확률 및 천장(Pity) 적용
+    double bonusChance = 0.0;
     
+    // [연속 성공 보너스] 3회 연속 성공 시 다음 강화 성공률 +10%
+    if (streakCount >= 3) bonusChance += 0.1;
+
+    double finalChance = baseChance + bonusChance;
+
+    // [소프트 천장] 실패 20회 누적 시 다음 강화 성공 확률 2배
+    if (failCount >= 20) finalChance *= 2.0;
+    
+    // [하드 천장] 실패 50회 누적 시 100% 성공
+    bool isGuaranteed = failCount >= 50;
+    if (isGuaranteed) finalChance = 1.0;
+
     return {
       'level': currentLevel,
       'goldCost': goldCost,
       'stoneCost': stoneCost,
-      'chance': chance,
-      'isMax': currentLevel >= 100,
+      'chance': finalChance.clamp(0.0, 1.0),
+      'baseChance': baseChance,
+      'bonusChance': bonusChance,
+      'failCount': failCount,
+      'streakCount': streakCount,
+      'isMax': currentLevel >= 3000,
+      'isGuaranteed': isGuaranteed,
+      'hasPity': failCount >= 20,
+      'hasStreakBonus': streakCount >= 3,
     };
   }
 
@@ -730,6 +838,7 @@ class GameState extends ChangeNotifier {
     double chance = info['chance'];
 
     if (player.gold < gCost || player.enhancementStone < sCost) {
+      addLog('강화 재료가 부족합니다.', LogType.event);
       return;
     }
 
@@ -739,10 +848,40 @@ class GameState extends ChangeNotifier {
     bool success = Random().nextDouble() < chance;
     
     if (success) {
-      player.slotEnhanceLevels[type] = (player.slotEnhanceLevels[type] ?? 0) + 1;
-      addLog('[슬롯 강화] ${type.nameKr} 슬롯이 +${player.slotEnhanceLevels[type]}레벨이 되었습니다!', LogType.event);
+      int nextLevel = (player.slotEnhanceLevels[type] ?? 0) + 1;
+      player.slotEnhanceLevels[type] = nextLevel;
+      
+      // 연속 성공 카운트 증가 및 실패 카운트 초기화
+      int currentStreak = (player.slotEnhanceStreakCounts[type] ?? 0) + 1;
+      player.slotEnhanceStreakCounts[type] = currentStreak;
+      player.slotEnhanceFailCounts[type] = 0;
+
+      // [연속 성공 보너스] 5연속 성공 시 보상 지급 후 초기화
+      if (currentStreak >= 5) {
+        int refund = (gCost * 0.5).toInt();
+        player.gold += refund;
+        player.slotEnhanceStreakCounts[type] = 0; // 초기화하여 다음 3/5 스트릭 기회 부여
+        addLog('★ 5연속 성공! 골드 $refund 환급!', LogType.event);
+        
+        // 🆕 UI에 럭키 스트릭 알림 발생
+        onSpecialEvent?.call('LUCKY STREAK!', '5연속 성공! 골드 50% ($refund) 환급 완료!');
+      }
+
+      addLog('[슬롯 강화] ${type.nameKr} 슬롯이 +$nextLevel레벨이 되었습니다!', LogType.event);
+      
+      // 🆕 천장(Pity)으로 성공한 경우 추가 알림
+      if (info['isGuaranteed'] == true) {
+        onSpecialEvent?.call('DESTINY SUCCESS!', '천장 도달! 확정 성공으로 슬롯이 강화되었습니다.');
+      } else if (info['hasPity'] == true) {
+        onSpecialEvent?.call('PITY SUCCESS!', '확률 업 보너스로 강화에 성공했습니다!');
+      }
     } else {
-      addLog('[슬롯 강화] ${type.nameKr} 슬롯 강화 실패 (재료 소멸)', LogType.event);
+      // 연속 성공 초기화 및 실패 카운트 증가
+      player.slotEnhanceStreakCounts[type] = 0;
+      int currentFail = (player.slotEnhanceFailCounts[type] ?? 0) + 1;
+      player.slotEnhanceFailCounts[type] = currentFail;
+      
+      addLog('[슬롯 강화] ${type.nameKr} 슬롯 강화 실패 (누적 실패: $currentFail)', LogType.event);
     }
 
     saveGameData();

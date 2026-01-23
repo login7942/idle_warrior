@@ -13,6 +13,8 @@ class HuntingZone {
   final List<String> keyDrops; // UI 표시용
   final ZoneType type; // 일반/특별 구분
   final double difficultyMultiplier; // 맵 난이도 계수
+  final int minEnhance; // 🆕 적정 강화 구간 하한
+  final int maxEnhance; // 🆕 적정 강화 구간 상한
 
   HuntingZone({
     required this.id,
@@ -24,6 +26,8 @@ class HuntingZone {
     required this.keyDrops,
     required this.type,
     this.difficultyMultiplier = 1.0,
+    required this.minEnhance,
+    required this.maxEnhance,
   });
 }
 
@@ -39,6 +43,8 @@ class HuntingZoneData {
       keyDrops: ['마법 가루', '강화석', '초원의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 1.0,
+      minEnhance: 0,
+      maxEnhance: 60,
     ),
     HuntingZone(
       id: ZoneId.forest,
@@ -50,6 +56,8 @@ class HuntingZoneData {
       keyDrops: ['강화석', '마법 가루', '초원의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 2.0,
+      minEnhance: 60,
+      maxEnhance: 150,
     ),
     HuntingZone(
       id: ZoneId.mine,
@@ -61,6 +69,8 @@ class HuntingZoneData {
       keyDrops: ['재설정석', '강화석', '사막의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 4.0,
+      minEnhance: 150,
+      maxEnhance: 300,
     ),
     HuntingZone(
       id: ZoneId.dungeon,
@@ -72,6 +82,8 @@ class HuntingZoneData {
       keyDrops: ['마법 가루', '재설정석', '사막의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 8.0,
+      minEnhance: 300,
+      maxEnhance: 600,
     ),
     HuntingZone(
       id: ZoneId.volcano,
@@ -83,6 +95,8 @@ class HuntingZoneData {
       keyDrops: ['잠재의 큐브', '빛나는 강화석', '설원의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 16.0,
+      minEnhance: 600,
+      maxEnhance: 1200,
     ),
     HuntingZone(
       id: ZoneId.snowfield,
@@ -94,6 +108,8 @@ class HuntingZoneData {
       keyDrops: ['빛나는 강화석', '잠재의 큐브', '설원의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 32.0,
+      minEnhance: 1200,
+      maxEnhance: 2500,
     ),
     HuntingZone(
       id: ZoneId.abyss,
@@ -105,6 +121,8 @@ class HuntingZoneData {
       keyDrops: ['신화의 정수', '빛나는 강화석', '심연의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 64.0,
+      minEnhance: 2500,
+      maxEnhance: 9999,
     ),
     // --- 특별 사냥터 ---
     HuntingZone(
@@ -117,6 +135,8 @@ class HuntingZoneData {
       keyDrops: ['고급 잠재의 큐브', '전설 강화석', '영혼석'],
       type: ZoneType.special,
       difficultyMultiplier: 1.0,
+      minEnhance: 0,
+      maxEnhance: 9999,
     ),
   ];
 }
