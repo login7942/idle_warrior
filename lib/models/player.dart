@@ -60,7 +60,18 @@ class Player {
   // 티어 코어 (Gate Cores): 스펙 조건 충족 시 몬스터 드랍 (심연의 구슬 등)
   Map<int, int> tierCores = {2: 0, 3: 0, 4: 0, 5: 0, 6: 0};
 
-  // 장착 중인 모든 부위(6개)의 평균 강화 수치
+  // 장착 슬롯 강화 시스템 (v0.3.0)
+  // +1 ~ +100레벨 시스템, 장비를 교체해도 유지됨
+  Map<ItemType, int> slotEnhanceLevels = {
+    ItemType.weapon: 0,
+    ItemType.helmet: 0,
+    ItemType.armor: 0,
+    ItemType.boots: 0,
+    ItemType.ring: 0,
+    ItemType.necklace: 0,
+  };
+
+  // 장착 중인 모든 부위(6개)의 평균 강화 수치 (기존 아이템 강화 기준)
   double get averageEnhanceLevel {
     int total = 0;
     for (var item in equipment.values) {
@@ -285,6 +296,13 @@ class Player {
     }
   }
 
+  // --- [슬롯 강화 계수 계산] ---
+  // 레벨당 2%씩 주 능력치 증폭 (100강 시 3배)
+  double _getSlotMultiplier(ItemType type) {
+    int level = slotEnhanceLevels[type] ?? 0;
+    return 1.0 + (level * 0.02);
+  }
+
   int get maxHp {
     double petBonus = 1.0 + (petHpBonus / 100);
     int flat = 0;
@@ -295,11 +313,12 @@ class Player {
       }
       
       // 장비 주 능력치 체크
+      double slotMult = _getSlotMultiplier(item.type);
       if (item.mainStatName1 == '체력') {
-        flat += item.effectiveMainStat1;
+        flat += (item.effectiveMainStat1 * slotMult).toInt();
       }
       if (item.mainStatName2 == '체력') {
-        flat += item.effectiveMainStat2;
+        flat += (item.effectiveMainStat2 * slotMult).toInt();
       }
 
       // 부가 옵션에 체력이 있는 경우
@@ -334,11 +353,12 @@ class Player {
       }
 
       // 장비 주 능력치 체크
+      double slotMult = _getSlotMultiplier(item.type);
       if (item.mainStatName1 == '공격력') {
-        flat += item.effectiveMainStat1;
+        flat += (item.effectiveMainStat1 * slotMult).toInt();
       }
       if (item.mainStatName2 == '공격력') {
-        flat += item.effectiveMainStat2;
+        flat += (item.effectiveMainStat2 * slotMult).toInt();
       }
 
       // 부가 옵션에 공격력이 있는 경우 (강화 영향 안 받음)
@@ -364,11 +384,12 @@ class Player {
     for (var item in equipment.values) {
       if (item == null) continue;
       
+      double slotMult = _getSlotMultiplier(item.type);
       if (item.mainStatName1 == '방어력') {
-        flat += item.effectiveMainStat1;
+        flat += (item.effectiveMainStat1 * slotMult).toInt();
       }
       if (item.mainStatName2 == '방어력') {
-        flat += item.effectiveMainStat2;
+        flat += (item.effectiveMainStat2 * slotMult).toInt();
       }
       
       for (var opt in item.subOptions) {
@@ -632,6 +653,7 @@ class Player {
     'encyclopediaClaims': encyclopediaClaims, 
     'tierShards': tierShards.map((k, v) => MapEntry(k.toString(), v)),
     'tierCores': tierCores.map((k, v) => MapEntry(k.toString(), v)),
+    'slotEnhanceLevels': slotEnhanceLevels.map((k, v) => MapEntry(k.name, v)),
   };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -738,6 +760,15 @@ class Player {
     if (json['tierCores'] != null) {
       var map = Map<String, dynamic>.from(json['tierCores']);
       p.tierCores = map.map((k, v) => MapEntry(int.tryParse(k) ?? 2, v as int));
+    }
+
+    if (json['slotEnhanceLevels'] != null) {
+      var map = Map<String, dynamic>.from(json['slotEnhanceLevels']);
+      map.forEach((k, v) {
+        try {
+          p.slotEnhanceLevels[ItemType.values.byName(k)] = v as int;
+        } catch (_) {}
+      });
     }
 
     return p;

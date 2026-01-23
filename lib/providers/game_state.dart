@@ -690,6 +690,65 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- [v0.3.0] 장착 슬롯 강화 시스템 ---
+  
+  // 슬롯 강화 비용 및 확률 계산 헬퍼
+  Map<String, dynamic> getSlotEnhanceInfo(ItemType type) {
+    int currentLevel = player.slotEnhanceLevels[type] ?? 0;
+    
+    // 비용 계산 (골드: 5000부터 레벨당 10% 복리 증가, 강화석: 10레벨당 1개씩 추가)
+    int goldCost = (5000 * pow(1.1, currentLevel)).toInt();
+    int stoneCost = 1 + (currentLevel ~/ 10);
+    
+    // 확률 계산
+    double chance = 1.0;
+    if (currentLevel < 20) {
+      chance = 1.0;
+    } else if (currentLevel < 50) {
+      // 20~50레벨: 80% -> 40%
+      chance = 0.8 - (currentLevel - 20) * (0.4 / 30);
+    } else {
+      // 50~100레벨: 30% -> 5%
+      chance = 0.3 - (currentLevel - 50) * (0.25 / 50);
+    }
+    
+    return {
+      'level': currentLevel,
+      'goldCost': goldCost,
+      'stoneCost': stoneCost,
+      'chance': chance,
+      'isMax': currentLevel >= 100,
+    };
+  }
+
+  void enhanceSlot(ItemType type) {
+    var info = getSlotEnhanceInfo(type);
+    if (info['isMax']) return;
+
+    int gCost = info['goldCost'];
+    int sCost = info['stoneCost'];
+    double chance = info['chance'];
+
+    if (player.gold < gCost || player.enhancementStone < sCost) {
+      return;
+    }
+
+    player.gold -= gCost;
+    player.enhancementStone -= sCost;
+
+    bool success = Random().nextDouble() < chance;
+    
+    if (success) {
+      player.slotEnhanceLevels[type] = (player.slotEnhanceLevels[type] ?? 0) + 1;
+      addLog('[슬롯 강화] ${type.nameKr} 슬롯이 +${player.slotEnhanceLevels[type]}레벨이 되었습니다!', LogType.event);
+    } else {
+      addLog('[슬롯 강화] ${type.nameKr} 슬롯 강화 실패 (재료 소멸)', LogType.event);
+    }
+
+    saveGameData();
+    notifyListeners();
+  }
+
   Map<String, int> executeDismantle(Item item) {
     if (item.isLocked) return {};
     
@@ -785,7 +844,8 @@ class GameState extends ChangeNotifier {
       case ItemGrade.uncommon: shards = 3; break;
       case ItemGrade.rare: shards = 10; break;
       case ItemGrade.epic: shards = 30; break;
-      case ItemGrade.legendary: shards = 100; break;
+      case ItemGrade.unique: shards = 60; break;
+      case ItemGrade.legendary: shards = 150; break;
       case ItemGrade.mythic: shards = 500; break;
     }
 

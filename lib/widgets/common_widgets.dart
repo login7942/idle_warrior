@@ -226,8 +226,8 @@ class _PremiumItemSlotState extends State<PremiumItemSlot> with TickerProviderSt
 
   void _updateAnimations() {
     final grade = widget.item.grade;
-    final needsPulse = grade == ItemGrade.legendary || grade == ItemGrade.mythic || grade == ItemGrade.epic;
-    final needsRotate = grade == ItemGrade.rare || grade == ItemGrade.mythic;
+    final needsPulse = grade == ItemGrade.unique || grade == ItemGrade.legendary || grade == ItemGrade.mythic || grade == ItemGrade.epic;
+    final needsRotate = grade == ItemGrade.rare || grade == ItemGrade.unique || grade == ItemGrade.legendary || grade == ItemGrade.mythic;
 
     if (needsPulse) {
       _pulseController.repeat();
@@ -292,7 +292,8 @@ class _PremiumItemSlotState extends State<PremiumItemSlot> with TickerProviderSt
                   if (!isPaused) ...[
                     if (grade == ItemGrade.rare) _buildRareRotation(rotateValue),
                     if (grade == ItemGrade.epic) ..._buildEpicParticles(pulse),
-                    if (grade == ItemGrade.legendary) _buildLegendaryFlare(pulse),
+                    if (grade == ItemGrade.unique) ..._buildUniqueEffects(pulse, rotateValue),
+                    if (grade == ItemGrade.legendary) ..._buildLegendaryEffects(pulse, rotateValue),
                     if (grade == ItemGrade.mythic) ..._buildMythicEffects(pulse, rotateValue),
                   ],
 
@@ -316,8 +317,9 @@ class _PremiumItemSlotState extends State<PremiumItemSlot> with TickerProviderSt
       case ItemGrade.uncommon: return const Color(0xFF4CAF50);
       case ItemGrade.rare: return const Color(0xFF2196F3);
       case ItemGrade.epic: return const Color(0xFF9C27B0);
-      case ItemGrade.legendary: return const Color(0xFFFFC107);
-      case ItemGrade.mythic: return const Color(0xFFF44336);
+      case ItemGrade.unique: return const Color(0xFFEAB308);
+      case ItemGrade.legendary: return const Color(0xFFF44336);
+      case ItemGrade.mythic: return const Color(0xFFFF0000);
     }
   }
 
@@ -335,10 +337,12 @@ class _PremiumItemSlotState extends State<PremiumItemSlot> with TickerProviderSt
         return [BoxShadow(color: const Color(0xFF2196F3).withOpacity(0.5), blurRadius: 12, spreadRadius: 2)];
       case ItemGrade.epic:
         return [BoxShadow(color: const Color(0xFF9C27B0).withOpacity(0.6), blurRadius: 16, spreadRadius: 3)];
+      case ItemGrade.unique:
+        return [BoxShadow(color: const Color(0xFFEAB308).withOpacity(0.5 + 0.2 * pulse), blurRadius: 14 + 6 * pulse, spreadRadius: 2 + pulse)];
       case ItemGrade.legendary:
-        return [BoxShadow(color: const Color(0xFFFFC107).withOpacity(0.4 + 0.3 * pulse), blurRadius: 16 + 8 * pulse, spreadRadius: 2 + 2 * pulse)];
+        return [BoxShadow(color: const Color(0xFFF44336).withOpacity(0.5 + 0.3 * pulse), blurRadius: 16 + 8 * pulse, spreadRadius: 2 + 2 * pulse)];
       case ItemGrade.mythic:
-        return [BoxShadow(color: const Color(0xFFF44336).withOpacity(0.5 + 0.3 * pulse), blurRadius: 20 + 10 * pulse, spreadRadius: 3 + 3 * pulse)];
+        return [BoxShadow(color: const Color(0xFFFF0000).withOpacity(0.6 + 0.3 * pulse), blurRadius: 24 + 12 * pulse, spreadRadius: 4 + 4 * pulse)];
     }
   }
 
@@ -374,11 +378,90 @@ class _PremiumItemSlotState extends State<PremiumItemSlot> with TickerProviderSt
     });
   }
 
-  Widget _buildLegendaryFlare(double pulse) {
-    return Opacity(
-      opacity: 0.3 + 0.4 * pulse,
-      child: Icon(Icons.auto_awesome, color: const Color(0xFFFFF9C4), size: widget.size * 0.5),
-    );
+  List<Widget> _buildUniqueEffects(double pulse, double rotateValue) {
+    return [
+      // 회전하는 사각 프레임
+      Transform.rotate(
+        angle: rotateValue,
+        child: Container(
+          width: widget.size * 0.7,
+          height: widget.size * 0.7,
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3), width: 1),
+          ),
+        ),
+      ),
+      // 4개의 춤추는 다이아몬드 파티클
+      ...List.generate(4, (index) {
+        final angle = (index * 90) * pi / 180 + rotateValue * 0.5;
+        final orbit = 20.0 + 2 * pulse;
+        return Transform.translate(
+          offset: Offset(orbit * cos(angle), orbit * sin(orbit > 0 ? angle : 0)),
+          child: Transform.rotate(
+            angle: pi / 4,
+            child: Container(
+              width: 5, height: 5,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF176),
+                boxShadow: [BoxShadow(color: const Color(0xFFFBC02D).withOpacity(0.8), blurRadius: 4)],
+              ),
+            ),
+          ),
+        );
+      }),
+      // 중앙 골든 글로우
+      Opacity(
+        opacity: 0.2 * pulse,
+        child: Container(
+          width: widget.size * 0.5,
+          height: widget.size * 0.5,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFFFFD700),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildLegendaryEffects(double pulse, double rotateValue) {
+    return [
+      // 1. 회전하는 다이아몬드 프레임 (마름모)
+      Transform.rotate(
+        angle: rotateValue + (pi / 4), // 기본 45도 회전된 상태에서 회전 애니메이션
+        child: Container(
+          width: widget.size * 0.75,
+          height: widget.size * 0.75,
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.4), width: 1.5),
+          ),
+        ),
+      ),
+      // 2. 4방향 방사형 맥동 파티클
+      ...List.generate(4, (index) {
+        final angle = (index * 90) * pi / 180;
+        final orbit = 18.0 + 6.0 * pulse; // 맥동에 따라 거리 조절
+        return Transform.translate(
+          offset: Offset(orbit * cos(angle), orbit * sin(angle)),
+          child: Container(
+            width: 4, height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFEBEE),
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: const Color(0xFFF44336).withOpacity(0.8), blurRadius: 4, spreadRadius: 1)],
+            ),
+          ),
+        );
+      }),
+      // 3. 중앙 강화된 성광 효과 (스케일 변화 포함)
+      Transform.scale(
+        scale: 0.8 + 0.4 * pulse,
+        child: Opacity(
+          opacity: 0.4 + 0.4 * pulse,
+          child: Icon(Icons.auto_awesome, color: const Color(0xFFFFCDD2), size: widget.size * 0.5),
+        ),
+      ),
+    ];
   }
 
   List<Widget> _buildMythicEffects(double pulse, double angle) {

@@ -16,7 +16,8 @@ import 'common_widgets.dart';
 
 /// 🎒 인벤토리 전용 패널 위젯
 class InventoryPanel extends StatefulWidget {
-  const InventoryPanel({super.key});
+  final Function(String, {bool isError})? onShowToast;
+  const InventoryPanel({super.key, this.onShowToast});
 
   @override
   State<InventoryPanel> createState() => _InventoryPanelState();
@@ -161,39 +162,74 @@ class _InventoryPanelState extends State<InventoryPanel> {
 
   Widget _buildEquippedSlots(Player player) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: ItemType.values.map((type) {
           final item = player.equipment[type];
+          final slotLevel = player.slotEnhanceLevels[type] ?? 0;
           bool isEmpty = item == null;
           double slotSize = 52.0;
 
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: isEmpty 
-              ? SizedBox(
-                  width: slotSize, height: slotSize,
-                  child: GlassContainer(
-                    borderRadius: 12,
-                    color: Colors.black26,
-                    border: Border.all(color: Colors.white10),
-                    child: Center(
-                      child: Opacity(
-                        opacity: 0.5,
-                        child: EmptyItemIcon(type: type, size: slotSize * 0.5)
-                      )
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Column(
+              children: [
+                isEmpty 
+                  ? SizedBox(
+                      width: slotSize, height: slotSize,
+                      child: GlassContainer(
+                        borderRadius: 14,
+                        color: Colors.black26,
+                        border: Border.all(color: Colors.white10),
+                        child: Center(
+                          child: Opacity(
+                            opacity: 0.5,
+                            child: EmptyItemIcon(type: type, size: slotSize * 0.45)
+                          )
+                        ),
+                      ),
+                    )
+                  : PremiumItemSlot(
+                      item: item, 
+                      size: slotSize,
+                      onTap: () {
+                        final equipList = ItemType.values.map((t) => player.equipment[t]).whereType<Item>().toList();
+                        _showItemDetail(item, equipList);
+                      },
+                    ),
+                const SizedBox(height: 8),
+                // 하단 강화 레벨 버튼
+                PressableScale(
+                  onTap: () => _showSlotEnhanceDialog(type),
+                  child: Container(
+                    width: slotSize + 4,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: slotLevel > 0 ? Colors.blueAccent.withOpacity(0.5) : Colors.white10,
+                        width: 1
+                      ),
+                      boxShadow: slotLevel > 0 ? [
+                        BoxShadow(color: Colors.blueAccent.withOpacity(0.2), blurRadius: 4, spreadRadius: 0),
+                      ] : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '+$slotLevel',
+                      style: TextStyle(
+                        color: slotLevel > 0 ? Colors.blueAccent : Colors.white38, 
+                        fontSize: 10, 
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5
+                      ),
                     ),
                   ),
-                )
-              : PremiumItemSlot(
-                  item: item, 
-                  size: slotSize,
-                  onTap: () {
-                    final equipList = ItemType.values.map((t) => player.equipment[t]).whereType<Item>().toList();
-                    _showItemDetail(item, equipList);
-                  },
                 ),
+              ],
+            ),
           );
         }).toList(),
       ),
@@ -354,7 +390,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
     }
     showDialog(
       context: context,
-      builder: (context) => _ItemDetailDialog(initialItem: item, contextList: contextList),
+      builder: (context) => _ItemDetailDialog(initialItem: item, contextList: contextList, onShowToast: widget.onShowToast),
     );
   }
 
@@ -409,6 +445,134 @@ class _InventoryPanelState extends State<InventoryPanel> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showSlotEnhanceDialog(ItemType type) {
+    showDialog(
+      context: context,
+      builder: (context) => Consumer<GameState>(
+        builder: (context, gs, child) {
+          final info = gs.getSlotEnhanceInfo(type);
+          final level = info['level'] as int;
+          final goldCost = info['goldCost'] as int;
+          final stoneCost = info['stoneCost'] as int;
+          final chance = info['chance'] as double;
+          final isMax = info['isMax'] as bool;
+          final player = gs.player;
+          
+          final canAfford = player.gold >= goldCost && player.enhancementStone >= stoneCost;
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: GlassContainer(
+              padding: const EdgeInsets.all(24),
+              borderRadius: 32,
+              color: const Color(0xFF1A1D2E).withOpacity(0.95),
+              border: Border.all(color: Colors.blueAccent.withOpacity(0.3), width: 1.5),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Icon(Icons.upgrade, color: Colors.blueAccent, size: 24),
+                      Text('${type.nameKr} 슬롯 강화', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: Colors.white24, size: 20)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Level +$level', style: const TextStyle(color: Colors.blueAccent, fontSize: 32, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 8),
+                  const Text('슬롯의 모든 주 능력치 증폭', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  const SizedBox(height: 24),
+                  
+                  // 스탯 변화 표시
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(16)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${(level * 2)}%', style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Icon(Icons.arrow_forward_rounded, color: Colors.white24, size: 16),
+                        ),
+                        Text('${(level + 1) * 2}%', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // 비용 및 확률
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildCostItem('💰', goldCost, player.gold >= goldCost),
+                      _buildCostItem('💎', stoneCost, player.enhancementStone >= stoneCost),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '성공 확률: ${(chance * 100).toStringAsFixed(1)}%',
+                    style: TextStyle(color: isMax ? Colors.white24 : Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: PressableScale(
+                      onTap: (!isMax && canAfford) ? () {
+                        gs.enhanceSlot(type);
+                        // 햅틱 피드백이나 애니메이션 효과를 여기에 추가할 수 있음
+                      } : null,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(
+                            colors: (!isMax && canAfford) 
+                              ? [Colors.blueAccent, Colors.blueAccent.withOpacity(0.7)] 
+                              : [Colors.white10, Colors.white10],
+                          ),
+                          boxShadow: (!isMax && canAfford) ? [
+                            BoxShadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                          ] : null,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          isMax ? '최대 레벨' : (canAfford ? '강화하기' : '재화 부족'),
+                          style: TextStyle(
+                            color: (!isMax && canAfford) ? Colors.white : Colors.white24,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCostItem(String emoji, int cost, bool isEnough) {
+    return Column(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 16)),
+        const SizedBox(height: 4),
+        Text(
+          _formatNumber(cost),
+          style: TextStyle(color: isEnough ? Colors.white70 : Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
     );
   }
 
@@ -499,7 +663,8 @@ Widget _buildResultItem(String emoji, String label, int amount, Color color) {
 class _ItemDetailDialog extends StatefulWidget {
   final Item initialItem;
   final List<Item> contextList;
-  const _ItemDetailDialog({required this.initialItem, required this.contextList});
+  final Function(String, {bool isError})? onShowToast;
+  const _ItemDetailDialog({required this.initialItem, required this.contextList, this.onShowToast});
 
   @override
   State<_ItemDetailDialog> createState() => _ItemDetailDialogState();
@@ -524,6 +689,11 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
     int currentIndex = widget.contextList.indexWhere((i) => i.id == currentItem.id);
     bool hasPrev = currentIndex > 0;
     bool hasNext = currentIndex >= 0 && currentIndex < widget.contextList.length - 1;
+
+    // 슬롯 강화 배율 (장착 중인 경우에만 적용)
+    double slotMultiplier = isEquipped 
+        ? 1.0 + (player.slotEnhanceLevels[currentItem.type] ?? 0) * 0.02 
+        : 1.0;
 
     return Dialog(
       backgroundColor: const Color(0xFF141622),
@@ -552,7 +722,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                     const SizedBox(height: 12),
                     if (!isEquipped && currentEquip != null)
                       _buildCompareCard(currentItem, currentEquip),
-                    _buildMainStatSection(currentItem),
+                    _buildMainStatSection(currentItem, slotMultiplier),
                     const SizedBox(height: 16),
                     _buildSubOptions(currentItem),
                     if (currentItem.potential != null)
@@ -822,17 +992,32 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
     );
   }
 
-  Widget _buildMainStatSection(Item item) {
+  Widget _buildMainStatSection(Item item, double slotMultiplier) {
+    int s1 = (item.effectiveMainStat1 * slotMultiplier).toInt();
+    int s2 = (item.effectiveMainStat2 * slotMultiplier).toInt();
+    bool hasBonus = slotMultiplier > 1.0;
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.08), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.blueAccent.withOpacity(0.2))),
+      decoration: BoxDecoration(
+        color: Colors.blueAccent.withOpacity(0.08), 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: Colors.blueAccent.withOpacity(hasBonus ? 0.4 : 0.2))
+      ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(item.mainStatName1, style: const TextStyle(fontSize: 14, color: Colors.white70)),
-              Text(NumberFormat('#,###').format(item.effectiveMainStat1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(NumberFormat('#,###').format(s1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+                  if (hasBonus)
+                    Text('(슬롯 보너스 +${((slotMultiplier - 1) * 100).toInt()}%)', style: const TextStyle(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ],
           ),
           if (item.mainStat2 != null) ...[
@@ -841,7 +1026,14 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(item.mainStatName2!, style: const TextStyle(fontSize: 14, color: Colors.white70)),
-                Text(NumberFormat('#,###').format(item.effectiveMainStat2), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(NumberFormat('#,###').format(s2), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
+                    if (hasBonus)
+                      Text('(슬롯 보너스 +${((slotMultiplier - 1) * 100).toInt()}%)', style: const TextStyle(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ],
             ),
           ],
@@ -916,28 +1108,77 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
               icon: Icons.upgrade, 
               color: Colors.amberAccent, 
               isFull: true,
-              enabled: gs.player.gold >= item.promotionGoldCost && gs.player.cube >= item.promotionCubeCost,
-              onTap: () => gs.promoteItem(item),
+              enabled: true,
+              onTap: () {
+                if (gs.player.gold < item.promotionGoldCost || gs.player.cube < item.promotionCubeCost) {
+                  widget.onShowToast?.call('재화가 부족합니다!', isError: true);
+                } else {
+                  gs.promoteItem(item);
+                  widget.onShowToast?.call('승급 성공! (T${item.tier})', isError: false);
+                  setState(() {});
+                }
+              },
             ),
           ),
         Row(
           children: [
             Expanded(child: _FeatureBtn(
               title: '재설정 (${item.rerollCount}/5)', icon: Icons.refresh, color: Colors.cyanAccent, 
-              enabled: gs.player.rerollStone >= 1 && gs.player.powder >= powderCost && !item.isLocked && item.rerollCount < 5,
-              onTap: () => gs.rerollItemOptions(item),
+              enabled: true,
+              onTap: () {
+                if (gs.player.rerollStone < 1 || gs.player.powder < powderCost) {
+                  widget.onShowToast?.call('재료가 부족합니다!', isError: true);
+                } else if (item.isLocked) {
+                  widget.onShowToast?.call('잠긴 아이템은 재설정할 수 없습니다!', isError: true);
+                } else if (item.rerollCount >= 5) {
+                  widget.onShowToast?.call('재설정 횟수를 초과했습니다!', isError: true);
+                } else {
+                  gs.rerollItemOptions(item);
+                  widget.onShowToast?.call('옵션 재설정 완료!', isError: false);
+                  setState(() {});
+                }
+              },
             )),
             const SizedBox(width: 6),
             Expanded(child: _FeatureBtn(
               title: '잠재능력', icon: Icons.auto_awesome, color: Colors.purpleAccent,
-              enabled: gs.player.cube >= 10 && !item.isLocked,
-              onTap: () { gs.player.cube -= 10; item.awakenPotential(Random()); gs.saveGameData(); setState(() {}); },
+              enabled: true,
+              onTap: () { 
+                if (gs.player.cube < 10) {
+                  widget.onShowToast?.call('큐브가 부족합니다! (필요: 10개)', isError: true);
+                } else if (item.isLocked) {
+                  widget.onShowToast?.call('잠긴 아이템은 각성할 수 없습니다!', isError: true);
+                } else {
+                  gs.player.cube -= 10; 
+                  item.awakenPotential(Random()); 
+                  gs.saveGameData(); 
+                  widget.onShowToast?.call('잠재능력 개방 성공!', isError: false);
+                  setState(() {}); 
+                }
+              },
             )),
             const SizedBox(width: 6),
             Expanded(child: _FeatureBtn(
               title: '강화 (+${item.enhanceLevel})', icon: Icons.flash_on, color: Colors.blueAccent,
-              enabled: !item.isLocked && gs.player.gold >= item.enhanceCost && gs.player.enhancementStone >= item.stoneCost,
-              onTap: () => gs.enhanceItem(item),
+              enabled: true,
+              onTap: () {
+                if (item.isLocked) {
+                  widget.onShowToast?.call('잠긴 아이템은 강화할 수 없습니다!', isError: true);
+                } else if (gs.player.gold < item.enhanceCost || gs.player.enhancementStone < item.stoneCost) {
+                  widget.onShowToast?.call('재화가 부족합니다!', isError: true);
+                } else if (item.isBroken) {
+                  widget.onShowToast?.call('파손된 장비는 강화할 수 없습니다!', isError: true);
+                } else {
+                  int oldLevel = item.enhanceLevel;
+                  gs.enhanceItem(item);
+                  if (item.enhanceLevel > oldLevel) {
+                    widget.onShowToast?.call('강화 성공! (+${item.enhanceLevel})', isError: false);
+                  } else {
+                    widget.onShowToast?.call('강화 실패...', isError: true);
+                  }
+                  setState(() {});
+                }
+              },
             )),
           ],
         ),

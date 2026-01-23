@@ -43,9 +43,10 @@ enum ItemGrade {
   common(Color(0xFF9CA3AF), '일반'),
   uncommon(Color(0xFF22C55E), '고급'),
   rare(Color(0xFF3B82F6), '희귀'),
-  epic(Color(0xFFA855F7), '에픽'),
-  legendary(Color(0xFFF59E0B), '전설'),
-  mythic(Color(0xFFEF4444), '신화');
+  epic(Color(0xFFA855F7), '영웅'),
+  unique(Color(0xFFEAB308), '고유'),
+  legendary(Color(0xFFEF4444), '전설'),
+  mythic(Color(0xFFFF0000), '신화');
 
   final Color color;
   final String name;
@@ -72,8 +73,9 @@ enum ItemGrade {
       case ItemGrade.uncommon: return 2.0;
       case ItemGrade.rare: return 4.0;
       case ItemGrade.epic: return 8.0;
-      case ItemGrade.legendary: return 12.0;
-      case ItemGrade.mythic: return 18.0;
+      case ItemGrade.unique: return 12.0;
+      case ItemGrade.legendary: return 18.0;
+      case ItemGrade.mythic: return 24.0;
     }
   }
 }
@@ -408,21 +410,23 @@ class Item {
     int dropTier = tier;
 
     // 2. 등급 결정 (독립 확률)
-    // 일반: 80%, 고급: 12%, 희귀: 5%, 에픽: 2%, 전설: 0.8%, 신화: 0.2%
+    // 일반: 75%, 고급: 15%, 희귀: 6%, 영웅: 2.5%, 고유: 1%, 전설: 0.4%, 신화: 0.1%
     ItemGrade grade;
     double gradeRoll = rand.nextDouble();
-    if (gradeRoll < 0.002) {
-      grade = ItemGrade.mythic;        // 0.2%
-    } else if (gradeRoll < 0.010) {
-      grade = ItemGrade.legendary;     // 0.8%
-    } else if (gradeRoll < 0.030) {
-      grade = ItemGrade.epic;          // 2%
-    } else if (gradeRoll < 0.080) {
-      grade = ItemGrade.rare;          // 5%
-    } else if (gradeRoll < 0.200) {
-      grade = ItemGrade.uncommon;      // 12%
+    if (gradeRoll < 0.001) {
+      grade = ItemGrade.mythic;        // 0.1%
+    } else if (gradeRoll < 0.005) {
+      grade = ItemGrade.legendary;     // 0.4%
+    } else if (gradeRoll < 0.015) {
+      grade = ItemGrade.unique;        // 1.0%
+    } else if (gradeRoll < 0.040) {
+      grade = ItemGrade.epic;          // 2.5%
+    } else if (gradeRoll < 0.100) {
+      grade = ItemGrade.rare;          // 6%
+    } else if (gradeRoll < 0.250) {
+      grade = ItemGrade.uncommon;      // 15%
     } else {
-      grade = ItemGrade.common;        // 80%
+      grade = ItemGrade.common;        // 75%
     }
 
     ItemType type = forcedType ?? ItemType.values[rand.nextInt(ItemType.values.length)];
@@ -613,7 +617,8 @@ class Item {
       case ItemGrade.common: return '평범한';
       case ItemGrade.uncommon: return '고급';
       case ItemGrade.rare: return '희귀한';
-      case ItemGrade.epic: return '에픽';
+      case ItemGrade.epic: return '영웅의';
+      case ItemGrade.unique: return '고유한';
       case ItemGrade.legendary: return '전설의';
       case ItemGrade.mythic: return '신화의';
     }

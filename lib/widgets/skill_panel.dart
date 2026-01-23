@@ -218,7 +218,7 @@ class SkillPanel extends StatelessWidget {
               const SizedBox(width: 12),
               PopBtn(
                 skill.isUnlocked ? '강화' : '개방',
-                !isLevelMet ? Colors.grey : (skill.isUnlocked ? Colors.orangeAccent : Colors.blueAccent),
+                (!isLevelMet || !canLevelUp) ? Colors.grey : (skill.isUnlocked ? Colors.orangeAccent : Colors.blueAccent),
                 () {
                   if (!isLevelMet) {
                     onShowToast('레벨이 부족합니다! (필요: ${skill.unlockLevel})', isError: true);
@@ -226,6 +226,7 @@ class SkillPanel extends StatelessWidget {
                     onShowToast('골드가 부족합니다!', isError: true);
                   } else {
                     gameState.upgradeSkill(skill);
+                    onShowToast('${skill.name} 강화 성공!', isError: false);
                   }
                 },
                 subLabel: '${_formatNumber(skill.upgradeCost)} G',
