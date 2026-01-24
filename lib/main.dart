@@ -190,8 +190,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _uiTickerController = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
     _shimmerController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
     
-    _monsterSpawnController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _monsterSpawnController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     _heroPulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
     _heroRotateController = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
     
@@ -208,7 +208,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _gameLoop.start();
     
     // 🆕 전투 이벤트와 UI 연출 연결
-    gameState.onDamageDealt = (text, damage, isCrit, isSkill, {ox, oy, shouldAnimate = true, skillIcon}) {
+    gameState.onDamageDealt = (text, damage, isCrit, isSkill, {ox, oy, shouldAnimate = true, skillIcon, combo}) {
       if (!mounted) return;
 
       // 🆕 최대 데미지 기록 갱신 (단일 타격 기준)
@@ -225,7 +225,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         _playerAttackController.forward(from: 0);
       }
       // 데미지 텍스트 (isSkill 여부 전달, 오프셋 반영, 스킬 아이콘 전달)
-      _addFloatingText(text, true, isCrit: isCrit, isSkill: isSkill, offsetX: ox, offsetY: oy, skillIcon: skillIcon);
+      _addFloatingText(text, true, isCrit: isCrit, isSkill: isSkill, offsetX: ox, offsetY: oy, skillIcon: skillIcon, combo: combo);
     };
 
     gameState.onHeal = (healAmount) {
@@ -292,10 +292,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       }
     };
 
-    // [v0.0.79] 스테이지 점프 콜백 연결
     gameState.onStageJump = () {
       if (!mounted) return;
       _triggerJumpEffect();
+    };
+
+    gameState.onPlayerDeath = () {
+      if (!mounted) return;
+      if (gameState.currentZone.id == ZoneId.tower) {
+        _showTowerResultDialog(false);
+      } else {
+        _showToast('사망하여 스테이지가 하락했습니다.', isError: true);
+      }
     };
 
     // 초기 실행 시 몬스터가 이미 있다면 등장 애니메이션 실행
@@ -471,7 +479,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     bool isExp = false, 
     double? offsetX, 
     double? offsetY,
-    String? skillIcon // 🆕 스킬 아이콘 추가
+    String? skillIcon, // 🆕 스킬 아이콘 추가
+    int? combo, // 🆕 콤보 정보 추가
   }) {
     final rand = Random();
     
@@ -507,13 +516,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     double ox = offsetX ?? (rand.nextDouble() * 80) - 40; // ±40px 범위
     double oy = offsetY ?? (rand.nextDouble() * 50) - 25; // ±25px 범위
     
-    // 🆕 최적화: 데미지 생성 시 텍스트 스타일과 레이아웃이 1회 계산됨
     damageManager.add(DamageEntry(
       text: text,
       createdAt: DateTime.now(),
       type: type,
       basePosition: basePos + Offset(ox, oy),
       skillIcon: skillIcon, // 🆕 아이콘 전달
+      combo: combo, // 🆕 콤보 전달
     ));
   }
 
@@ -524,11 +533,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         children: [
           // 0번 탭(전투)일 때만 전역 사냥터 배경 활성화 (RepaintBoundary 최적화 순서 교정)
           if (_selectedIndex == 0)
-            const Positioned.fill(
+            Positioned.fill(
               child: RepaintBoundary(
                 child: Image(
-                  image: AssetImage('assets/images/background.png'),
+                  image: AssetImage('assets/images/backgrounds/bg_${context.watch<GameState>().currentZone.id.name}.png'),
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(color: Colors.black), // 파일 부재 시 대비
                 ),
               ),
             ),
@@ -1963,9 +1973,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     ),
                   ),
                 ]),
-                // 플레이어 펫 표시 (전투 장면 최상상위에서 독립적으로 부유)
-                if (gameState.player.activePet != null)
-                  _buildIndependentPet(gameState.player.activePet!, gameState.isOptimalZone),
+                // 🆕 [v0.5.9] 전투 상태 및 펫 표시 영역 (적정 사냥터 버프 포함)
+                _buildBattleStatusArea(gameState),
                 
                 // 🆕 고성능 캔버스 기반 데미지 텍스트 레이어 (RepaintBoundary 최적화 적용)
                 Positioned.fill(
@@ -2195,42 +2204,50 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildIndependentPet(Pet pet, bool isOptimalZone) {
+  Widget _buildBattleStatusArea(GameState gameState) {
+    final pet = gameState.player.activePet;
+    final bool isOptimalZone = gameState.isOptimalZone;
+    
+    // 표시할 내용이 전혀 없으면 그리지 않음
+    if (pet == null && !isOptimalZone) return const SizedBox.shrink();
+
     return AnimatedBuilder(
       animation: _uiTickerController,
       builder: (context, child) {
-        // 시간에 따른 부유 애니메이션 (독립적 박자)
         final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
         final double floatingY = sin(time * 2.5) * 6.0; 
         final double floatingX = cos(time * 1.5) * 3.0;
         
         return Align(
-          alignment: const Alignment(-0.9, -0.85), // 좌측 상단
+          alignment: const Alignment(-0.9, -0.85), // 좌측 상단 부유
           child: Transform.translate(
             offset: Offset(floatingX, floatingY),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // 펫 아이콘
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: pet.grade.color.withValues(alpha: 0.6), width: 2.0),
-                    boxShadow: [
-                      BoxShadow(color: pet.grade.color.withValues(alpha: 0.3), blurRadius: 10, spreadRadius: 2),
-                    ],
+                // 1. 활성화된 펫 표시
+                if (pet != null)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: pet.grade.color.withValues(alpha: 0.6), width: 2.0),
+                      boxShadow: [
+                        BoxShadow(color: pet.grade.color.withValues(alpha: 0.3), blurRadius: 10, spreadRadius: 2),
+                      ],
+                    ),
+                    child: Text(
+                      pet.iconEmoji, 
+                      style: const TextStyle(fontSize: 28),
+                    ),
                   ),
-                  child: Text(
-                    pet.iconEmoji, 
-                    style: const TextStyle(fontSize: 28),
-                  ),
-                ),
-                if (isOptimalZone) ...[
-                  const SizedBox(width: 10),
-                  // 🆕 [v0.3.7] 지역 보너스 집 아이콘
+                
+                if (pet != null && isOptimalZone) const SizedBox(width: 10),
+
+                // 2. 적정 사냥터 보너스 표시 (펫 유무 상관없이 노출)
+                if (isOptimalZone)
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -2250,7 +2267,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       size: 20,
                     ),
                   ),
-                ],
               ],
             ),
           ),
@@ -3337,6 +3353,7 @@ class DamageEntry {
   final DateTime createdAt;
   final Offset basePosition;
   final String? skillIcon; // 🆕 스킬 아이콘
+  final int? combo; // 🆕 콤보 단계
   // 🆕 최적화: 레이아웃이 완료된 객체를 캐싱
   late final TextPainter textPainter;
 
@@ -3346,9 +3363,10 @@ class DamageEntry {
     required this.type,
     required this.basePosition,
     this.skillIcon,
+    this.combo,
   }) {
     // 생성 시점에 텍스트 스타일과 레이아웃을 한 번만 계산합니다.
-    final style = _getStaticTextStyle(type);
+    final style = _getStaticTextStyle(type, combo: combo);
     
     // 🆕 스킬 아이콘이 있으면 텍스트 앞에 결합
     String displayText = text;
@@ -3363,25 +3381,88 @@ class DamageEntry {
     )..layout();
   }
 
-  static TextStyle _getStaticTextStyle(DamageType type) {
+  static TextStyle _getStaticTextStyle(DamageType type, {int? combo}) {
     Color color;
-    double fontSize = 18.0;
+    double fontSize = 14.0;
+    FontWeight fontWeight = FontWeight.normal;
     
-    switch (type) {
-      case DamageType.critical: color = const Color(0xFFEF4444); break;
-      case DamageType.skill: color = Colors.white; break;
-      case DamageType.heal: color = const Color(0xFF22C55E); break;
-      case DamageType.gold: color = const Color(0xFFEAB308); fontSize = 17.0; break;
-      case DamageType.exp: color = const Color(0xFF3B82F6); fontSize = 17.0; break;
-      default: color = Colors.white; fontSize = 14.0; // 🆕 일반 대미지 크기 축소 (18 -> 14)
+    // 🆕 콤보별 텍스트 변칙 적용 (일반 대미지 기준)
+    if (type == DamageType.normal && combo != null && combo > 0) {
+      switch (combo) {
+        case 2:
+          fontSize = 17.0;
+          break;
+        case 3:
+          fontSize = 20.0;
+          fontWeight = FontWeight.w600;
+          break;
+        case 4:
+          fontSize = 24.0;
+          fontWeight = FontWeight.bold;
+          break;
+        default:
+          fontSize = 14.0;
+      }
+    } else {
+      switch (type) {
+        case DamageType.critical: 
+          color = const Color(0xFFEF4444); 
+          fontSize = 24.0; 
+          fontWeight = FontWeight.bold; 
+          break;
+        case DamageType.skill: 
+          color = Colors.white; 
+          fontSize = 22.0; 
+          fontWeight = FontWeight.w600; 
+          break;
+        case DamageType.heal: 
+          color = const Color(0xFF22C55E); 
+          fontSize = 18.0; 
+          break;
+        case DamageType.gold: 
+          color = const Color(0xFFEAB308); 
+          fontSize = 17.0; 
+          break;
+        case DamageType.exp: 
+          color = const Color(0xFF3B82F6); 
+          fontSize = 17.0; 
+          break;
+        default: 
+          color = Colors.white; 
+          fontSize = 14.0;
+      }
+    }
+
+    // 콤보 4타(피니시) 시 색상 강조
+    if (type == DamageType.normal && combo == 4) {
+      color = Colors.amberAccent;
+    } else if (type == DamageType.normal) {
+      color = Colors.white;
+    } else {
+      // 기타 타입 색상은 위 switch에서 결정됨
+      color = _getTypeColor(type);
     }
 
     return GoogleFonts.luckiestGuy(
       color: color,
       fontSize: fontSize,
+      fontWeight: fontWeight,
       letterSpacing: 0.5,
-      shadows: [], 
+      shadows: [
+        const Shadow(offset: Offset(1, 1), blurRadius: 2, color: Colors.black54),
+      ], 
     );
+  }
+
+  static Color _getTypeColor(DamageType type) {
+    switch (type) {
+      case DamageType.critical: return const Color(0xFFEF4444);
+      case DamageType.skill: return Colors.white;
+      case DamageType.heal: return const Color(0xFF22C55E);
+      case DamageType.gold: return const Color(0xFFEAB308);
+      case DamageType.exp: return const Color(0xFF3B82F6);
+      default: return Colors.white;
+    }
   }
 }
 

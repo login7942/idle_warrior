@@ -44,9 +44,8 @@ class _InventoryPanelState extends State<InventoryPanel> {
           children: [
             const SizedBox(height: 12),
             _buildResourceBar(player),
-            _buildAutoDismantlePanel(gameState),
             _buildEquippedSlots(player),
-            _buildInventoryControls(),
+            _buildInventoryControls(gameState),
             Expanded(child: _buildInventoryGrid(gameState)),
             const SizedBox(height: 100), // 하단 독 공간
           ],
@@ -107,56 +106,126 @@ class _InventoryPanelState extends State<InventoryPanel> {
     );
   }
 
-  Widget _buildAutoDismantlePanel(GameState gameState) {
-    return GlassContainer(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      borderRadius: 16,
-      color: Colors.white.withOpacity(0.03),
-      border: Border.all(color: gameState.autoDismantleLevel > 0 ? Colors.blueAccent.withOpacity(0.3) : Colors.white10),
-      child: Row(
-        children: [
-          Icon(
-            Icons.auto_delete_outlined,
-            size: 16,
-            color: gameState.autoDismantleLevel > 0 ? Colors.blueAccent : Colors.white38,
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            '자동 분해',
-            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: DropdownButton<int>(
-              value: gameState.autoDismantleLevel,
-              isDense: true,
-              underline: const SizedBox(),
-              dropdownColor: const Color(0xFF1a1d2e),
-              style: const TextStyle(color: Colors.white70, fontSize: 10),
-              items: const [
-                DropdownMenuItem(value: 0, child: Text('사용 안 함')),
-                DropdownMenuItem(value: 1, child: Text('T1 일반')),
-                DropdownMenuItem(value: 2, child: Text('T1 고급 이하')),
-                DropdownMenuItem(value: 3, child: Text('T1 희귀 이하')),
-                DropdownMenuItem(value: 4, child: Text('T1 전체')),
+  void _showAutoDismantleSettingsDialog(GameState gameState) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          bool isActive = gameState.autoDismantleGrade != -1 && gameState.autoDismantleTier != -1;
+          
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1D2E),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Row(
+              children: [
+                Icon(Icons.settings_suggest_outlined, color: Colors.blueAccent, size: 20),
+                SizedBox(width: 8),
+                Text('자동 분해 설정', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
               ],
-              onChanged: (v) {
-                if (v != null) {
-                  gameState.autoDismantleLevel = v;
-                  gameState.saveGameData();
-                }
-              },
             ),
-          ),
-        ],
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('획득 즉시 설정한 조건에 따라 아이템을 분해합니다.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 24),
+                // 등급 슬라이더
+                _buildDismantleSlider(
+                  label: "자동분해 등급",
+                  value: gameState.autoDismantleGrade.toDouble() + 1,
+                  max: 7,
+                  divisions: 7,
+                  labels: ["OFF", "일반", "고급", "희귀", "영웅", "고유", "전설", "신화"],
+                  onChanged: (v) {
+                    setDialogState(() => gameState.autoDismantleGrade = v.toInt() - 1);
+                    gameState.saveGameData();
+                  },
+                  activeColor: gameState.autoDismantleGrade != -1 
+                      ? ItemGrade.values[gameState.autoDismantleGrade].color 
+                      : Colors.white24,
+                ),
+                const SizedBox(height: 16),
+                // 티어 슬라이더
+                _buildDismantleSlider(
+                  label: "자동분해 티어",
+                  value: gameState.autoDismantleTier == -1 ? 0 : gameState.autoDismantleTier.toDouble(),
+                  max: 6,
+                  divisions: 6,
+                  labels: ["OFF", "T1", "T2", "T3", "T4", "T5", "T6"],
+                  onChanged: (v) {
+                    setDialogState(() => gameState.autoDismantleTier = v == 0 ? -1 : v.toInt());
+                    gameState.saveGameData();
+                  },
+                  activeColor: Colors.blueAccent,
+                ),
+                const SizedBox(height: 24),
+                if (isActive)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+                    child: Text(
+                      '${gameState.autoDismantleGrade == -1 ? "OFF" : ItemGrade.values[gameState.autoDismantleGrade].name} 이하 / ${gameState.autoDismantleTier == -1 ? "OFF" : "T${gameState.autoDismantleTier}"} 이하 자동분해 진행 중',
+                      style: const TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context), 
+                child: const Text('닫기', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold))
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildDismantleSlider({
+    required String label,
+    required double value,
+    required double max,
+    required int divisions,
+    required List<String> labels,
+    required Function(double) onChanged,
+    required Color activeColor,
+  }) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+            Text(
+              (value.toInt() >= 0 && value.toInt() < labels.length) ? labels[value.toInt()] : "??",
+              style: TextStyle(color: value == 0 ? Colors.white24 : activeColor, fontSize: 10, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderThemeData(
+            trackHeight: 4,
+            activeTrackColor: activeColor.withOpacity(0.5),
+            inactiveTrackColor: Colors.white.withOpacity(0.05),
+            thumbColor: activeColor,
+            overlayColor: activeColor.withOpacity(0.1),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 2),
+            activeTickMarkColor: activeColor,
+            inactiveTickMarkColor: Colors.white24,
+          ),
+          child: Slider(
+            value: value,
+            min: 0,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 
@@ -236,7 +305,9 @@ class _InventoryPanelState extends State<InventoryPanel> {
     );
   }
 
-  Widget _buildInventoryControls() {
+  Widget _buildInventoryControls(GameState gameState) {
+    bool isAutoActive = gameState.autoDismantleGrade != -1 && gameState.autoDismantleTier != -1;
+    
     return GlassContainer(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(12),
@@ -260,6 +331,20 @@ class _InventoryPanelState extends State<InventoryPanel> {
               _buildSortBtn('전투력순', 1, Icons.bolt),
               const SizedBox(width: 8),
               _buildSortBtn('강화순', 2, Icons.upgrade),
+              const SizedBox(width: 8),
+              // 자동 분해 설정 버튼 (⚙️)
+              PressableScale(
+                onTap: () => _showAutoDismantleSettingsDialog(gameState),
+                child: Container(
+                  width: 34, height: 34,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: isAutoActive ? Colors.blueAccent.withOpacity(0.1) : Colors.white.withOpacity(0.05),
+                    border: Border.all(color: isAutoActive ? Colors.blueAccent.withOpacity(0.3) : Colors.white10),
+                  ),
+                  child: Icon(Icons.settings_suggest_outlined, size: 16, color: isAutoActive ? Colors.blueAccent : Colors.white38),
+                ),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: PressableScale(
@@ -395,55 +480,85 @@ class _InventoryPanelState extends State<InventoryPanel> {
   }
 
   void _showBulkDismantleDialog() {
-    ItemGrade selectedGrade = ItemGrade.uncommon;
+    int selectedGradeIdx = 0; // 일반
+    int selectedTier = 1;     // T1
+    
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1D2E),
-          title: const Text('일괄 분해 설정', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('선택한 등급 이하의 모든 아이템을 분해합니다.', style: TextStyle(color: Colors.white54, fontSize: 13)),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 10, runSpacing: 10, alignment: WrapAlignment.center,
-                children: ItemGrade.values.map((grade) {
-                  bool isSel = selectedGrade == grade;
-                  return InkWell(
-                    onTap: () => setDialogState(() => selectedGrade = grade),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: 85, height: 40,
-                      decoration: BoxDecoration(
-                        color: isSel ? grade.color.withOpacity(0.3) : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isSel ? grade.color : Colors.white10, width: isSel ? 2 : 1),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(grade.name, style: TextStyle(color: isSel ? Colors.white : Colors.white38, fontWeight: isSel ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
+        builder: (context, setDialogState) {
+          bool canExecute = selectedGradeIdx >= 0 && selectedTier >= 1;
+          
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1D2E),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Row(
+              children: [
+                Icon(Icons.auto_delete_outlined, color: Colors.redAccent, size: 20),
+                SizedBox(width: 8),
+                Text('일괄 분해 실행', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('선택한 조건 이하의 모든 아이템을 즉시 분해합니다.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 24),
+                
+                // 등급 선택
+                _buildDismantleSlider(
+                  label: "대상 등급 이하",
+                  value: selectedGradeIdx.toDouble() + 1,
+                  max: 7,
+                  divisions: 7,
+                  labels: ["OFF", "일반", "고급", "희귀", "영웅", "고유", "전설", "신화"],
+                  onChanged: (v) => setDialogState(() => selectedGradeIdx = v.toInt() - 1),
+                  activeColor: selectedGradeIdx != -1 ? ItemGrade.values[selectedGradeIdx].color : Colors.white24,
+                ),
+                const SizedBox(height: 16),
+                
+                // 티어 선택
+                _buildDismantleSlider(
+                  label: "대상 티어 이하",
+                  value: selectedTier == -1 ? 0 : selectedTier.toDouble(),
+                  max: 6,
+                  divisions: 6,
+                  labels: ["OFF", "T1", "T2", "T3", "T4", "T5", "T6"],
+                  onChanged: (v) => setDialogState(() => selectedTier = v == 0 ? -1 : v.toInt()),
+                  activeColor: Colors.blueAccent,
+                ),
+                
+                const SizedBox(height: 16),
+                if (canExecute)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+                    child: Text(
+                      '${selectedGradeIdx == -1 ? "OFF" : ItemGrade.values[selectedGradeIdx].name} 이하 / ${selectedTier == -1 ? "OFF" : "T$selectedTier"} 이하 장비 분해',
+                      style: const TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
-                  );
-                }).toList(),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Colors.white38))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: canExecute ? Colors.redAccent : Colors.white10,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: canExecute ? () {
+                  Navigator.pop(context);
+                  final rewards = context.read<GameState>().executeBulkDismantle(selectedGradeIdx, selectedTier);
+                  if (rewards['count']! > 0) {
+                    _showDismantleResult(context, rewards);
+                  }
+                } : null,
+                child: const Text('분해 실행', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Colors.white54))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              onPressed: () {
-                Navigator.pop(context);
-                final rewards = context.read<GameState>().executeBulkDismantle(selectedGrade);
-                if (rewards['count']! > 0) {
-                  _showDismantleResult(context, rewards);
-                }
-              },
-              child: const Text('분해 실행', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1174,20 +1289,29 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
       children: [
         const Text('아이템 옵션', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white38, letterSpacing: 1)),
         const SizedBox(height: 8),
-        ...item.subOptions.map((opt) => Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(10)),
-          child: Row(
-            children: [
-              Text(opt.toString(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
-              const Spacer(),
-              Row(children: List.generate(opt.stars, (i) => const Icon(Icons.star, size: 10, color: Colors.amberAccent))),
-              const SizedBox(width: 8),
-              GestureDetector(onTap: () { opt.isLocked = !opt.isLocked; setState(() {}); }, child: Icon(opt.isLocked ? Icons.lock : Icons.lock_open, size: 16, color: opt.isLocked ? Colors.amberAccent : Colors.white12)),
-            ],
-          ),
-        )),
+        ...item.subOptions.map((opt) {
+          // 🆕 [v0.5.16] 최대치 포맷팅
+          String maxValStr = opt.isPercentage 
+              ? '${opt.maxValue.toStringAsFixed(1)}%' 
+              : (opt.name == '공격 속도' ? opt.maxValue.toStringAsFixed(1) : opt.maxValue.toInt().toString());
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              children: [
+                Text(opt.toString(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(width: 6),
+                Text('(MAX: +$maxValStr)', style: const TextStyle(color: Colors.white24, fontSize: 9)), // 🆕 최대치 가이드
+                const Spacer(),
+                Row(children: List.generate(opt.stars, (i) => const Icon(Icons.star, size: 10, color: Colors.amberAccent))),
+                const SizedBox(width: 8),
+                GestureDetector(onTap: () { opt.isLocked = !opt.isLocked; setState(() {}); }, child: Icon(opt.isLocked ? Icons.lock : Icons.lock_open, size: 16, color: opt.isLocked ? Colors.amberAccent : Colors.white12)),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }
@@ -1319,7 +1443,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                   Text(_formatNumber(item.stoneCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
                 ],
               ) : Text('(현재 $totalSlotLv / 50)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
-              onTap: () {
+              onTap: () async {
                 if (item.isLocked) {
                   widget.onShowToast?.call('잠긴 아이템은 강화할 수 없습니다!', isError: true);
                 } else if (gs.player.gold < item.enhanceCost || gs.player.enhancementStone < item.stoneCost) {
@@ -1327,6 +1451,12 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                 } else if (item.isBroken) {
                   widget.onShowToast?.call('파손된 장비는 강화할 수 없습니다!', isError: true);
                 } else {
+                  // [v0.5.15] 내구도 1 경고 팝업
+                  if (item.durability == 1) {
+                    bool? proceed = await _showLastChanceConfirm(context);
+                    if (proceed != true) return;
+                  }
+
                   int oldLevel = currentItem.enhanceLevel;
                   String result = gs.enhanceItem(currentItem);
                   bool isSuccess = currentItem.enhanceLevel > oldLevel;
@@ -1380,6 +1510,53 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
           ),
         ),
       ],
+    );
+  }
+
+  // 🆕 [v0.5.15] 내구도 1 강화 시 경고 팝업
+  Future<bool?> _showLastChanceConfirm(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+            SizedBox(width: 12),
+            Text('파손 주의!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('내구도가 1입니다. 강화 실패 시 장비는 파손됩니다.', style: TextStyle(color: Colors.white, fontSize: 14)),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              child: const Text('강화하시겠습니까?', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('포기!!', style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('강화!!', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 }

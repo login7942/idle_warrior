@@ -505,26 +505,22 @@ class _PremiumItemSlotState extends State<PremiumItemSlot> with TickerProviderSt
 
   List<Widget> _buildStatusWidgets() {
     return [
-      // 강화 수치 배지 (우측 상단)
+      // 강화 수치 배지 (우측 상단) - 배경 제거 및 쉐도우 적용
       if (widget.item.enhanceLevel > 0)
         Positioned(
           top: 4,
           right: 4,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: BoxDecoration(
-              color: Colors.black87,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.white12, width: 0.5),
-            ),
-            child: Text(
-              '+${widget.item.enhanceLevel}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
+          child: Text(
+            '+${widget.item.enhanceLevel}',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+              shadows: [
+                Shadow(offset: const Offset(1, 1), blurRadius: 2, color: Colors.black.withValues(alpha: 0.8)),
+                Shadow(offset: const Offset(-0.5, -0.5), blurRadius: 1, color: Colors.black.withValues(alpha: 0.5)),
+              ],
             ),
           ),
         ),
@@ -543,8 +539,23 @@ class _PremiumItemSlotState extends State<PremiumItemSlot> with TickerProviderSt
         ),
       ),
 
-      // 신규 획득 알림 (좌측 상단)
-      if (widget.item.isNew && !widget.isPaused)
+      // 🆕 아이템 잠금 아이콘 (좌측 상단)
+      if (widget.item.isLocked)
+        const Positioned(
+          top: 3,
+          left: 3,
+          child: Icon(
+            Icons.lock,
+            size: 11,
+            color: Colors.amberAccent,
+            shadows: [
+              Shadow(offset: Offset(1, 1), blurRadius: 2, color: Colors.black),
+            ],
+          ),
+        ),
+
+      // 신규 획득 알림 (좌측 상단 - 잠금이 아닐 때만 혹은 약간 옆으로)
+      if (widget.item.isNew && !widget.item.isLocked && !widget.isPaused)
         Positioned(
           top: 4,
           left: 4,

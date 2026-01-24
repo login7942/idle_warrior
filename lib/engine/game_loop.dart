@@ -69,6 +69,7 @@ class GameLoop {
         oy: hit.offsetY,
         shouldAnimate: hit.shouldAnimate,
         skillIcon: hit.skillIcon, // 🆕 아이콘 전달
+        combo: hit.combo, // 🆕 콤보 정보 전달
       );
     }
 

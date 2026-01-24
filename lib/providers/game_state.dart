@@ -32,6 +32,7 @@ class PendingHit {
   final DateTime scheduledTime;
   final bool shouldAnimate;
   final String? skillIcon; // 🆕 스킬 아이콘(이모지) 저장
+  final int? combo; // 🆕 콤보 정보 저장
 
   PendingHit({
     required this.damage,
@@ -41,6 +42,7 @@ class PendingHit {
     required this.scheduledTime,
     this.shouldAnimate = true,
     this.skillIcon,
+    this.combo, // 🆕 콤보 정보 추가
   });
 }
 
@@ -99,7 +101,8 @@ class GameState extends ChangeNotifier {
   double goldPerMin = 0;
   double expPerMin = 0;
   double killsPerMin = 0;
-  int autoDismantleLevel = 0;
+  int autoDismantleGrade = -1; // -1: 사용안함, 0: 일반, 1: 고급, 2: 희귀, 3: 영웅, 4: 고유, 5: 전설
+  int autoDismantleTier = -1;  // -1: 사용안함, 1: T1, 2: T2, 3: T3, 4: T4, 5: T5, 6: T6
   
   // --- 관리자 설정 ---
   double monsterDefenseMultiplier = 0.0; // 몬스터 방어력 배율 (0.0 ~ 1.0)
@@ -114,6 +117,7 @@ class GameState extends ChangeNotifier {
   DateTime? lastCloudSaveTime;
   DateTime? lastMonsterSpawnTime;
   int _skillRoundRobinIndex = 0;
+  int _normalAttackCombo = 0; // 🆕 일반 공격 콤보 단계 (0~3)
   
   // 🆕 연타 스킬 처리용 큐
   final Queue<PendingHit> pendingHits = Queue<PendingHit>();
@@ -128,7 +132,7 @@ class GameState extends ChangeNotifier {
   Timer? _autoSaveTimer;
   
   // --- UI 통신용 콜백 ---
-  Function(String text, int damage, bool isCrit, bool isSkill, {double? ox, double? oy, bool shouldAnimate, String? skillIcon})? onDamageDealt;
+  Function(String text, int damage, bool isCrit, bool isSkill, {double? ox, double? oy, bool shouldAnimate, String? skillIcon, int? combo})? onDamageDealt;
   Function(int damage)? onPlayerDamageTaken;
   VoidCallback? onMonsterSpawned;
   Function(int gold, int exp)? onVictory;
@@ -136,6 +140,7 @@ class GameState extends ChangeNotifier {
   VoidCallback? onStageJump; // [v0.0.79] 스테이지 점프 발생 시 호출
   Function(String title, String message)? onSpecialEvent; // 🆕 럭키 스트릭 등 특수 연출용
   Function(String icon, String name, ItemGrade grade, {int amount})? onLootAcquired; // 🆕 아이콘 기반 알림용
+  VoidCallback? onPlayerDeath; // 🆕 사망 연출 및 팝업용
 
   // 🆕 초기화 완료 여부 확인용
   final Completer<void> initializationCompleter = Completer<void>();
@@ -197,7 +202,8 @@ class GameState extends ChangeNotifier {
       'gold_per_min': goldPerMin,
       'exp_per_min': expPerMin,
       'kills_per_min': killsPerMin,
-      'auto_dismantle_level': autoDismantleLevel,
+      'auto_dismantle_grade': autoDismantleGrade,
+      'auto_dismantle_tier': autoDismantleTier,
     };
 
     await prefs.setString('player_save_data', jsonEncode(saveData['player']));
@@ -207,7 +213,10 @@ class GameState extends ChangeNotifier {
     await prefs.setDouble('gold_per_min', goldPerMin);
     await prefs.setDouble('exp_per_min', expPerMin);
     await prefs.setDouble('kills_per_min', killsPerMin);
-    await prefs.setInt('auto_dismantle_level', autoDismantleLevel);
+    await prefs.setInt('auto_dismantle_grade', autoDismantleGrade);
+    await prefs.setInt('auto_dismantle_tier', autoDismantleTier);
+    await prefs.setBool('auto_advance', autoAdvance);
+    await prefs.setString('zone_stages', jsonEncode(zoneStages.map((k, v) => MapEntry(k.name, v))));
     
     if (authService.isLoggedIn) {
       final bool shouldSaveToCloud = forceCloud || 
@@ -254,7 +263,10 @@ class GameState extends ChangeNotifier {
         'gold_per_min': prefs.getDouble('gold_per_min') ?? 0,
         'exp_per_min': prefs.getDouble('exp_per_min') ?? 0,
         'kills_per_min': prefs.getDouble('kills_per_min') ?? 0,
-        'auto_dismantle_level': prefs.getInt('auto_dismantle_level') ?? 0,
+        'auto_dismantle_grade': prefs.getInt('auto_dismantle_grade') ?? -1,
+        'auto_dismantle_tier': prefs.getInt('auto_dismantle_tier') ?? -1,
+        'auto_advance': prefs.getBool('auto_advance') ?? true,
+        'zone_stages': jsonDecode(prefs.getString('zone_stages') ?? '{}'),
       };
     }
 
@@ -298,7 +310,8 @@ class GameState extends ChangeNotifier {
     goldPerMin = (targetData['gold_per_min'] ?? 0).toDouble();
     expPerMin = (targetData['exp_per_min'] ?? 0).toDouble();
     killsPerMin = (targetData['kills_per_min'] ?? 0).toDouble();
-    autoDismantleLevel = targetData['auto_dismantle_level'] ?? 0;
+    autoDismantleGrade = targetData['auto_dismantle_grade'] ?? -1;
+    autoDismantleTier = targetData['auto_dismantle_tier'] ?? -1;
     
     isCloudSynced = true;
     notifyListeners();
@@ -376,14 +389,28 @@ class GameState extends ChangeNotifier {
   void _performBasicAttack() {
     if (currentMonster == null) return;
     
+    // 🆕 일반 공격 콤보 단계 증가 (1~4타 순환)
+    _normalAttackCombo = (_normalAttackCombo % 4) + 1;
+    
+    // 콤보 단계별 데미지 배율 결정
+    double comboMultiplier;
+    switch (_normalAttackCombo) {
+      case 2: comboMultiplier = 1.3; break;
+      case 3: comboMultiplier = 1.7; break;
+      case 4: comboMultiplier = 2.2; break;
+      default: comboMultiplier = 1.0; // 1타 또는 초기화 상태
+    }
+
     // 몬스터 방어력에 배율 적용 (관리자 설정)
     double effectiveDefense = currentMonster!.defense * monsterDefenseMultiplier;
     double defenseRating = 100 / (100 + effectiveDefense);
     double variance = 0.9 + (Random().nextDouble() * 0.2);
-    double rawDamage = (player.attack * defenseRating) * variance * player.potentialFinalDamageMult;
+    
+    // 콤보 배율 적용
+    double rawDamage = (player.attack * defenseRating) * variance * player.potentialFinalDamageMult * comboMultiplier;
     int baseDmg = max(rawDamage.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
     
-    damageMonster(baseDmg, false, false);
+    damageMonster(baseDmg, false, false, combo: _normalAttackCombo);
     // notifyListeners(); // 💡 최적화: Ticker가 이미 UI를 60FPS로 갱신 중임
   }
 
@@ -391,6 +418,9 @@ class GameState extends ChangeNotifier {
     if (currentMonster == null) return;
     skill.lastUsed = DateTime.now();
     player.totalSkillsUsed++;
+    
+    // 🆕 스킬 사용 시 일반 공격 콤보 초기화
+    _normalAttackCombo = 0;
 
     // 스킬별 타격 횟수 정의
     int hits = 1;
@@ -427,12 +457,13 @@ class GameState extends ChangeNotifier {
         scheduledTime: scheduledTime,
         shouldAnimate: i == 0,
         skillIcon: skill.iconEmoji, // 🆕 스킬 아이콘 전달
+        combo: 0, // 스킬 사용 시 콤보 초기화
       ));
     }
   }
 
   // 🆕 데미지 처리 통합 헬퍼 (최적화) - GameLoop에서도 접근 가능하도록 public
-  void damageMonster(int baseDmg, bool isMonsterAtk, bool isSkill, {double ox = 0, double oy = 0, bool shouldAnimate = true, String? skillIcon}) {
+  void damageMonster(int baseDmg, bool isMonsterAtk, bool isSkill, {double ox = 0, double oy = 0, bool shouldAnimate = true, String? skillIcon, int? combo}) {
     if (currentMonster == null || currentMonster!.isDead) return;
 
     // 치명타 적용
@@ -446,7 +477,7 @@ class GameState extends ChangeNotifier {
     // UI 알림 (Floating Text)
     String text = finalDmg.toString(); // 🆕 레이블 제거, 숫자만 전달
     
-    onDamageDealt?.call(text, finalDmg, isCrit, isSkill, ox: ox, oy: oy, shouldAnimate: shouldAnimate, skillIcon: skillIcon);
+    onDamageDealt?.call(text, finalDmg, isCrit, isSkill, ox: ox, oy: oy, shouldAnimate: shouldAnimate, skillIcon: skillIcon, combo: combo);
 
     // 흡혈 처리
     if (!isMonsterAtk && player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
@@ -532,9 +563,11 @@ class GameState extends ChangeNotifier {
       _victoryCountSinceSave = 0;
     }
     
-    // 🆕 전투 리듬 개선: 100ms 대기 후 다음 몬스터 소환 (타격감 확보)
-    pendingMonsterSpawn = true;
-    monsterSpawnScheduledTime = DateTime.now().add(const Duration(milliseconds: 100));
+    // 🆕 전투 리듬 개선: 대기 후 다음 몬스터 소환 (단, 무한의 탑은 수동 진행이므로 제외)
+    if (!isTower) {
+      pendingMonsterSpawn = true;
+      monsterSpawnScheduledTime = DateTime.now().add(const Duration(milliseconds: 250));
+    }
   }
 
   void _dropItem() {
@@ -542,14 +575,33 @@ class GameState extends ChangeNotifier {
     double dropChance = currentMonster!.itemDropChance * (player.dropBonus / 100);
     
     if (rand.nextDouble() < dropChance) {
-      final newItem = Item.generate(player.level, tier: 1); 
-      if (player.addItem(newItem)) {
-        addLog('[획득] ${newItem.grade.name} 등급의 ${newItem.type.nameKr} 획득!', LogType.item);
-        player.totalItemsFound++;
-        player.updateEncyclopedia(newItem); // [v0.0.78] 획득 시 도감 갱신
+      // 현재 스테이지/지역에 맞는 티어 생성 (여기서는 예시로 1티어, 실제 로직은 지역별 티어 적용)
+      final newItem = Item.generate(player.level, tier: (currentStage ~/ 100).clamp(1, 6)); 
+      
+      // [자동 분해 체크]
+      bool shouldAutoDismantle = autoDismantleGrade != -1 && autoDismantleTier != -1 &&
+                                newItem.grade.index <= autoDismantleGrade &&
+                                newItem.tier <= autoDismantleTier;
+
+      if (shouldAutoDismantle) {
+        var rewards = _calculateDismantleRewards(newItem);
+        player.gold += rewards['gold']!;
+        player.powder += rewards['powder']!;
+        player.enhancementStone += rewards['stone']!;
+        player.rerollStone += rewards['reroll']!;
+        player.protectionStone += rewards['protection']!;
+        player.cube += rewards['cube']!;
+        player.shards += rewards['shards']!;
         
-        // 🆕 UI 알림 호출
-        onLootAcquired?.call(newItem.type.iconEmoji, newItem.name, newItem.grade, amount: 1);
+        addLog('[자동분해] ${newItem.grade.name} T${newItem.tier} ${newItem.type.nameKr}이(가) 분해되었습니다.', LogType.item);
+        onLootAcquired?.call('♻️', '${newItem.grade.name} 분해됨', newItem.grade, amount: 1);
+      } else {
+        if (player.addItem(newItem)) {
+          addLog('[획득] ${newItem.grade.name} 등급의 ${newItem.type.nameKr} 획득!', LogType.item);
+          player.totalItemsFound++;
+          player.updateEncyclopedia(newItem);
+          onLootAcquired?.call(newItem.type.iconEmoji, newItem.name, newItem.grade, amount: 1);
+        }
       }
     }
   }
@@ -684,11 +736,21 @@ class GameState extends ChangeNotifier {
   }
 
   void handlePlayerDeath() {
-    playerCurrentHp = player.maxHp;
-    currentStage = max(1, currentStage - 5);
-    zoneStages[currentZone.id] = currentStage;
-    addLog('사망했습니다. 안전을 위해 5스테이지 이전으로 후퇴합니다.', LogType.event);
-    spawnMonster();
+    bool isTower = currentZone.id == ZoneId.tower;
+    
+    if (isTower) {
+      // 무한의 탑에서는 후퇴하지 않고 즉시 멈춤
+      currentMonster = null;
+      isProcessingVictory = true; // 더 이상 공격 받지 않도록
+    } else {
+      playerCurrentHp = player.maxHp;
+      currentStage = max(1, currentStage - 5);
+      zoneStages[currentZone.id] = currentStage;
+      addLog('사망했습니다. 안전을 위해 5스테이지 이전으로 후퇴합니다.', LogType.event);
+      spawnMonster();
+    }
+    
+    onPlayerDeath?.call();
     notifyListeners();
   }
 
@@ -955,7 +1017,7 @@ class GameState extends ChangeNotifier {
     return rewards;
   }
 
-  Map<String, int> executeBulkDismantle(ItemGrade maxGrade) {
+  Map<String, int> executeBulkDismantle(int maxGradeIdx, int maxTier) {
     int dismantleCount = 0;
     int totalGold = 0;
     int totalPowder = 0;
@@ -963,10 +1025,10 @@ class GameState extends ChangeNotifier {
     int totalReroll = 0;
     int totalProtection = 0;
     int totalCube = 0;
-    Map<int, int> totalShards = {}; // 티어별 합산
+    int totalShards = 0;
 
     player.inventory.removeWhere((item) {
-      if (item.grade.index <= maxGrade.index && !item.isLocked) {
+      if (item.grade.index <= maxGradeIdx && item.tier <= maxTier && !item.isLocked) {
         dismantleCount++;
         var rewards = _calculateDismantleRewards(item);
         totalGold += rewards['gold']!;
@@ -975,11 +1037,7 @@ class GameState extends ChangeNotifier {
         totalReroll += rewards['reroll']!;
         totalProtection += rewards['protection']!;
         totalCube += rewards['cube']!;
-        
-        int shards = rewards['shards']!;
-        player.shards += shards;
-        totalShards[rewards['tier']!] = (totalShards[rewards['tier']!] ?? 0) + shards;
-        
+        totalShards += rewards['shards']!;
         return true;
       }
       return false;
@@ -991,6 +1049,7 @@ class GameState extends ChangeNotifier {
     player.rerollStone += totalReroll;
     player.protectionStone += totalProtection;
     player.cube += totalCube;
+    player.shards += totalShards;
 
     if (dismantleCount > 0) {
       addLog('[일괄분해] $dismantleCount개의 아이템을 분해했습니다.', LogType.item);

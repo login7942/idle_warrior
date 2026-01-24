@@ -612,12 +612,13 @@ class Item {
         protectionMsg = " (완충 발동: 내구도 소모 50% 감소)";
       }
 
-      // 내구도 감소 (단, 1 미만으로는 떨어지지 않음 - 파손 바로 직전까지만)
-      int nextDurability = durability - loss;
-      if (nextDurability < 1 && durability >= 1 && loss > 0) {
-        durability = 1;
+      // [Last Chance 보호 로직] 
+      // 현재 내구도가 1 초과라면, 어떤 감소량이 와도 일단 1에서 한 번 멈춰서 마지막 기회를 줌.
+      // 이미 1인 상태에서 실패해야만 0(파손)이 됨.
+      if (durability > 1) {
+        durability = max(1, durability - loss);
       } else {
-        durability = nextDurability.clamp(0, maxDurability);
+        durability = 0;
       }
 
       String msg = "강화 실패 (내구도 -$loss)$protectionMsg";
