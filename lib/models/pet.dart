@@ -4,9 +4,10 @@ enum PetGrade {
   common('일반', Color(0xFF9E9E9E)),
   uncommon('고급', Color(0xFF4CAF50)),
   rare('희귀', Color(0xFF2196F3)),
-  epic('고대의', Color(0xFF9C27B0)),
-  legendary('유물의', Color(0xFFFF9800)),
-  mythic('전설의', Color(0xFFE91E63));
+  epic('영웅', Color(0xFF9C27B0)),
+  unique('고유', Color(0xFFEAB308)),
+  legendary('전설', Color(0xFFFF9800)),
+  mythic('신화', Color(0xFFE91E63));
 
   final String name;
   final Color color;
@@ -22,6 +23,8 @@ enum PetGrade {
         return LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.blue.shade700, Colors.blue.shade900]);
       case PetGrade.epic:
         return LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.purple.shade700, Colors.purple.shade900]);
+      case PetGrade.unique:
+        return LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.amber.shade700, Colors.amber.shade900]);
       case PetGrade.legendary:
         return LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.orange.shade700, Colors.deepOrange.shade900]);
       case PetGrade.mythic:

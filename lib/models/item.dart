@@ -15,6 +15,17 @@ extension ItemTypeExtension on ItemType {
     }
   }
 
+  String get iconEmoji {
+    switch (this) {
+      case ItemType.weapon: return '🗡️';
+      case ItemType.helmet: return '🪖';
+      case ItemType.armor: return '🛡️';
+      case ItemType.boots: return '👢';
+      case ItemType.ring: return '💍';
+      case ItemType.necklace: return '🧿';
+    }
+  }
+
   String get mainStatName1 {
     switch (this) {
       case ItemType.weapon:
@@ -51,6 +62,20 @@ enum ItemGrade {
   final Color color;
   final String name;
   const ItemGrade(this.color, this.name);
+
+  // [v0.4.0] 등급별 주능력치 보너스
+  double get gradeBonus {
+    switch (this) {
+      case ItemGrade.common: return 1.0;
+      case ItemGrade.uncommon: return 1.10;
+      case ItemGrade.rare: return 1.25;
+      case ItemGrade.epic: return 1.45;
+      case ItemGrade.unique: return 1.55;
+      case ItemGrade.legendary: return 1.70;
+      case ItemGrade.mythic: return 2.0;
+    }
+  }
+
   // 배경 그라데이션: 중앙에서 밖으로 퍼지는 입체감
   Gradient get bgGradient {
     return RadialGradient(
@@ -126,7 +151,7 @@ class ItemOption {
         : (name == '공격 속도' ? value.toStringAsFixed(1) : value.toInt().toString());
     
     String prefix = isSpecial ? '[특별] ' : '';
-    return '$prefix$name +$valStr${isLocked ? ' 🔒' : ''}';
+    return '$prefix$name +$valStr';
   }
 }
 
@@ -146,6 +171,7 @@ class Item {
   int rerollCount;     // 옵션 재설정 횟수 (Max 5)
   bool isLocked;       // 아이템 잠금 여부
   ItemOption? potential; // 잠재능력 (v0.0.50 추가)
+  int failStreak;      // [v0.4.4] 연속 강화 실패 횟수
   
   bool get isBroken => durability <= 0; // 내구도 0 이하 시 파손 상태
   Item({
@@ -164,6 +190,7 @@ class Item {
     this.rerollCount = 0,
     this.isLocked = false,
     this.potential,
+    this.failStreak = 0,
   });
 
   Item copyWith({
@@ -182,6 +209,7 @@ class Item {
     int? rerollCount,
     bool? isLocked,
     ItemOption? potential,
+    int? failStreak,
   }) {
     return Item(
       id: id ?? this.id,
@@ -199,8 +227,34 @@ class Item {
       rerollCount: rerollCount ?? this.rerollCount,
       isLocked: isLocked ?? this.isLocked,
       potential: potential ?? this.potential,
+      failStreak: failStreak ?? this.failStreak,
     );
   }
+
+  // [v0.4.0] 강화 배율 테이블 (정확한 밸런스 유지용)
+  static const List<double> enhanceFactorTable = [
+    1.00, // +0
+    1.05, // +1
+    1.10, // +2
+    1.16, // +3
+    1.23, // +4
+    1.31, // +5
+    1.40, // +6
+    1.50, // +7
+    1.61, // +8
+    1.73, // +9
+    1.86, // +10
+    2.00, // +11
+    2.15, // +12
+    2.31, // +13
+    2.48, // +14
+    2.66, // +15
+    2.85, // +16
+    3.05, // +17
+    3.26, // +18
+    3.48, // +19
+    3.71, // +20
+  ];
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -218,6 +272,7 @@ class Item {
         'rerollCount': rerollCount,
         'isLocked': isLocked,
         'potential': potential?.toJson(),
+        'failStreak': failStreak,
       };
 
   factory Item.fromJson(Map<String, dynamic> json) {
@@ -281,22 +336,25 @@ class Item {
       rerollCount: json['rerollCount'] ?? 0,
       isLocked: json['isLocked'] ?? false,
       potential: json['potential'] != null ? ItemOption.fromJson(json['potential']) : null,
+      failStreak: json['failStreak'] ?? 0,
     );
   }
 
 
-  // 실제 적용되는 주 능력치 (강화 계수 반영 및 파손 패널티)
+  // 실제 적용되는 주 능력치 (강화 계수 및 등급 보너스 반영, 파손 패널티)
   int get effectiveMainStat1 {
     double factor = getEnhanceFactor();
+    double gradeMult = grade.gradeBonus;
     double brokenPenalty = isBroken ? 0.8 : 1.0; // 파손 시 80%로 감소
-    return (mainStat1 * factor * brokenPenalty).toInt();
+    return (mainStat1 * factor * gradeMult * brokenPenalty).toInt();
   }
 
   int get effectiveMainStat2 {
     if (mainStat2 == null) return 0;
     double factor = getEnhanceFactor();
+    double gradeMult = grade.gradeBonus;
     double brokenPenalty = isBroken ? 0.8 : 1.0;
-    return (mainStat2! * factor * brokenPenalty).toInt();
+    return (mainStat2! * factor * gradeMult * brokenPenalty).toInt();
   }
 
   // 장비 리빌딩: 주 능력치 이름 규칙
@@ -387,18 +445,13 @@ class Item {
     return power.toInt();
   }
 
-  // 부가 옵션도 동일한 강화 계수 적용 여부 (반지/목걸이 HP 용)
-  // 강화 계수 계산 (복리 모델: 1~17강 12%, 18강~ 6%)
+  // 강화 계수 계산 (v0.4.0 테이블 참조 방식으로 변경)
   double getEnhanceFactor() {
     if (enhanceLevel <= 0) return 1.0;
-    
-    if (enhanceLevel <= 17) {
-      return pow(1.12, enhanceLevel).toDouble();
-    } else {
-      // 17강까지는 12%, 그 이후는 6% 복리
-      double baseFactor = pow(1.12, 17).toDouble();
-      return baseFactor * pow(1.06, enhanceLevel - 17).toDouble();
+    if (enhanceLevel >= enhanceFactorTable.length) {
+      return enhanceFactorTable.last;
     }
+    return enhanceFactorTable[enhanceLevel];
   }
 
   // 드랍 아이템 생성기 (v0.0.59: T1 고정 드랍 및 등급 분리 시스템)
@@ -409,24 +462,24 @@ class Item {
     // 1. 티어 결정
     int dropTier = tier;
 
-    // 2. 등급 결정 (독립 확률)
-    // 일반: 75%, 고급: 15%, 희귀: 6%, 영웅: 2.5%, 고유: 1%, 전설: 0.4%, 신화: 0.1%
+    // 2. 등급 결정 (독립 확률) v0.4.2 개편
+    // 일반: 82.0%, 고급: 14.0%, 희귀: 3.0%, 영웅: 0.8%, 고유: 0.15%, 전설: 0.04%, 신화: 0.01%
     ItemGrade grade;
     double gradeRoll = rand.nextDouble();
-    if (gradeRoll < 0.001) {
-      grade = ItemGrade.mythic;        // 0.1%
-    } else if (gradeRoll < 0.005) {
-      grade = ItemGrade.legendary;     // 0.4%
-    } else if (gradeRoll < 0.015) {
-      grade = ItemGrade.unique;        // 1.0%
-    } else if (gradeRoll < 0.040) {
-      grade = ItemGrade.epic;          // 2.5%
-    } else if (gradeRoll < 0.100) {
-      grade = ItemGrade.rare;          // 6%
-    } else if (gradeRoll < 0.250) {
-      grade = ItemGrade.uncommon;      // 15%
+    if (gradeRoll < 0.0001) {
+      grade = ItemGrade.mythic;        // 0.01%
+    } else if (gradeRoll < 0.0005) {
+      grade = ItemGrade.legendary;     // 0.04% (0.0001 + 0.0004)
+    } else if (gradeRoll < 0.0020) {
+      grade = ItemGrade.unique;        // 0.15% (0.0005 + 0.0015)
+    } else if (gradeRoll < 0.0100) {
+      grade = ItemGrade.epic;          // 0.8% (0.0020 + 0.0080)
+    } else if (gradeRoll < 0.0400) {
+      grade = ItemGrade.rare;          // 3.0% (0.0100 + 0.0300)
+    } else if (gradeRoll < 0.1800) {
+      grade = ItemGrade.uncommon;      // 14.0% (0.0400 + 0.1400)
     } else {
-      grade = ItemGrade.common;        // 75%
+      grade = ItemGrade.common;        // 82.0%
     }
 
     ItemType type = forcedType ?? ItemType.values[rand.nextInt(ItemType.values.length)];
@@ -490,13 +543,27 @@ class Item {
     );
   }
 
-  // 강화 성공 확률 리빌딩
+  // 강화 성공 확률 (v0.4.3 개편)
   double get successChance {
-    if (enhanceLevel < 5) return 1.0;     // 1~5강: 100%
-    if (enhanceLevel < 8) return 0.95;    // 6~8강: 95%
-    if (enhanceLevel == 8) return 0.90;   // 9강(이전레벨 8): 90%
-    if (enhanceLevel == 9) return 0.85;   // 10강(이전레벨 9): 85%
-    return 0.30;                          // 11~20강: 30% 고정
+    if (enhanceLevel < 6) return 1.0;     // +0~+5: 100%
+    switch (enhanceLevel) {
+      case 6: return 0.95;
+      case 7: return 0.90;
+      case 8: return 0.85;
+      case 9: return 0.80;
+      case 10: return 0.75;
+      case 11: return 0.65;
+      case 12: return 0.60;
+      case 13: return 0.55;
+      case 14: return 0.50;
+      case 15: return 0.45;
+      case 16: return 0.40;
+      case 17: return 0.35;
+      case 18: return 0.30;
+      case 19: return 0.25;
+      case 20: return 0.20;
+      default: return 0.20;
+    }
   }
 
   // 강화 비용 계산 (골드)
@@ -513,34 +580,50 @@ class Item {
     return 10;
   }
 
-  // 강화 실패 시 내구도 감소량
+  // 강화 실패 시 내구도 감소량 (v0.4.3 개편)
   int get durabilityLoss {
-    if (enhanceLevel < 11) return 10;
-    // 11강 이후 실패 시 5~25 랜덤 감소
-    return 5 + Random().nextInt(21);
+    if (enhanceLevel <= 10) return 5;
+    if (enhanceLevel <= 14) return 8;
+    if (enhanceLevel <= 17) return 12;
+    return 15;
   }
 
-  // 강화 처리 로직 (성공/실패 통합) - 리턴값은 결과 메시지
+  // 강화 처리 로직 (v0.4.4 누적 보호 시스템 적용)
   String processEnhance(bool success) {
     if (isBroken) return "파손된 장비는 강화할 수 없습니다.";
     if (enhanceLevel >= 20) return "이미 최대 강화 단계(+20)에 도달했습니다.";
 
     if (success) {
       enhanceLevel++;
+      failStreak = 0; // 성공 시 카운트 리셋
       return _applyLevelMilestone();
     } else {
+      failStreak++;
       int loss = durabilityLoss;
-      durability = (durability - loss).clamp(0, maxDurability);
-      String msg = "강화 실패 (내구도 -$loss)";
+      String protectionMsg = "";
+
+      // [v0.4.4] 누적 보호 로직
+      if (failStreak >= 6) {
+        loss = 0; // 6회 이상 실패 시 내구도 감소 없음
+        failStreak = 0; // 보호 발동 후 리셋
+        protectionMsg = " (보호 발동: 내구도 보호!)";
+      } else if (failStreak >= 3) {
+        loss = (loss * 0.5).floor(); // 3회 이상 실패 시 감소량 50% 완화
+        protectionMsg = " (완충 발동: 내구도 소모 50% 감소)";
+      }
+
+      // 내구도 감소 (단, 1 미만으로는 떨어지지 않음 - 파손 바로 직전까지만)
+      int nextDurability = durability - loss;
+      if (nextDurability < 1 && durability >= 1 && loss > 0) {
+        durability = 1;
+      } else {
+        durability = nextDurability.clamp(0, maxDurability);
+      }
+
+      String msg = "강화 실패 (내구도 -$loss)$protectionMsg";
       
       if (isBroken) {
         msg = "강화 실패 및 장비 파손! (내구도 0)";
-      }
-      
-      // 15강 이상에서 실패 시 30% 확률로 단계 하락
-      if (enhanceLevel >= 15 && Random().nextDouble() < 0.3) {
-        enhanceLevel = (enhanceLevel - 1).clamp(0, 99);
-        msg += " & 단계 하락!";
       }
       return msg;
     }

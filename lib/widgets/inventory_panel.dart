@@ -697,9 +697,9 @@ class _InventoryPanelState extends State<InventoryPanel> {
       ],
     );
   }
-
-  String _formatNumber(int n) => NumberFormat('#,###').format(n);
 }
+
+String _formatNumber(int n) => NumberFormat('#,###').format(n);
 
 /// ♻️ 분해 결과 팝업 함수
 void _showDismantleResult(BuildContext context, Map<String, int> rewards) {
@@ -1218,6 +1218,12 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
     int lockCount = item.subOptions.where((o) => o.isLocked).length;
     int powderCost = lockCount == 0 ? 0 : (1000 * pow(10, lockCount - 1)).toInt();
     
+    // [v0.4.8] 기능별 해금 체크
+    int totalSlotLv = gs.player.totalSlotEnhanceLevel;
+    bool isEnhanceUnlocked = totalSlotLv >= 50;
+    bool isRerollUnlocked = totalSlotLv >= 300;
+    bool isPotentialUnlocked = totalSlotLv >= 1000;
+
     return Column(
       children: [
         _buildDurabilityBar(item),
@@ -1245,8 +1251,17 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
         Row(
           children: [
             Expanded(child: _FeatureBtn(
-              title: '재설정 (${item.rerollCount}/5)', icon: Icons.refresh, color: Colors.cyanAccent, 
-              enabled: true,
+              title: isRerollUnlocked ? '재설정 (${item.rerollCount}/5)' : '슬롯 300강', 
+              icon: isRerollUnlocked ? Icons.refresh : Icons.lock_outline, 
+              color: Colors.cyanAccent, 
+              enabled: isRerollUnlocked,
+              cost: isRerollUnlocked ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('✨', style: TextStyle(fontSize: 9)),
+                  Text(_formatNumber(powderCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                ],
+              ) : Text('(현재 $totalSlotLv / 300)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
               onTap: () {
                 if (gs.player.rerollStone < 1 || gs.player.powder < powderCost) {
                   widget.onShowToast?.call('재료가 부족합니다!', isError: true);
@@ -1263,8 +1278,17 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
             )),
             const SizedBox(width: 6),
             Expanded(child: _FeatureBtn(
-              title: '잠재능력', icon: Icons.auto_awesome, color: Colors.purpleAccent,
-              enabled: true,
+              title: isPotentialUnlocked ? '잠재능력' : '슬롯 1000강', 
+              icon: isPotentialUnlocked ? Icons.auto_awesome : Icons.lock_outline, 
+              color: Colors.purpleAccent,
+              enabled: isPotentialUnlocked,
+              cost: isPotentialUnlocked ? const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('🔮', style: TextStyle(fontSize: 9)),
+                  Text('10', style: TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                ],
+              ) : Text('(현재 $totalSlotLv / 1000)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
               onTap: () { 
                 if (gs.player.cube < 10) {
                   widget.onShowToast?.call('큐브가 부족합니다! (필요: 10개)', isError: true);
@@ -1281,8 +1305,20 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
             )),
             const SizedBox(width: 6),
             Expanded(child: _FeatureBtn(
-              title: '강화 (+${item.enhanceLevel})', icon: Icons.flash_on, color: Colors.blueAccent,
-              enabled: true,
+              title: isEnhanceUnlocked ? '강화 (+${item.enhanceLevel})' : '슬롯 50강', 
+              icon: isEnhanceUnlocked ? Icons.flash_on : Icons.lock_outline, 
+              color: Colors.blueAccent,
+              enabled: isEnhanceUnlocked,
+              cost: isEnhanceUnlocked ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('💰', style: TextStyle(fontSize: 9)),
+                  Text(item.enhanceCost > 10000 ? '${(item.enhanceCost/1000).toStringAsFixed(1)}k' : _formatNumber(item.enhanceCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 4),
+                  const Text('💎', style: TextStyle(fontSize: 9)),
+                  Text(_formatNumber(item.stoneCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                ],
+              ) : Text('(현재 $totalSlotLv / 50)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
               onTap: () {
                 if (item.isLocked) {
                   widget.onShowToast?.call('잠긴 아이템은 강화할 수 없습니다!', isError: true);
@@ -1291,13 +1327,10 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                 } else if (item.isBroken) {
                   widget.onShowToast?.call('파손된 장비는 강화할 수 없습니다!', isError: true);
                 } else {
-                  int oldLevel = item.enhanceLevel;
-                  gs.enhanceItem(item);
-                  if (item.enhanceLevel > oldLevel) {
-                    widget.onShowToast?.call('강화 성공! (+${item.enhanceLevel})', isError: false);
-                  } else {
-                    widget.onShowToast?.call('강화 실패...', isError: true);
-                  }
+                  int oldLevel = currentItem.enhanceLevel;
+                  String result = gs.enhanceItem(currentItem);
+                  bool isSuccess = currentItem.enhanceLevel > oldLevel;
+                  widget.onShowToast?.call(result, isError: !isSuccess);
                   setState(() {});
                 }
               },
@@ -1358,8 +1391,17 @@ class _FeatureBtn extends StatelessWidget {
   final bool enabled;
   final bool isFull;
   final VoidCallback onTap;
+  final Widget? cost; // [v0.4.7] 소모 비용 표시용 위젯 추가
 
-  const _FeatureBtn({required this.title, required this.icon, required this.color, required this.enabled, required this.onTap, this.isFull = false});
+  const _FeatureBtn({
+    required this.title, 
+    required this.icon, 
+    required this.color, 
+    required this.enabled, 
+    required this.onTap, 
+    this.isFull = false,
+    this.cost,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1375,7 +1417,11 @@ class _FeatureBtn extends StatelessWidget {
         child: Column(children: [
           Icon(icon, size: 18, color: color.withOpacity(enabled ? 1 : 0.2)),
           const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.withOpacity(enabled ? 1 : 0.3))),
+          Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.withOpacity(enabled ? 1 : 0.3))),
+          if (cost != null) ...[
+            const SizedBox(height: 4),
+            cost!,
+          ],
         ]),
       ),
     );

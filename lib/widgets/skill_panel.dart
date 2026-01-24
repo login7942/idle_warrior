@@ -27,7 +27,7 @@ class SkillQuickbar extends StatelessWidget {
           margin: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (i) {
+            children: List.generate(6, (i) {
               if (i < activeSkills.length) {
                 final skill = activeSkills[i];
                 bool isUnlocked = skill.level > 0;
@@ -256,12 +256,21 @@ class SkillPanel extends StatelessWidget {
   }
 
   Widget _buildSkillEffectInfo(dynamic player, Skill skill) {
-    double effVal = player.getSkillValue(skill.id);
     int bonus = player.potentialSkillBonus;
+    double effVal;
+
+    if (skill.isUnlocked) {
+      effVal = player.getSkillValue(skill.id);
+    } else {
+      // 🆕 [v0.5.0] 미해금 상태일 경우 1레벨(+잠재보너스) 기준 미리보기 수치 계산
+      int previewLevel = 1 + bonus;
+      effVal = skill.baseValue + (previewLevel * skill.valuePerLevel);
+    }
 
     String effectText = "";
     switch (skill.id) {
       case 'act_1': effectText = '공격력의 ${effVal.toInt()}% 피해 (3연타)'; break;
+      case 'act_1_5': effectText = '공격력의 ${effVal.toInt()}% 피해 (2연타)'; break;
       case 'pas_1': effectText = '공격 속도 +${effVal.toInt()}%'; break;
       case 'act_2': effectText = '공격력의 ${effVal.toInt()}% 강력한 한방'; break;
       case 'pas_2': effectText = '방어력 +${effVal.toInt()}%'; break;

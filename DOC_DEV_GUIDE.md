@@ -273,10 +273,18 @@ if (_combatLog.length > 100) {
 void dispose() {
   _battleTimer?.cancel();
   _efficiencyTimer?.cancel();
+  _jumpEffectTimer?.cancel();
   super.dispose();
 }
 ```
 - 사용하지 않는 타이머 반드시 취소
+
+#### 3. 전역 콜백(Provider) 정리
+- `GameState`와 같이 앱 레벨에서 유지되는 Provider에 UI 위젯의 콜백을 연결한 경우, `dispose`에서 반드시 `null`로 해제해야 합니다. (메모리 누수 방지)
+- 예: `gameState.onDamageDealt = null;`
+
+#### 4. 오버레이(Overlay) 클린업
+- `OverlayEntry`를 사용하여 알림 등을 처리한 경우 위젯 소멸 시 명시적으로 `remove()` 처리합니다.
 
 ---
 

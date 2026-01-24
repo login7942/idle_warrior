@@ -54,9 +54,9 @@ class Player {
   // 강화 계승 시스템: 티어별 저장된 강화 레벨 (70% 계승용)
   Map<int, int> enhancementSuccession = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}; 
 
-  // --- [신규 업데이트 v0.0.60] 제작 및 게이트 시스템 재료 ---
-  // 티어 파편 (Disassembly Shards): 장비 분해 시 획득
-  Map<int, int> tierShards = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0};
+  // --- [신규 업데이트 v0.4.9] 제작 재료 통합 ---
+  // 통합 파편 (Disassembly Shards): 장비 분해 및 사냥 시 획득
+  int shards = 0;
   // 티어 코어 (Gate Cores): 스펙 조건 충족 시 몬스터 드랍 (심연의 구슬 등)
   Map<int, int> tierCores = {2: 0, 3: 0, 4: 0, 5: 0, 6: 0};
 
@@ -88,6 +88,9 @@ class Player {
     ItemType.ring: 0,
     ItemType.necklace: 0,
   };
+
+  // [v0.4.8] 기능 해금 알림 여부 (50, 300, 1000)
+  List<int> notifiedMilestones = [];
 
   // 장착 중인 모든 부위(6개)의 평균 강화 수치 (기존 아이템 강화 기준)
   double get averageEnhanceLevel {
@@ -255,9 +258,10 @@ class Player {
 
   // 스킬 목록 (v0.0.62 밸런스 개편)
   List<Skill> skills = [
-    Skill(id: 'act_1', name: '바람 베기', description: '초반 주력기 (3연타 공격)', type: SkillType.active, iconEmoji: '🌪️', unlockLevel: 5, unlockCost: 1000, baseUpgradeCost: 1000, costMultiplier: 1.5, baseValue: 80, valuePerLevel: 8, baseCooldown: 6),
-    Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 30, valuePerLevel: 2.0, baseCooldown: 0), // 밸런스: 10→30, 1.4→2.0
-    Skill(id: 'act_2', name: '강격', description: '강력한 한방 데미지를 입힙니다.', type: SkillType.active, iconEmoji: '🔨', unlockLevel: 15, unlockCost: 2000, baseUpgradeCost: 2000, costMultiplier: 1.6, baseValue: 200, valuePerLevel: 20, baseCooldown: 12),
+    Skill(id: 'act_1', name: '바람 베기', description: '초반 주력기 (3연타 공격)', type: SkillType.active, iconEmoji: '🌪️', unlockLevel: 5, unlockCost: 1000, baseUpgradeCost: 1000, costMultiplier: 1.5, baseValue: 70, valuePerLevel: 7, baseCooldown: 6), // 밸런스: 80→70
+    Skill(id: 'act_2', name: '강격', description: '강력한 한방 데미지를 입힙니다.', type: SkillType.active, iconEmoji: '🔨', unlockLevel: 15, unlockCost: 2000, baseUpgradeCost: 2000, costMultiplier: 1.6, baseValue: 250, valuePerLevel: 25, baseCooldown: 12), // 밸런스: 200→250
+    Skill(id: 'act_1_5', name: '쌍룡참', description: '매우 빠른 속도로 대상을 두 번 벱니다.', type: SkillType.active, iconEmoji: '⚔️', unlockLevel: 25, unlockCost: 4000, baseUpgradeCost: 4000, costMultiplier: 1.7, baseValue: 150, valuePerLevel: 15, baseCooldown: 10), // 🆕 신규 스킬
+    Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 30, valuePerLevel: 2.0, baseCooldown: 0), 
     Skill(id: 'pas_2', name: '철벽', description: '방어력이 % 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '🛡️', unlockLevel: 20, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
     Skill(id: 'act_3', name: '얼음 화살', description: '고위력 공격 및 적을 빙결시킵니다.', type: SkillType.active, iconEmoji: '❄️', unlockLevel: 30, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 1.8, baseValue: 300, valuePerLevel: 40, baseCooldown: 15),
     Skill(id: 'pas_3', name: '탐욕의 시선', description: '골드 및 아이템 획득량이 증가합니다.', type: SkillType.passive, iconEmoji: '👁️', unlockLevel: 45, unlockCost: 8000, baseUpgradeCost: 8000, costMultiplier: 2.2, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
@@ -393,7 +397,7 @@ class Player {
 
   int get attack {
     double petBonus = 1.0 + (petAtkBonus / 100);
-    int flat = getSkillValue('pas_1').toInt(); // 패시브 스킬 보너스
+    int flat = 0; // [v0.4.0] 수식 오류 수정: pas_1(광폭화)은 공속 스킬이므로 제거
     double activePetMultiplier = 1.0 + (getPetCompanionValue('용의 분노') / 100);
     
     for (var item in equipment.values) {
@@ -528,7 +532,7 @@ class Player {
       }
       if (item.potential?.name == '경험치 획득') itemBonusPerc += item.potential!.value;
     });
-    return 100.0 + (getSkillValue('pas_4') / 100) + itemBonusPerc; // 기본 100% 기준
+    return 100.0 + itemBonusPerc; // [v0.4.0] 수식 오류 수정: pas_4(약점 노출)는 치명타 피해 스킬이므로 제거
   }
 
   double get dropBonus {
@@ -617,32 +621,24 @@ class Player {
     int totalExp = (minutes * expMin * efficiency).toInt();
     int totalKills = (minutes * killsMin * efficiency).toInt();
     
-    // [v0.0.61] 제작 재료 보상 추가 (균형형)
-    int t1Shards = (totalKills * 0.5).toInt();      // T1 파편: 처치당 0.5개
+    // [v0.4.9] 통합 파편 보상 (평균 강화도 기반 효율 상승)
+    int shardReward = (totalKills * 0.5).toInt();   // 기본: 처치당 0.5개
+    if (averageSlotEnhanceLevel >= 300) shardReward = (totalKills * 0.8).toInt();
+    if (averageSlotEnhanceLevel >= 1000) shardReward = (totalKills * 1.5).toInt();
+    
     int powderReward = (totalKills * 0.3).toInt();  // 가루: 처치당 0.3개
     int stoneReward = (totalKills * 0.05).toInt();  // 강화석: 처치당 0.05개
     int rerollReward = (totalKills * 0.02).toInt(); // 재설정석: 처치당 0.02개
     int protectReward = (totalKills * 0.01).toInt();// 보호석: 처치당 0.01개
     int cubeReward = (totalKills * 0.005).toInt();  // 큐브: 처치당 0.005개
     
-    // 티어별 파편 차등 지급 (평균 강화도 기반)
-    Map<int, int> tierShardsReward = {1: t1Shards};
-    if (averageEnhanceLevel >= 13.0) {
-      // T2 파편: T1의 10%
-      tierShardsReward[2] = (totalKills * 0.05).toInt();
-    }
-    if (averageEnhanceLevel >= 15.0) {
-      // T3 파편: T1의 3%
-      tierShardsReward[3] = (totalKills * 0.015).toInt();
-    }
-    
     return {
       'minutes': minutes,
       'gold': totalGold,
       'exp': totalExp,
       'kills': totalKills,
-      'bonusStones': stoneReward, // 기존 bonusStones를 stoneReward로 통합
-      'tierShards': tierShardsReward,
+      'bonusStones': stoneReward, 
+      'shards': shardReward, // 통합 파편으로 변경
       'powder': powderReward,
       'rerollStone': rerollReward,
       'protectionStone': protectReward,
@@ -660,12 +656,9 @@ class Player {
     totalKills += rewards['kills'] as int;
     totalGoldEarned += rewards['gold'] as int;
     
-    // [v0.0.61] 신규 제작 재료 보상
-    if (rewards.containsKey('tierShards')) {
-      Map<int, int> tierShardsReward = Map<int, int>.from(rewards['tierShards']);
-      tierShardsReward.forEach((tier, amount) {
-        tierShards[tier] = (tierShards[tier] ?? 0) + amount;
-      });
+    // [v0.4.9] 통합 파편 보상 적용
+    if (rewards.containsKey('shards')) {
+      shards += rewards['shards'] as int;
     }
     
     if (rewards.containsKey('powder')) {
@@ -700,11 +693,12 @@ class Player {
     'activePetId': activePet?.id,
     'encyclopediaProgress': encyclopediaProgress,
     'encyclopediaClaims': encyclopediaClaims, 
-    'tierShards': tierShards.map((k, v) => MapEntry(k.toString(), v)),
+    'shards': shards,
     'tierCores': tierCores.map((k, v) => MapEntry(k.toString(), v)),
     'slotEnhanceLevels': slotEnhanceLevels.map((k, v) => MapEntry(k.name, v)),
     'slotEnhanceFailCounts': slotEnhanceFailCounts.map((k, v) => MapEntry(k.name, v)),
     'slotEnhanceStreakCounts': slotEnhanceStreakCounts.map((k, v) => MapEntry(k.name, v)),
+    'notifiedMilestones': notifiedMilestones,
   };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -804,9 +798,16 @@ class Player {
       });
     }
 
-    if (json['tierShards'] != null) {
-      var map = Map<String, dynamic>.from(json['tierShards']);
-      p.tierShards = map.map((k, v) => MapEntry(int.tryParse(k) ?? 1, v as int));
+    if (json['shards'] != null) {
+      p.shards = json['shards'] as int;
+    } else if (json['tierShards'] != null) {
+      // 🆕 [v0.4.9] 마이그레이션: 기존 티어별 파편을 모두 합산하여 통합 파편으로 전환
+      try {
+        var oldMap = Map<String, dynamic>.from(json['tierShards']);
+        int total = 0;
+        oldMap.forEach((_, v) { total += (v as int); });
+        p.shards = total;
+      } catch (_) {}
     }
     if (json['tierCores'] != null) {
       var map = Map<String, dynamic>.from(json['tierCores']);
@@ -838,6 +839,10 @@ class Player {
           p.slotEnhanceStreakCounts[ItemType.values.byName(k)] = v as int;
         } catch (_) {}
       });
+    }
+
+    if (json['notifiedMilestones'] != null) {
+      p.notifiedMilestones = List<int>.from(json['notifiedMilestones']);
     }
 
     return p;

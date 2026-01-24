@@ -24,13 +24,14 @@ class CombatLogEntry {
   CombatLogEntry(this.message, this.type) : time = DateTime.now();
 }
 
-// 🆕 연타 스킬 타격 정보 (Ticker 기반 처리용)
 class PendingHit {
   final int damage;
   final bool isSkill;
   final double offsetX;
   final double offsetY;
   final DateTime scheduledTime;
+  final bool shouldAnimate;
+  final String? skillIcon; // 🆕 스킬 아이콘(이모지) 저장
 
   PendingHit({
     required this.damage,
@@ -38,6 +39,8 @@ class PendingHit {
     required this.offsetX,
     required this.offsetY,
     required this.scheduledTime,
+    this.shouldAnimate = true,
+    this.skillIcon,
   });
 }
 
@@ -125,13 +128,14 @@ class GameState extends ChangeNotifier {
   Timer? _autoSaveTimer;
   
   // --- UI 통신용 콜백 ---
-  Function(String text, bool isCrit, bool isSkill, {double? ox, double? oy})? onDamageDealt;
+  Function(String text, int damage, bool isCrit, bool isSkill, {double? ox, double? oy, bool shouldAnimate, String? skillIcon})? onDamageDealt;
   Function(int damage)? onPlayerDamageTaken;
   VoidCallback? onMonsterSpawned;
   Function(int gold, int exp)? onVictory;
   Function(int healAmount)? onHeal;
   VoidCallback? onStageJump; // [v0.0.79] 스테이지 점프 발생 시 호출
   Function(String title, String message)? onSpecialEvent; // 🆕 럭키 스트릭 등 특수 연출용
+  Function(String icon, String name, ItemGrade grade, {int amount})? onLootAcquired; // 🆕 아이콘 기반 알림용
 
   // 🆕 초기화 완료 여부 확인용
   final Completer<void> initializationCompleter = Completer<void>();
@@ -391,6 +395,7 @@ class GameState extends ChangeNotifier {
     // 스킬별 타격 횟수 정의
     int hits = 1;
     if (skill.id == 'act_1') hits = 3; // 바람 베기는 3연타
+    if (skill.id == 'act_1_5') hits = 2; // 🆕 쌍룡참은 2연타
 
     // 몬스터 방어력에 배율 적용 (관리자 설정)
     double effectiveDefense = currentMonster!.defense * monsterDefenseMultiplier;
@@ -420,12 +425,14 @@ class GameState extends ChangeNotifier {
         offsetX: offsets[i].dx,
         offsetY: offsets[i].dy,
         scheduledTime: scheduledTime,
+        shouldAnimate: i == 0,
+        skillIcon: skill.iconEmoji, // 🆕 스킬 아이콘 전달
       ));
     }
   }
 
   // 🆕 데미지 처리 통합 헬퍼 (최적화) - GameLoop에서도 접근 가능하도록 public
-  void damageMonster(int baseDmg, bool isMonsterAtk, bool isSkill, {double ox = 0, double oy = 0}) {
+  void damageMonster(int baseDmg, bool isMonsterAtk, bool isSkill, {double ox = 0, double oy = 0, bool shouldAnimate = true, String? skillIcon}) {
     if (currentMonster == null || currentMonster!.isDead) return;
 
     // 치명타 적용
@@ -437,11 +444,9 @@ class GameState extends ChangeNotifier {
     _monsterCurrentHp = currentMonster!.hp; // 직접 변수 수정 (notifyListeners 억제)
 
     // UI 알림 (Floating Text)
-    String text = isSkill 
-      ? (isCrit ? '⚡CRITICAL $finalDmg' : '🔥SKILL $finalDmg')
-      : finalDmg.toString();
+    String text = finalDmg.toString(); // 🆕 레이블 제거, 숫자만 전달
     
-    onDamageDealt?.call(text, isCrit, isSkill, ox: ox, oy: oy);
+    onDamageDealt?.call(text, finalDmg, isCrit, isSkill, ox: ox, oy: oy, shouldAnimate: shouldAnimate, skillIcon: skillIcon);
 
     // 흡혈 처리
     if (!isMonsterAtk && player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
@@ -542,6 +547,9 @@ class GameState extends ChangeNotifier {
         addLog('[획득] ${newItem.grade.name} 등급의 ${newItem.type.nameKr} 획득!', LogType.item);
         player.totalItemsFound++;
         player.updateEncyclopedia(newItem); // [v0.0.78] 획득 시 도감 갱신
+        
+        // 🆕 UI 알림 호출
+        onLootAcquired?.call(newItem.type.iconEmoji, newItem.name, newItem.grade, amount: 1);
       }
     }
   }
@@ -557,6 +565,7 @@ class GameState extends ChangeNotifier {
       int amount = 1 + (monsterLevel / 50).floor() + rand.nextInt(3);
       player.enhancementStone += amount;
       addLog('[공명] 강화석 $amount개 획득!', LogType.item);
+      onLootAcquired?.call('💎', '강화석', ItemGrade.rare, amount: amount);
     }
     
     // 2. 가루 드롭 (기본 40% -> 보너스 적용 시 56%)
@@ -564,24 +573,30 @@ class GameState extends ChangeNotifier {
       int amount = (monsterLevel / 5).ceil() + rand.nextInt(10);
       player.powder += amount;
       addLog('[추출] 신비로운 가루 $amount개 획득!', LogType.item);
+      onLootAcquired?.call('✨', '신비의 가루', ItemGrade.uncommon, amount: amount);
     }
     
-    // 3. 재설정석 드롭 (기본 10% -> 보너스 적용 시 14%)
-    if (rand.nextDouble() < (0.1 * matBonus)) {
+    // 3. 재설정석 드롭 (v0.4.8: 숲 이상 사냥터에서만 드롭)
+    bool canDropReroll = currentZone.id.index >= ZoneId.forest.index;
+    if (canDropReroll && rand.nextDouble() < (0.1 * matBonus)) {
       player.rerollStone += 1;
       addLog('[희귀] 옵션 재설정석 획득!', LogType.item);
+      onLootAcquired?.call('🌀', '재설정석', ItemGrade.rare, amount: 1);
     }
     
     // 4. 보호석 (기본 2% -> 보너스 적용 시 2.8%)
     if (rand.nextDouble() < (0.02 * matBonus)) {
       player.protectionStone += 1;
       addLog('[전설] 강화 보호석 획득!', LogType.item);
+      onLootAcquired?.call('🛡️', '보호석', ItemGrade.legendary, amount: 1);
     }
 
-    // 5. 강화 큐브 드롭 (기본 0.1% -> 보너스 적용 시 0.14%)
-    if (rand.nextDouble() < (0.001 * matBonus)) {
+    // 5. 강화 큐브 드롭 (v0.4.8: 광산 이상 사냥터에서만 드롭)
+    bool canDropCube = currentZone.id.index >= ZoneId.mine.index;
+    if (canDropCube && rand.nextDouble() < (0.001 * matBonus)) {
       player.cube += 1;
       addLog('[신화] 강화 큐브 획득!', LogType.item);
+      onLootAcquired?.call('🧊', '강화 큐브', ItemGrade.mythic, amount: 1);
     }
 
     // --- [v0.3.8] 티어 재료 해금 + 지역 연동 드랍 시스템 ---
@@ -623,6 +638,7 @@ class GameState extends ChangeNotifier {
       if (rand.nextDouble() < baseProb) {
         player.tierCores[tier] = (player.tierCores[tier] ?? 0) + 1;
         addLog('★ [파이널] $tier티어 핵심 재료 [T$tier 구슬] 획득!', LogType.event);
+        onLootAcquired?.call('🔮', 'T$tier 심연의 구슬', ItemGrade.unique, amount: 1);
         
         // 보스인 경우 전용 알림
         if (isBoss) {
@@ -701,8 +717,10 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void enhanceItem(Item item) {
-    if (item.isLocked || player.gold < item.enhanceCost || player.enhancementStone < item.stoneCost) return;
+  String enhanceItem(Item item) {
+    if (item.isLocked) return "잠긴 아이템은 강화할 수 없습니다.";
+    if (player.gold < item.enhanceCost || player.enhancementStone < item.stoneCost) return "재화가 부족합니다.";
+    if (item.isBroken) return "파손된 장비는 강화할 수 없습니다.";
 
     player.gold -= item.enhanceCost;
     player.enhancementStone -= item.stoneCost;
@@ -723,6 +741,7 @@ class GameState extends ChangeNotifier {
     
     saveGameData();
     notifyListeners();
+    return resultMsg;
   }
 
   void promoteItem(Item item) {
@@ -886,6 +905,31 @@ class GameState extends ChangeNotifier {
 
     saveGameData();
     notifyListeners();
+
+    // [v0.4.8] 기능 해금 마일스톤 체크
+    _checkFeatureUnlockMilestones();
+  }
+
+  void _checkFeatureUnlockMilestones() {
+    int totalSlotLv = player.totalSlotEnhanceLevel;
+    
+    // 1. 아이템 강화 해금 (50)
+    if (totalSlotLv >= 50 && !player.notifiedMilestones.contains(50)) {
+      player.notifiedMilestones.add(50);
+      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 50 달성! 아이템 강화 기능이 해금되었습니다.');
+    }
+    // 2. 옵션 재설정 해금 (300)
+    if (totalSlotLv >= 300 && !player.notifiedMilestones.contains(300)) {
+      player.notifiedMilestones.add(300);
+      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 300 달성! 옵션 재설정 기능이 해금되었습니다.');
+    }
+    // 3. 잠재능력 각성 해금 (1000)
+    if (totalSlotLv >= 1000 && !player.notifiedMilestones.contains(1000)) {
+      player.notifiedMilestones.add(1000);
+      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 1000 달성! 잠재능력 각성 기능이 해금되었습니다.');
+    }
+    
+    saveGameData();
   }
 
   Map<String, int> executeDismantle(Item item) {
@@ -901,9 +945,8 @@ class GameState extends ChangeNotifier {
     player.protectionStone += rewards['protection']!;
     player.cube += rewards['cube']!;
     
-    int tier = rewards['tier']!;
     int shards = rewards['shards']!;
-    player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
+    player.shards += shards;
     
     addLog('[분해] ${item.name}을(를) 분해하여 재료를 획득했습니다.', LogType.item);
     saveGameData();
@@ -933,10 +976,9 @@ class GameState extends ChangeNotifier {
         totalProtection += rewards['protection']!;
         totalCube += rewards['cube']!;
         
-        int tier = rewards['tier']!;
         int shards = rewards['shards']!;
-        player.tierShards[tier] = (player.tierShards[tier] ?? 0) + shards;
-        totalShards[tier] = (totalShards[tier] ?? 0) + shards;
+        player.shards += shards;
+        totalShards[rewards['tier']!] = (totalShards[rewards['tier']!] ?? 0) + shards;
         
         return true;
       }

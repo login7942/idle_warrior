@@ -67,11 +67,17 @@ class GameLoop {
         hit.isSkill,
         ox: hit.offsetX,
         oy: hit.offsetY,
+        shouldAnimate: hit.shouldAnimate,
+        skillIcon: hit.skillIcon, // 🆕 아이콘 전달
       );
     }
 
-    // 1. 플레이어 공격 주기 처리
-    _attackAccumulator += t;
+    // 1. 플레이어 공격 주기 처리 (v0.1.x 직렬화 적용)
+    // 연타 스킬(pendingHits)이 남아있는 동안에는 다음 공격 턴 게이지를 쌓지 않음
+    if (gameState.pendingHits.isEmpty) {
+      _attackAccumulator += t;
+    }
+
     double playerAttackInterval = 1.0 / gameState.player.attackSpeed;
     if (playerAttackInterval < 0.167) playerAttackInterval = 0.167; // 하드캡: 6.0 공속 (0.25 → 0.167)
 
