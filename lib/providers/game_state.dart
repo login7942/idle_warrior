@@ -141,6 +141,27 @@ class GameState extends ChangeNotifier {
   Function(String title, String message)? onSpecialEvent; // 🆕 럭키 스트릭 등 특수 연출용
   Function(String icon, String name, ItemGrade grade, {int amount})? onLootAcquired; // 🆕 아이콘 기반 알림용
   VoidCallback? onPlayerDeath; // 🆕 사망 연출 및 팝업용
+  Function(int level, String name, String bonus)? onPromotionSuccess; // 🆕 [v0.5.27] 승급 성공 전용 콜백
+
+  // 🆕 [v0.5.26] 승급 로직
+  void promote() {
+    double avg = player.averageSlotEnhanceLevel;
+    int nextLevel = player.promotionLevel + 1;
+    
+    if (nextLevel < Player.promotionSteps.length) {
+      int req = Player.promotionSteps[nextLevel]['req'];
+      if (avg >= req) {
+        player.promotionLevel = nextLevel;
+        final step = Player.promotionSteps[nextLevel];
+        onPromotionSuccess?.call(nextLevel, step['name'], step['bonus']);
+        notifyListeners();
+      } else {
+        onSpecialEvent?.call('승급 불가', '슬롯 평균 레벨이 부족합니다. (필요: $req)');
+      }
+    } else {
+      onSpecialEvent?.call('최고 단계', '이미 최고 단계에 도달하셨습니다.');
+    }
+  }
 
   // 🆕 초기화 완료 여부 확인용
   final Completer<void> initializationCompleter = Completer<void>();
@@ -392,13 +413,24 @@ class GameState extends ChangeNotifier {
     // 🆕 일반 공격 콤보 단계 증가 (1~4타 순환)
     _normalAttackCombo = (_normalAttackCombo % 4) + 1;
     
-    // 콤보 단계별 데미지 배율 결정
+    // 콤보 단계별 데미지 배율 결정 (v0.5.26 승급 보너스 반영)
     double comboMultiplier;
     switch (_normalAttackCombo) {
-      case 2: comboMultiplier = 1.3; break;
-      case 3: comboMultiplier = 1.7; break;
-      case 4: comboMultiplier = 2.2; break;
-      default: comboMultiplier = 1.0; // 1타 또는 초기화 상태
+      case 2: 
+        comboMultiplier = 1.3; 
+        if (player.promotionLevel >= 4) comboMultiplier *= 1.1; // 4단계: 1,2타 +10%
+        break;
+      case 3: 
+        comboMultiplier = 1.7; 
+        if (player.promotionLevel >= 5) comboMultiplier *= 1.1; // 5단계: 3타 +10%
+        break;
+      case 4: 
+        comboMultiplier = 2.2; 
+        if (player.promotionLevel >= 6) comboMultiplier *= 1.1; // 6단계: 4타 +10%
+        break;
+      default: 
+        comboMultiplier = 1.0; // 1타
+        if (player.promotionLevel >= 4) comboMultiplier *= 1.1; // 4단계: 1,2타 +10%
     }
 
     // 몬스터 방어력에 배율 적용 (관리자 설정)

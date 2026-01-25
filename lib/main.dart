@@ -183,10 +183,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     final gameState = context.read<GameState>();
     _gameLoop = GameLoop(gameState);
     
-    _playerAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
-    _playerHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
-    _monsterAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
-    _monsterHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _playerAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _playerHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _monsterAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _monsterHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _uiTickerController = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
     _shimmerController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
     
@@ -304,6 +304,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       } else {
         _showToast('사망하여 스테이지가 하락했습니다.', isError: true);
       }
+    };
+
+    gameState.onPromotionSuccess = (level, name, bonus) {
+      if (!mounted) return;
+      _showPromotionDialog(level, name, bonus);
     };
 
     // 초기 실행 시 몬스터가 이미 있다면 등장 애니메이션 실행
@@ -2023,8 +2028,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return AnimatedBuilder(
       animation: Listenable.merge([atk, hit, _heroPulseController, _heroRotateController, _monsterSpawnController, _monsterDeathController]), 
       builder: (ctx, _) {
-        // 1. 공격 애니메이션 (앞으로 튀어나갔다 돌아옴)
-        double lunge = sin(atk.value * pi) * 25; // 0 -> 25 -> 0
+        // 1. 공격 애니메이션 강화 (v0.5.24)
+        double attackWeight;
+        if (atk.value < 0.25) {
+          // 0~0.25 구간: Curves.easeOutBack으로 튀어나감
+          attackWeight = Curves.easeOutBack.transform(atk.value / 0.25);
+        } else {
+          // 0.25~1.0 구간: 부드럽게 복귀
+          attackWeight = 1.0 - Curves.easeIn.transform((atk.value - 0.25) / 0.75);
+        }
+
+        double lunge = attackWeight * 18; // 18px 전진
+        double attackScale = 1.0 + (attackWeight * 0.1); // 1.1배 확대
         
         // 방향 결정 (플레이어는 오른쪽(+), 몬스터는 왼쪽(-)이 전진)
         double totalOffset = (p ? lunge : -lunge);
@@ -2041,7 +2056,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             child: Transform.rotate(
               angle: deathRotate,
               child: Transform.scale(
-                scale: spawnScale,
+                scale: spawnScale * attackScale,
                 child: Column(
             mainAxisAlignment: MainAxisAlignment.center, 
             children: [
@@ -2077,88 +2092,42 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ),
                 )
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 5), // 🆕 12px -> 5px로 간격 압축
               
-              // 3. 전투 비주얼 엔진 (FX Overhaul)
+              // 3. ✨ [v0.5.28] 고성능 통합 비주얼 엔진 (HeroEffectPainter)
               Stack(
                 alignment: Alignment.bottomCenter,
                 children: [
-                  // 3-1. 발밑 회전 마법진 (Rotating Foot Seal)
-                  RotationTransition(
-                    turns: _heroRotateController,
-                    child: Container(
-                      width: 90, height: 90,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: p ? Colors.cyan.withValues(alpha: 0.08) : Colors.red.withValues(alpha: 0.05), width: 0.5),
-                      ),
-                      child: Stack(
-                        children: List.generate(4, (i) => Align(
-                          alignment: Alignment(cos(i * pi/2), sin(i * pi/2)),
-                          child: Container(width: 3, height: 3, decoration: BoxDecoration(color: p ? Colors.cyan : Colors.red, shape: BoxShape.circle)),
-                        )),
-                      ),
-                    ),
-                  ),
-
-                  // 3-2. 고밀도 더블 레이어 블룸 오라 (Double Bloom Aura)
-                  Container(
-                    width: 70.0 + (25.0 * _heroPulseController.value),
-                    height: 80.0 + (20.0 * _heroPulseController.value),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        // Core Glow
-                        BoxShadow(
-                          color: p ? Colors.blueAccent.withValues(alpha: 0.25) : Colors.red.withValues(alpha: 0.2),
-                          blurRadius: 20.0 + (15.0 * _heroPulseController.value),
-                          spreadRadius: 2,
-                        ),
-                        // Outer Bloom
-                        BoxShadow(
-                          color: p ? Colors.cyan.withValues(alpha: 0.12) : Colors.redAccent.withValues(alpha: 0.1),
-                          blurRadius: 40.0 + (30.0 * _heroPulseController.value),
-                          spreadRadius: 5.0 + (10.0 * _heroPulseController.value),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // 3-3. 입체형 바닥 그림자
-                  Container(
-                    width: 55.0 - (8.0 * _heroPulseController.value),
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: const BorderRadius.all(Radius.elliptical(55, 10)),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 12)],
-                    ),
-                  ),
-
-                  // 3-4. 부유 마력 입자 시스템 (Enhanced 8-Particles)
-                  if (p)
-                    ...List.generate(8, (i) => _buildCombatParticle(i)),
+                   // 🆕 공간을 120px로 압축하여 HP바가 머리 위로 오게 조정
+                   IgnorePointer(
+                     child: CustomPaint(
+                       size: const Size(120, 120),
+                       painter: HeroEffectPainter(
+                         promotionLevel: p ? gameState.player.promotionLevel : 0,
+                         isPlayer: p,
+                         pulse: _heroPulseController.value,
+                         rotation: _heroRotateController.value,
+                       ),
+                     ),
+                   ),
 
                   // 3-5. 액터 본체 (Breathing + Movement)
                   Transform.translate(
                     offset: p ? Offset(0, -6.0 * _heroPulseController.value) : Offset(0, -3.0 * _heroPulseController.value),
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // 실루엣 이너 글로우 효과 (Shadow Trick)
-                          SizedBox(
-                            width: 88, height: 88,
-                            child: Image.asset(img, fit: BoxFit.contain, color: p ? Colors.blueAccent.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.1), colorBlendMode: BlendMode.srcATop),
-                          ),
-                          // 실제 이미지
-                          SizedBox(
-                            width: 85, height: 85, 
-                            child: Image.asset(img, fit: BoxFit.contain)
-                          ),
-                        ],
-                      ),
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        // 실루엣 이너 글로우 효과 (Shadow Trick)
+                        SizedBox(
+                          width: 88, height: 88,
+                          child: Image.asset(img, fit: BoxFit.contain, color: p ? Colors.blueAccent.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.1), colorBlendMode: BlendMode.srcATop),
+                        ),
+                        // 실제 이미지
+                        SizedBox(
+                          width: 85, height: 85, 
+                          child: Image.asset(img, fit: BoxFit.contain)
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -2173,36 +2142,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  // 강화된 전투 파티클 알고리즘 (Zig-zag Motion)
-  Widget _buildCombatParticle(int index) {
-    return AnimatedBuilder(
-      animation: _heroPulseController,
-      builder: (context, child) {
-        final double speed = 0.4 + (index * 0.15);
-        final double progress = (_heroPulseController.value * speed + (index / 8)) % 1.0;
-        
-        // 지그재그 모션 계산
-        final double zigZag = sin(progress * pi * 4 + index) * 15.0;
-        final double startX = (index - 3.5) * 12.0;
-        final double currentY = -20 - (100 * progress);
-        
-        return Transform.translate(
-          offset: Offset(startX + zigZag, currentY),
-          child: Opacity(
-            opacity: (1 - progress) * 0.8,
-            child: Container(
-              width: 2.5, height: 2.5,
-              decoration: BoxDecoration(
-                color: index % 2 == 0 ? Colors.cyanAccent : Colors.blueAccent, 
-                shape: BoxShape.circle,
-                boxShadow: index % 3 == 0 ? [BoxShadow(color: Colors.white, blurRadius: 4)] : null,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // OLD _buildCombatParticle REMOVED (Integrated into HeroEffectPainter)
 
   Widget _buildBattleStatusArea(GameState gameState) {
     final pet = gameState.player.activePet;
@@ -3069,6 +3009,59 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
+  // 🆕 [v0.5.27] 승급 성공 전용 팝업 다이얼로그
+  void _showPromotionDialog(int level, String name, String bonus) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassContainer(
+          padding: const EdgeInsets.all(32),
+          borderRadius: 30,
+          border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.5), width: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.workspace_premium, color: Colors.amberAccent, size: 80),
+              const SizedBox(height: 24),
+              const ShadowText('승급 성공!', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+              const SizedBox(height: 12),
+              const Text('새로운 경지에 도달하셨습니다.', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 32),
+              
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                decoration: BoxDecoration(
+                  color: Colors.amberAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Text(name, style: const TextStyle(color: Colors.amberAccent, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                    const SizedBox(height: 12),
+                    Divider(color: Colors.amberAccent.withValues(alpha: 0.3), thickness: 0.5),
+                    const SizedBox(height: 12),
+                    const Text('승급 보너스 효과', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    Text(bonus, style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 40),
+              PopBtn('확인', Colors.orangeAccent, () {
+                Navigator.of(dialogCtx).pop();
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showTowerResultDialog(bool isSuccess) {
     if (_isTowerResultShowing) return;
     _isTowerResultShowing = true;
@@ -3406,25 +3399,25 @@ class DamageEntry {
     } else {
       switch (type) {
         case DamageType.critical: 
-          color = const Color(0xFFEF4444); 
+          color = const Color(0xFFFF3333); 
           fontSize = 24.0; 
-          fontWeight = FontWeight.bold; 
+          fontWeight = FontWeight.w900; 
           break;
         case DamageType.skill: 
-          color = Colors.white; 
-          fontSize = 22.0; 
-          fontWeight = FontWeight.w600; 
+          color = const Color(0xFF00FBFF); 
+          fontSize = 20.0; 
+          fontWeight = FontWeight.bold; 
           break;
         case DamageType.heal: 
-          color = const Color(0xFF22C55E); 
+          color = const Color(0xFF4ADE80); 
           fontSize = 18.0; 
           break;
         case DamageType.gold: 
-          color = const Color(0xFFEAB308); 
+          color = const Color(0xFFFFD700); 
           fontSize = 17.0; 
           break;
         case DamageType.exp: 
-          color = const Color(0xFF3B82F6); 
+          color = const Color(0xFF60A5FA); 
           fontSize = 17.0; 
           break;
         default: 
@@ -3456,11 +3449,11 @@ class DamageEntry {
 
   static Color _getTypeColor(DamageType type) {
     switch (type) {
-      case DamageType.critical: return const Color(0xFFEF4444);
-      case DamageType.skill: return Colors.white;
-      case DamageType.heal: return const Color(0xFF22C55E);
-      case DamageType.gold: return const Color(0xFFEAB308);
-      case DamageType.exp: return const Color(0xFF3B82F6);
+      case DamageType.critical: return const Color(0xFFFF3333);
+      case DamageType.skill: return const Color(0xFF00FBFF);
+      case DamageType.heal: return const Color(0xFF4ADE80);
+      case DamageType.gold: return const Color(0xFFFFD700);
+      case DamageType.exp: return const Color(0xFF60A5FA);
       default: return Colors.white;
     }
   }
@@ -3471,8 +3464,8 @@ class DamageManager {
   final List<DamageEntry> texts = [];
   
   void add(DamageEntry entry) {
-    // 최대 텍스트 수 제한 (너무 많으면 메모리 부하 방지)
-    if (texts.length > 30) texts.removeAt(0);
+    // 🆕 성능 최적화: 최대 텍스트 수를 20개로 제한 (GPU 부하 방지)
+    if (texts.length > 20) texts.removeAt(0);
     texts.add(entry);
   }
   
@@ -3502,40 +3495,175 @@ class DamagePainter extends CustomPainter {
       
       double scale = 1.0;
       double offsetY = 0.0;
+      double opacity = 1.0;
 
-      // 1단계: 0~0.16s (0~20%) - Bounce Bounce (튀어오름)
+      // 1단계: 0~0.16s (0~20%) - 팝업 (투명도 0->1, 크기 0.5->1.2, 살짝 튕김)
       if (progress <= 0.2) {
         final p = progress / 0.2; // 0.0 ~ 1.0
+        opacity = p; // 0.0 -> 1.0
         scale = 0.5 + (0.7 * p); // 0.5 -> 1.2
-        offsetY = -25 * p; // 0 -> -25px
+        offsetY = -20 * p; // 0 -> -20px (살짝 튕김)
       } 
-      // 2단계: 0.16~0.8s (20~100%) - ScaleDown & Rise & Fade (부드러운 소멸)
+      // 2단계: 0.16~0.8s (20~100%) - 상승 소멸 (부드럽게 떠오르며 투명도 1->0)
       else {
         final p = (progress - 0.2) / 0.8; // 0.0 ~ 1.0
+        opacity = 1.0 - p; // 1.0 -> 0.0
         scale = 1.2 - (0.2 * p); // 1.2 -> 1.0
-        offsetY = -25 - (75 * p); // -25 -> -100px
+        offsetY = -20 - (60 * p); // -20 -> -80px까지 (총 80px 이동)
       }
 
       // 최종 좌표 계산 (basePosition + 애니메이션 오프셋)
       final position = ft.basePosition + Offset(0, offsetY);
 
+      if (opacity <= 0) continue;
+      
       canvas.save();
       canvas.translate(position.dx, position.dy);
       canvas.scale(scale);
       
-      // 투명도만 적용하여 그리기 (layout 재호출 없음)
-      // canvas.saveLayer를 쓰지 않고 효율적으로 투명도 처리 (TextPainter의 Opacity는 생성 시점이 아닌 그릴 때 제어)
-      // 실제로는 Paint 객체를 통해 제어 가능하지만 TextPainter는 내부 span style을 따르므로 
-      // 최적화를 위해 drawText 시점에 opacity를 입히는 방식은 canvas.saveLayer가 필요하나 부하가 큼.
-      // 따라서 생성된 Painter를 그대로 사용하되 opacity 연산은 TextStyle에서 하던대로 유지하거나
-      // 여기서는 성능을 위해 saveLayer 없이 그립니다.
-      ft.textPainter.paint(canvas, Offset(-ft.textPainter.width / 2, -ft.textPainter.height / 2));
-      canvas.restore();
+      // 🆕 성능 최적화: 투명도가 1.0에 가까우면 saveLayer 없이 즉시 그리기
+      if (opacity >= 0.98) {
+        ft.textPainter.paint(canvas, Offset(-ft.textPainter.width / 2, -ft.textPainter.height / 2));
+      } else {
+        // 투명도가 있을 때만 saveLayer 사용
+        final Rect textRect = Rect.fromLTWH(-ft.textPainter.width/2, -ft.textPainter.height/2, ft.textPainter.width, ft.textPainter.height);
+        canvas.saveLayer(textRect, Paint()..color = Colors.white.withAlpha((opacity * 255).toInt()));
+        ft.textPainter.paint(canvas, Offset(-ft.textPainter.width / 2, -ft.textPainter.height / 2));
+        canvas.restore(); // for saveLayer
+      }
+      
+      canvas.restore(); // for translate/scale
     }
   }
 
   @override
   bool shouldRepaint(covariant DamagePainter oldDelegate) => true;
+}
+
+/// 🆕 [v0.5.28] 고성능 통합 히어로 효과 렌더러
+/// 캐릭터의 모든 비주얼 효과(오라, 마법진, 파티클)를 단일 캔버스에서 처리하여 성능을 극대화함.
+class HeroEffectPainter extends CustomPainter {
+  final int promotionLevel;
+  final bool isPlayer;
+  final double pulse; // 0.0 ~ 1.0 (Pulse Controller)
+  final double rotation; // 0.0 ~ 1.0 (Rotate Controller)
+
+  HeroEffectPainter({
+    required this.promotionLevel,
+    required this.isPlayer,
+    required this.pulse,
+    required this.rotation,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 🆕 기준점을 캔버스 하단 중앙(캐릭터 발끝)으로 재설정
+    final center = Offset(size.width / 2, size.height - 15);
+    final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
+
+    // 🆕 10단계 무지개 효과용 Hue 계산
+    Color getRainbowColor(double offset) {
+      if (promotionLevel < 10) return isPlayer ? Colors.cyanAccent : Colors.redAccent;
+      final double hue = (time * 60 + offset) % 360;
+      return HSVColor.fromAHSV(1.0, hue, 0.7, 1.0).toColor();
+    }
+
+    // 1. 바닥 그림자 (기본 탑재)
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: 60 - (10 * pulse), height: 12),
+      shadowPaint,
+    );
+
+    // 2. 발밑 마법진 (3단계 이상, 몬스터는 제외)
+    if (isPlayer && (promotionLevel >= 3)) {
+      final sealPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.cyan.withValues(alpha: 0.15);
+
+      if (promotionLevel >= 10) sealPaint.color = getRainbowColor(0).withValues(alpha: 0.3);
+
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(rotation * 2 * pi);
+      
+      // 1단 마법진
+      canvas.drawCircle(Offset.zero, 45, sealPaint);
+      
+      // 마법진 노드
+      final nodePaint = Paint()..style = PaintingStyle.fill;
+      for (int i = 0; i < 4; i++) {
+        double angle = i * pi / 2;
+        nodePaint.color = Colors.cyan;
+        if (promotionLevel >= 10) nodePaint.color = getRainbowColor(i * 90);
+        canvas.drawCircle(Offset(cos(angle) * 45, sin(angle) * 45), 2.5, nodePaint);
+      }
+
+      // 5단계 이상: 2단 마법진 (역회전)
+      if (promotionLevel >= 5) {
+        canvas.rotate(-rotation * 4 * pi);
+        canvas.drawCircle(Offset.zero, 52, sealPaint..strokeWidth = 0.8);
+      }
+      canvas.restore();
+    }
+
+    // 3. 블룸 오라 (4단계 이상, 몬스터는 제외)
+    if (isPlayer && (promotionLevel >= 4)) {
+      final auraPulse = 1.0 + (pulse * 0.1);
+      final auraColor = promotionLevel >= 10 ? getRainbowColor(180) : Colors.blueAccent;
+      
+      final auraPaint = Paint()
+        ..color = auraColor.withValues(alpha: 0.15 * (1 - pulse))
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 25 + (15 * pulse));
+      
+      // 오라 위치를 캐릭터 본체에 더 가깝게 조정
+      canvas.drawCircle(center + const Offset(0, -50), 35 * auraPulse, auraPaint);
+      
+      if (promotionLevel >= 7) {
+        // 전설 단계 이상: 핵심 코어 오라 추가
+        final corePaint = Paint()
+          ..color = auraColor.withValues(alpha: 0.25)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+        canvas.drawCircle(center + const Offset(0, -50), 18, corePaint);
+      }
+    }
+
+    // 4. 부유 파티클 (1단계 이상, 몬스터는 제외)
+    if (isPlayer && (promotionLevel >= 1)) {
+      int particleCount = (4 + (promotionLevel * 2)).clamp(4, 24);
+      for (int i = 0; i < particleCount; i++) {
+        final double speed = 0.3 + (i * 0.04); // 속도 약간 감속
+        final double progress = (pulse * speed + (i / particleCount)) % 1.0;
+        
+        // 🆕 입자 밀착도를 유지하되 시인성을 위해 범위를 소폭 상향 (v0.5.31)
+        final double zigZag = sin(progress * pi * 4 + i) * 12.0; 
+        final double startX = (i - (particleCount / 2)) * 10.0; // 가로 간격을 약간 넓힘
+        final double currentY = center.dy - 15 - (75 * progress); // 높이도 소폭 상향
+        
+        final pColor = promotionLevel >= 10 ? getRainbowColor(i * 30) : (i % 2 == 0 ? Colors.cyanAccent : Colors.blueAccent);
+        final pPaint = Paint()
+          ..color = pColor.withValues(alpha: (1 - progress) * 0.7)
+          ..style = PaintingStyle.fill;
+          
+        canvas.drawCircle(Offset(center.dx + startX + zigZag, currentY), 1.8, pPaint);
+        
+        // 고단계 입자 글로우
+        if (promotionLevel >= 8) {
+           canvas.drawCircle(Offset(center.dx + startX + zigZag, currentY), 3.5, pPaint..color = pColor.withValues(alpha: (1 - progress) * 0.15));
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant HeroEffectPainter oldDelegate) {
+    return oldDelegate.pulse != pulse || 
+           oldDelegate.rotation != rotation || 
+           oldDelegate.promotionLevel != promotionLevel;
+  }
 }
 
 

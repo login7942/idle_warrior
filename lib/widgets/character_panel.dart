@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:idle_warrior/providers/game_state.dart';
+import 'package:idle_warrior/models/player.dart';
 import 'common_widgets.dart';
 
 /// 👤 캐릭터 정보 및 스탯을 보여주는 패널 위젯
@@ -102,7 +103,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
               const SizedBox(width: 12),
               Column(
                 children: [
-                  Text('MYTHIC WARRIOR', style: TextStyle(color: Colors.blueAccent.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 3)),
+                  Text(player.promotionName.toUpperCase(), style: TextStyle(color: Colors.blueAccent.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 3)),
                   const SizedBox(height: 4),
                   ShadowText(player.name, fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white),
                 ],
@@ -111,7 +112,13 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
               Container(width: 30, height: 1, decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.blueAccent, Colors.transparent]))),
             ],
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 20),
+
+          // 🆕 [v0.5.26] 승급 배너 버튼
+          Consumer<GameState>(
+            builder: (context, gameState, _) => _buildPromotionBanner(gameState),
+          ),
+          const SizedBox(height: 20),
           
           // 메인 비주얼 엔진
           Stack(
@@ -361,4 +368,73 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
   }
 
   String _formatNumber(int n) => NumberFormat('#,###').format(n);
+
+  // 🆕 [v0.5.26] 승급 배너 빌더
+  Widget _buildPromotionBanner(GameState gameState) {
+    final player = gameState.player;
+    final int nextLv = player.promotionLevel + 1;
+    final bool isMax = nextLv >= Player.promotionSteps.length;
+    final int req = isMax ? 0 : Player.promotionSteps[nextLv]['req'];
+    final bool canPromote = !isMax && player.averageSlotEnhanceLevel >= req;
+    
+    return PressableScale(
+      onTap: canPromote ? () => gameState.promote() : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: canPromote 
+              ? [Colors.orangeAccent, Colors.redAccent] 
+              : [Colors.white.withOpacity(0.05), Colors.white.withOpacity(0.02)]
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: canPromote ? Colors.white70 : Colors.white10,
+            width: 1,
+          ),
+          boxShadow: canPromote ? [
+            BoxShadow(color: Colors.redAccent.withOpacity(0.3), blurRadius: 15, spreadRadius: 2)
+          ] : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isMax ? Icons.auto_awesome : (canPromote ? Icons.keyboard_double_arrow_up : Icons.lock_outline),
+              size: 18, 
+              color: canPromote ? Colors.white : Colors.white24
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isMax ? '최고 단계 도달' : (canPromote ? '새로운 경지 승급 가능!' : '다음 승급: ${Player.promotionSteps[nextLv]['name']}'),
+                  style: TextStyle(
+                    color: canPromote ? Colors.white : Colors.white54,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (!isMax)
+                  Text(
+                    '평균 슬롯 레벨: ${player.averageSlotEnhanceLevel.toStringAsFixed(1)} / $req',
+                    style: TextStyle(
+                      color: canPromote ? Colors.white70 : Colors.white24,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+            if (canPromote) ...[
+              const SizedBox(width: 20),
+              const Icon(Icons.touch_app, size: 16, color: Colors.white70),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
 }

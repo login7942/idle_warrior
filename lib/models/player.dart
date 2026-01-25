@@ -92,6 +92,9 @@ class Player {
   // [v0.4.8] 기능 해금 알림 여부 (50, 300, 1000)
   List<int> notifiedMilestones = [];
 
+  // 🆕 [v0.5.26] 승급 시스템 (Promotion Level 0~10)
+  int promotionLevel = 0;
+
   // 장착 중인 모든 부위(6개)의 평균 강화 수치 (기존 아이템 강화 기준)
   double get averageEnhanceLevel {
     int total = 0;
@@ -115,6 +118,29 @@ class Player {
     if (slotEnhanceLevels.isEmpty) return 0;
     return slotEnhanceLevels.values.fold(0, (maxIv, lv) => lv > maxIv ? lv : maxIv);
   }
+
+  // 🆕 [v0.5.26] 승급 정보 헬퍼
+  static const List<Map<String, dynamic>> promotionSteps = [
+    {'lv': 0, 'req': 0, 'name': '수련생', 'bonus': '보너스 없음'},
+    {'lv': 1, 'req': 10, 'name': '모험가', 'bonus': '골드 획득량 +5%'},
+    {'lv': 2, 'req': 50, 'name': '신출내기', 'bonus': '경험치 획득량 +5%'},
+    {'lv': 3, 'req': 100, 'name': '용병', 'bonus': '공격 속도 +10%'},
+    {'lv': 4, 'req': 500, 'name': '정예 기사', 'bonus': '콤보 1,2타 피해 +10%'},
+    {'lv': 5, 'req': 1000, 'name': '기사단장', 'bonus': '콤보 3타 피해 +10%'},
+    {'lv': 6, 'req': 1500, 'name': '영웅', 'bonus': '콤보 최종타 피해 +10%'},
+    {'lv': 7, 'req': 2000, 'name': '전설', 'bonus': '크리티컬 데미지 +15%'},
+    {'lv': 8, 'req': 2500, 'name': '신화', 'bonus': '최종 피해량 +10%'},
+    {'lv': 9, 'req': 2800, 'name': '초월자', 'bonus': '스킬 재사용 대기시간 -10%'},
+    {'lv': 10, 'req': 3000, 'name': '무한의 경지', 'bonus': '모든 능력치 +10%'},
+  ];
+
+  String get promotionName => promotionLevel < promotionSteps.length 
+      ? promotionSteps[promotionLevel]['name'] 
+      : '초월';
+
+  int get nextPromotionReq => (promotionLevel + 1 < promotionSteps.length)
+      ? promotionSteps[promotionLevel + 1]['req']
+      : 99999;
 
   // 🆕 [v0.3.9] 장착 슬롯 강화 레벨 총합 (티어 해금의 새로운 기준)
   int get totalSlotEnhanceLevel {
@@ -392,7 +418,10 @@ class Player {
       }
     }
 
-    return (baseHp * petBonus * (1.0 + encyclopediaHpMultiplier)).toInt() + flat + encyclopediaHpBonus.toInt();
+    double finalMult = 1.0;
+    if (promotionLevel >= 10) finalMult += 0.1; // 10단계 보너스: 모든능력치 +10%
+
+    return ((baseHp * petBonus * (1.0 + encyclopediaHpMultiplier)).toInt() + flat + encyclopediaHpBonus.toInt() * finalMult).toInt();
   }
 
   int get attack {
@@ -428,7 +457,12 @@ class Player {
     }
 
     int totalAtk = (baseAttack * petBonus * (1.0 + encyclopediaAtkMultiplier)).toInt() + flat + encyclopediaAtkBonus.toInt();
-    return (totalAtk * activePetMultiplier).toInt();
+    
+    double finalMult = activePetMultiplier;
+    if (promotionLevel >= 10) finalMult += 0.1; // 10단계 보너스: 모든능력치 +10%
+    if (promotionLevel >= 8) finalMult += 0.1;  // 8단계 보너스: 최종 피해량 +10%
+
+    return (totalAtk * finalMult).toInt();
   }
 
   int get defense {
@@ -463,7 +497,10 @@ class Player {
         }
       }
     }
-    return (baseDefense * bonus).toInt() + flat;
+    double finalMult = 1.0;
+    if (promotionLevel >= 10) finalMult += 0.1; // 10단계 보너스: 모든능력치 +10%
+
+    return ((baseDefense * bonus).toInt() + flat * finalMult).toInt();
   }
 
   double get attackSpeed {
@@ -474,7 +511,8 @@ class Player {
       }
       if (item.potential?.name == '공격 속도') itemBonus += item.potential!.value;
     });
-    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus;
+    double promotionBonus = (promotionLevel >= 3) ? 0.1 : 0.0; // 3단계 보너스: 공속 +10%
+    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus;
     return total.clamp(0.1, 6.0); // 최대 공격 속도 6.0 (하드캡 상향: 4.0 → 6.0)
   }
 
@@ -497,7 +535,8 @@ class Player {
       }
       if (item.potential?.name == '치명타 피해') itemBonus += item.potential!.value;
     });
-    return baseCritDamage + getSkillValue('pas_4') + itemBonus;
+    double promotionBonus = (promotionLevel >= 7) ? 15.0 : 0.0; // 7단계 보너스: 크리티컬 데미지 +15%
+    return baseCritDamage + getSkillValue('pas_4') + itemBonus + promotionBonus;
   }
 
   double get hpRegen {
@@ -519,7 +558,8 @@ class Player {
       }
       if (item.potential?.name == '골드 획득') itemBonusPerc += item.potential!.value;
     });
-    return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc;
+    double promotionBonus = (promotionLevel >= 1) ? 5.0 : 0.0; // 1단계 보너스: 골드 +5%
+    return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc + promotionBonus;
   }
 
   double get goldBonusBase => baseGoldBonus;
@@ -532,7 +572,8 @@ class Player {
       }
       if (item.potential?.name == '경험치 획득') itemBonusPerc += item.potential!.value;
     });
-    return 100.0 + itemBonusPerc; // [v0.4.0] 수식 오류 수정: pas_4(약점 노출)는 치명타 피해 스킬이므로 제거
+    double promotionBonus = (promotionLevel >= 2) ? 5.0 : 0.0; // 2단계 보너스: 경험치 +5%
+    return 100.0 + itemBonusPerc + promotionBonus; // [v0.4.0] 수식 오류 수정: pas_4(약점 노출)는 치명타 피해 스킬이므로 제거
   }
 
   double get dropBonus {
@@ -546,7 +587,10 @@ class Player {
     return baseDropBonus + getSkillValue('pas_3') + itemBonusPerc;
   }
   double get offEfficiency => baseOffEfficiency;
-  double get cdr => baseCdr + getSkillValue('pas_6') + potentialCdr;
+  double get cdr {
+    double promotionBonus = (promotionLevel >= 9) ? 10.0 : 0.0; // 9단계 보너스: 쿨감 +10%
+    return baseCdr + getSkillValue('pas_6') + potentialCdr + promotionBonus;
+  }
   double get lifesteal => getSkillValue('pas_5');
 
   bool addItem(Item item) {
@@ -699,6 +743,7 @@ class Player {
     'slotEnhanceFailCounts': slotEnhanceFailCounts.map((k, v) => MapEntry(k.name, v)),
     'slotEnhanceStreakCounts': slotEnhanceStreakCounts.map((k, v) => MapEntry(k.name, v)),
     'notifiedMilestones': notifiedMilestones,
+    'promotionLevel': promotionLevel,
   };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -843,6 +888,10 @@ class Player {
 
     if (json['notifiedMilestones'] != null) {
       p.notifiedMilestones = List<int>.from(json['notifiedMilestones']);
+    }
+
+    if (json['promotionLevel'] != null) {
+      p.promotionLevel = json['promotionLevel'] as int;
     }
 
     return p;
