@@ -519,7 +519,7 @@ class Item {
 
     // ② 랜덤 보조 옵션 생성 (중복 허용)
     for (int i = 0; i < optCount; i++) {
-      ItemOption newOpt = _generateRandomOption(rand, dropTier, grade: grade);
+      ItemOption newOpt = _generateRandomOption(rand, dropTier, type, grade: grade);
       options.add(newOpt);
     }
 
@@ -709,8 +709,22 @@ class Item {
   }
 
 
-  static ItemOption _generateRandomOption(Random rand, int tier, {ItemGrade? grade}) {
-    List<String> pool = ['공격력', '방어력', '체력', '치명타 확률', '치명타 피해', '공격 속도', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭'];
+  static ItemOption _generateRandomOption(Random rand, int tier, ItemType type, {ItemGrade? grade}) {
+    List<String> pool = [];
+    
+    // [v0.5.48] 부위별 옵션 풀 필터링
+    bool isCombatType = (type == ItemType.weapon || type == ItemType.ring || type == ItemType.necklace);
+    bool isSurvivalType = (type == ItemType.helmet || type == ItemType.armor || type == ItemType.boots);
+
+    if (isCombatType) {
+      pool.addAll(['공격력', '치명타 확률', '치명타 피해', '공격 속도']);
+    } else if (isSurvivalType) {
+      pool.addAll(['방어력', '체력', 'HP 재생']);
+    }
+    
+    // 공통 유틸리티 풀 추가
+    pool.addAll(['골드 획득', '경험치 획득', '아이템 드롭']);
+    
     String name = pool[rand.nextInt(pool.length)];
     
     // 티어 스케일링: 4.0배 지수 성장 기반 최대치 설정
@@ -785,7 +799,7 @@ class Item {
     for (int i = 0; i < subOptions.length; i++) {
       if (!subOptions[i].isLocked) {
         // 잠겨있지 않은 옵션만 새로 생성하여 교체
-        subOptions[i] = _generateRandomOption(rand, tier);
+        subOptions[i] = _generateRandomOption(rand, tier, type);
       }
     }
     rerollCount++;
@@ -807,7 +821,7 @@ class Item {
       potential = ItemOption(name: name, value: val, isPercentage: isPerc, isSpecial: true, stars: 5, maxValue: val);
     } else {
       // 2. 일반 옵션 풀 (기존 generateRandomOption 활용, 티어 반영)
-      potential = _generateRandomOption(rand, tier);
+      potential = _generateRandomOption(rand, tier, type);
     }
   }
 }

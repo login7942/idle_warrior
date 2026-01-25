@@ -280,6 +280,7 @@ class SkillPanel extends StatelessWidget {
       case 'pas_4': effectText = '치명타 피해 +${effVal.toInt()}%'; break;
       case 'act_5': effectText = '공격력의 ${effVal.toInt()}% 초거대 메테오'; break;
       case 'pas_5': effectText = '데미지의 ${effVal.toStringAsFixed(1)}% 체력 흡수'; break;
+      case 'pas_atk': effectText = '기본 공격력 +${effVal.toInt()}%'; break;
       case 'pas_6': effectText = '스킬 재사용 대기시간 -${effVal.toInt()}%'; break;
     }
 
@@ -304,9 +305,6 @@ class SkillPanel extends StatelessWidget {
   }
 
   String _formatNumber(int n) {
-    if (n >= 1000000000) return '${(n / 1000000000).toStringAsFixed(1)}B';
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
-    return n.toString();
+    return BigNumberFormatter.format(n);
   }
 }

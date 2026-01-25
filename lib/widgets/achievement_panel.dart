@@ -94,97 +94,139 @@ class _AchievementPanelState extends State<AchievementPanel> {
     final gameState = context.watch<GameState>();
     final player = gameState.player;
 
-    return ListView.builder(
-      itemCount: AchievementData.list.length,
-      itemBuilder: (context, index) {
-        final achievement = AchievementData.list[index];
-        
-        int progress = 0;
-        switch (achievement.type) {
-          case AchievementType.monsterKill: progress = player.totalKills; break;
-          case AchievementType.goldEarned: progress = player.totalGoldEarned; break;
-          case AchievementType.playerLevel: progress = player.level; break;
-          case AchievementType.itemAcquired: progress = player.totalItemsFound; break;
-          case AchievementType.skillUsed: progress = player.totalSkillsUsed; break;
-        }
-
-        int currentStep = player.achievementSteps[achievement.id] ?? 0;
-        int target = achievement.getTargetForStep(currentStep);
-        double percent = (progress / target).clamp(0.0, 1.0);
-        int reward = achievement.getRewardForStep(currentStep);
-
-        return GlassContainer(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(20),
-            borderRadius: 24,
-            child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      children: [
+        // 🆕 업적 일괄 수령 버튼 (콤팩트 디자인)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ShadowText(achievement.title, fontSize: 18, fontWeight: FontWeight.bold),
-                  GlassContainer(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    borderRadius: 8,
-                    color: Colors.amber.withValues(alpha: 0.15),
-                    child: ShadowText('${currentStep + 1}단계', color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+              GestureDetector(
+                onTap: () {
+                  int count = gameState.claimAllAchievements();
+                  if (count > 0) {
+                    widget.onShowSuccess('일괄 수령 완료', '$count단계의 업적 보상을 모두 획득했습니다!');
+                  } else {
+                    widget.onShowToast('수령할 보상이 없습니다.');
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.greenAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4), width: 1),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(achievement.description, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
-              const SizedBox(height: 20),
-              // 프리미엄 단계 바
-              Stack(
-                children: [
-                  Container(
-                    height: 14,
-                    width: double.infinity,
-                    decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(7), border: Border.all(color: Colors.white10)),
-                  ),
-                  FractionallySizedBox(
-                    widthFactor: percent,
-                    child: Container(
-                      height: 14,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Colors.orange, Colors.amber]),
-                        borderRadius: BorderRadius.circular(7),
-                        boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha: 0.3), blurRadius: 8)],
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: Center(
-                      child: Text('$progress / $target', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.stars, color: Colors.blueAccent, size: 14),
-                      const SizedBox(width: 4),
-                      Text('보상: $reward 강화석', style: const TextStyle(color: Colors.blueAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Icon(Icons.done_all, size: 12, color: Colors.greenAccent),
+                      SizedBox(width: 4),
+                      Text('일괄 수령', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  PopBtn('수령하기', percent >= 1.0 ? Colors.greenAccent : Colors.white12, () {
-                    if (percent >= 1.0) {
-                      gameState.claimAchievement(achievement);
-                    } else {
-                      widget.onShowToast('아직 목표에 도달하지 못했습니다.');
-                    }
-                  }),
-                ],
+                ),
               ),
             ],
           ),
-        );
-      },
+        ),
+        
+        Expanded(
+          child: ListView.builder(
+            itemCount: AchievementData.list.length,
+            itemBuilder: (context, index) {
+              final achievement = AchievementData.list[index];
+              
+              int progress = 0;
+              switch (achievement.type) {
+                case AchievementType.monsterKill: progress = player.totalKills; break;
+                case AchievementType.goldEarned: progress = player.totalGoldEarned; break;
+                case AchievementType.playerLevel: progress = player.level; break;
+                case AchievementType.itemAcquired: progress = player.totalItemsFound; break;
+                case AchievementType.skillUsed: progress = player.totalSkillsUsed; break;
+              }
+
+              int currentStep = player.achievementSteps[achievement.id] ?? 0;
+              int target = achievement.getTargetForStep(currentStep);
+              double percent = (progress / target).clamp(0.0, 1.0);
+              int reward = achievement.getRewardForStep(currentStep);
+
+              return GlassContainer(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(20),
+                  borderRadius: 24,
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ShadowText(achievement.title, fontSize: 18, fontWeight: FontWeight.bold),
+                        GlassContainer(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          borderRadius: 8,
+                          color: Colors.amber.withValues(alpha: 0.15),
+                          child: ShadowText('${currentStep + 1}단계', color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(achievement.description, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+                    const SizedBox(height: 20),
+                    // 프리미엄 단계 바
+                    Stack(
+                      children: [
+                        Container(
+                          height: 14,
+                          width: double.infinity,
+                          decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(7), border: Border.all(color: Colors.white10)),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: percent,
+                          child: Container(
+                            height: 14,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [Colors.orange, Colors.amber]),
+                              borderRadius: BorderRadius.circular(7),
+                              boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha: 0.3), blurRadius: 8)],
+                            ),
+                          ),
+                        ),
+                        Positioned.fill(
+                          child: Center(
+                            child: Text('$progress / $target', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.stars, color: Colors.blueAccent, size: 14),
+                            const SizedBox(width: 4),
+                            Text('보상: $reward 강화석', style: const TextStyle(color: Colors.blueAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        PopBtn('수령하기', percent >= 1.0 ? Colors.greenAccent : Colors.white12, () {
+                          if (percent >= 1.0) {
+                            gameState.claimAchievement(achievement);
+                          } else {
+                            widget.onShowToast('아직 목표에 도달하지 못했습니다.');
+                          }
+                        }),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

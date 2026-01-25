@@ -282,7 +282,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
     );
   }
 
-  String _formatNumber(int n) => NumberFormat('#,###').format(n);
+  String _formatNumber(int n) => BigNumberFormatter.format(n);
 
   // 🆕 [v0.5.26] 승급 배너 빌더
   Widget _buildPromotionBanner(GameState gameState) {

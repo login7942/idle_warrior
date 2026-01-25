@@ -814,7 +814,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
   }
 }
 
-String _formatNumber(int n) => NumberFormat('#,###').format(n);
+String _formatNumber(int n) => BigNumberFormatter.format(n);
 
 /// ♻️ 분해 결과 팝업 함수
 void _showDismantleResult(BuildContext context, Map<String, int> rewards) {
@@ -883,7 +883,7 @@ Widget _buildResultItem(String emoji, String label, int amount, Color color) {
         Text(emoji, style: const TextStyle(fontSize: 14)),
         const SizedBox(width: 6),
         Text(
-          NumberFormat('#,###').format(amount),
+          BigNumberFormatter.format(amount),
           style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
         ),
       ],
@@ -1103,7 +1103,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
       children: [
         const Icon(Icons.bolt, size: 14, color: Colors.amberAccent),
         const SizedBox(width: 4),
-        Text(NumberFormat('#,###').format(cp), style: const TextStyle(color: Colors.amberAccent, fontSize: 16, fontWeight: FontWeight.w900)),
+        Text(BigNumberFormatter.format(cp), style: const TextStyle(color: Colors.amberAccent, fontSize: 16, fontWeight: FontWeight.w900)),
       ],
     );
   }

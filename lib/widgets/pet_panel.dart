@@ -75,6 +75,22 @@ class _PetPanelState extends State<PetPanel> {
                               fontWeight: FontWeight.bold,
                               color: activePet?.grade.color ?? Colors.white60,
                             ),
+                            Row(
+                              children: [
+                                const Icon(Icons.auto_awesome_motion, color: Colors.purpleAccent, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '영혼석: ${gameState.player.soulStone}',
+                                  style: const TextStyle(color: Colors.purpleAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
                             Text(
                               gameState.player.petSummaryText,
                               style: TextStyle(color: Colors.orangeAccent.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.bold),
@@ -108,9 +124,9 @@ class _PetPanelState extends State<PetPanel> {
                   ),
                   Row(
                     children: [
-                      _buildSlimSummonBtn(context, '1회', () => gameState.summonPet(1), '10,000 G'),
+                      _buildSlimSummonBtn(context, '1회', () => gameState.summonPet(1), '10,000 G + 👻1'),
                       const SizedBox(width: 8),
-                      _buildSlimSummonBtn(context, '10회', () => gameState.summonPet(10), '90,000 G', isHighlight: true),
+                      _buildSlimSummonBtn(context, '10회', () => gameState.summonPet(10), '90,000 G + 👻1', isHighlight: true),
                     ],
                   ),
                 ],

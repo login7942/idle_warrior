@@ -782,9 +782,10 @@ class _AnimatedCountTextState extends State<AnimatedCountText> with SingleTicker
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _animation = Tween<double>(begin: _currentValue.toDouble(), end: widget.count.toDouble()).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutExpo),
-    );
+    _animation = Tween<double>(
+      begin: _currentValue.toDouble(),
+      end: widget.count.toDouble(),
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutExpo));
   }
 
   @override
@@ -807,13 +808,12 @@ class _AnimatedCountTextState extends State<AnimatedCountText> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
-    final formatter = NumberFormat('#,###');
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
         _currentValue = _animation.value.toInt();
         return Text(
-          '${formatter.format(_currentValue)}${widget.suffix}',
+          '${BigNumberFormatter.format(_currentValue)}${widget.suffix}',
           style: widget.style,
         );
       },
@@ -821,7 +821,43 @@ class _AnimatedCountTextState extends State<AnimatedCountText> with SingleTicker
   }
 }
 
-// 육각형 그리기용 CustomPainter (Mythic 등급 전용)
+/// 🔢 [v0.5.45] 방치형 게임 특화 무제한 숫자 포맷터
+/// 1,000 단위로 K, M, B, T 단위를 사용하며 그 이후는 aa, ab, ac... 순으로 무한 확장됨.
+class BigNumberFormatter {
+  static const List<String> _units = [
+    '', 'K', 'M', 'B', 'T', 
+    'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak', 'al', 'am', 'an', 'ao', 'ap', 'aq', 'ar', 'as', 'at', 'au', 'av', 'aw', 'ax', 'ay', 'az',
+    'ba', 'bb', 'bc', 'bd', 'be', 'bf', 'bg', 'bh', 'bi', 'bj', 'bk', 'bl', 'bm', 'bn', 'bo', 'bp', 'bq', 'br', 'bs', 'bt', 'bu', 'bv', 'bw', 'bx', 'by', 'bz',
+  ];
+
+  static String format(num value) {
+    if (value < 1000) return value.toInt().toString();
+    
+    double val = value.toDouble();
+    int unitIndex = 0;
+    
+    while (val >= 1000 && unitIndex < _units.length - 1) {
+      val /= 1000;
+      unitIndex++;
+    }
+
+    String formattedValue;
+    if (val >= 100) {
+      formattedValue = val.toStringAsFixed(0);
+    } else if (val >= 10) {
+      formattedValue = val.toStringAsFixed(1);
+    } else {
+      formattedValue = val.toStringAsFixed(2);
+    }
+
+    if (formattedValue.contains('.')) {
+      formattedValue = formattedValue.replaceAll(RegExp(r'\.?0+$'), '');
+    }
+
+    return formattedValue + _units[unitIndex];
+  }
+}
+
 class HexagonPainter extends CustomPainter {
   final Color color;
   

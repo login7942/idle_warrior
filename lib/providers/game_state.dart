@@ -554,6 +554,10 @@ class GameState extends ChangeNotifier {
     onVictory?.call(finalGold, expReward);
 
     bool isTower = currentZone.id == ZoneId.tower;
+    if (isTower) {
+      player.soulStone += 10; // 🆕 무한의 탑 승리 시 영혼석 10개 확정 지급
+      addLog('무한의 탑 돌파! 영혼석 10개를 획득했습니다.', LogType.event);
+    }
     if (!isTower) {
       bool isBossStage = currentStage % 50 == 0;
       bool jumped = false;
@@ -1138,9 +1142,14 @@ class GameState extends ChangeNotifier {
 
   void summonPet(int count) {
     int cost = count == 1 ? 10000 : 90000;
-    if (player.gold < cost) return;
+    int soulCost = 1; // 🆕 펫 소환 시 영혼석 1개 고정 소모
+    
+    if (player.gold < cost || player.soulStone < soulCost) {
+      return;
+    }
 
     player.gold -= cost;
+    player.soulStone -= soulCost;
     List<Pet> allPets = PetData.getInitialPets();
     
     for (int i = 0; i < count; i++) {
@@ -1225,6 +1234,47 @@ class GameState extends ChangeNotifier {
     player.claimAllEncyclopediaRewards();
     saveGameData();
     notifyListeners();
+  }
+
+  /// 🆕 업적 일괄 수령 기능
+  int claimAllAchievements() {
+    int totalStones = 0;
+    int claimCount = 0;
+    
+    for (var achievement in AchievementData.list) {
+      while (true) {
+        int currentStep = player.achievementSteps[achievement.id] ?? 0;
+        if (currentStep >= achievement.targets.length) break;
+        
+        int target = achievement.getTargetForStep(currentStep);
+        int reward = achievement.getRewardForStep(currentStep);
+        
+        int progress = 0;
+        switch (achievement.type) {
+          case AchievementType.monsterKill: progress = player.totalKills; break;
+          case AchievementType.goldEarned: progress = player.totalGoldEarned; break;
+          case AchievementType.playerLevel: progress = player.level; break;
+          case AchievementType.itemAcquired: progress = player.totalItemsFound; break;
+          case AchievementType.skillUsed: progress = player.totalSkillsUsed; break;
+        }
+        
+        if (progress >= target) {
+          player.achievementSteps[achievement.id] = currentStep + 1;
+          player.enhancementStone += reward;
+          totalStones += reward;
+          claimCount++;
+        } else {
+          break; // 현재 단계 목표 미달 시 다음 업적으로
+        }
+      }
+    }
+    
+    if (claimCount > 0) {
+      addLog('[업적 일괄수령] 달성한 모든 업적 단계를 완료하고 강화석을 획득했습니다.', LogType.event);
+      saveGameData();
+      notifyListeners();
+    }
+    return claimCount;
   }
 
   void refresh() => notifyListeners();

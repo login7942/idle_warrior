@@ -43,6 +43,8 @@ class Player {
   int rerollStone = 0;      // 재설정
   int protectionStone = 0;   // 보호
   int cube = 0;             // 큐브
+  int soulStone = 0;        // 영혼석
+
 
   // 누적 통계 (업적용)
   int totalKills = 0;
@@ -291,9 +293,9 @@ class Player {
     Skill(id: 'act_2', name: '강격', description: '강력한 한방 데미지를 입힙니다.', type: SkillType.active, iconEmoji: '🔨', unlockLevel: 15, unlockCost: 2000, baseUpgradeCost: 2000, costMultiplier: 1.6, baseValue: 250, valuePerLevel: 25, baseCooldown: 12), // 밸런스: 200→250
     Skill(id: 'act_1_5', name: '쌍룡참', description: '매우 빠른 속도로 대상을 두 번 벱니다.', type: SkillType.active, iconEmoji: '⚔️', unlockLevel: 25, unlockCost: 4000, baseUpgradeCost: 4000, costMultiplier: 1.7, baseValue: 150, valuePerLevel: 15, baseCooldown: 10), // 🆕 신규 스킬
     Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 30, valuePerLevel: 2.0, baseCooldown: 0), 
-    Skill(id: 'pas_2', name: '철벽', description: '방어력이 % 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '🛡️', unlockLevel: 20, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
+    Skill(id: 'pas_2', name: '철벽', description: '방어력이 일정 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '🛡️', unlockLevel: 20, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
     Skill(id: 'act_3', name: '얼음 화살', description: '고위력 공격 및 적을 빙결시킵니다.', type: SkillType.active, iconEmoji: '❄️', unlockLevel: 30, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 1.8, baseValue: 300, valuePerLevel: 40, baseCooldown: 15),
-    Skill(id: 'pas_atk', name: '근력 강화', description: '기본 공격력이 % 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '💪', unlockLevel: 35, unlockCost: 6000, baseUpgradeCost: 6000, costMultiplier: 2.1, baseValue: 10, valuePerLevel: 1.5, baseCooldown: 0), // 🆕 신규 패시브
+    Skill(id: 'pas_atk', name: '근력 강화', description: '기본 공격력이 일정 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '💪', unlockLevel: 35, unlockCost: 6000, baseUpgradeCost: 6000, costMultiplier: 2.1, baseValue: 10, valuePerLevel: 1.5, baseCooldown: 0), // 🆕 신규 패시브
     Skill(id: 'pas_3', name: '탐욕의 시선', description: '골드 및 아이템 획득량이 증가합니다.', type: SkillType.passive, iconEmoji: '👁️', unlockLevel: 45, unlockCost: 8000, baseUpgradeCost: 8000, costMultiplier: 2.2, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
     Skill(id: 'act_4', name: '화염구', description: '강력한 마법형 광역 데미지.', type: SkillType.active, iconEmoji: '☄️', unlockLevel: 60, unlockCost: 8000, baseUpgradeCost: 8000, costMultiplier: 2.0, baseValue: 600, valuePerLevel: 80, baseCooldown: 20),
     Skill(id: 'pas_4', name: '약점 노출', description: '치명타 피해량이 대폭 증가합니다.', type: SkillType.passive, iconEmoji: '🎯', unlockLevel: 80, unlockCost: 10000, baseUpgradeCost: 10000, costMultiplier: 2.5, baseValue: 20, valuePerLevel: 5, baseCooldown: 0),
@@ -748,6 +750,7 @@ class Player {
     'slotEnhanceStreakCounts': slotEnhanceStreakCounts.map((k, v) => MapEntry(k.name, v)),
     'notifiedMilestones': notifiedMilestones,
     'promotionLevel': promotionLevel,
+    'soulStone': soulStone,
     'autoCraftTiers': autoCraftTiers.map((k, v) => MapEntry(k.toString(), v)),
   };
 
@@ -897,6 +900,10 @@ class Player {
 
     if (json['promotionLevel'] != null) {
       p.promotionLevel = json['promotionLevel'] as int;
+    }
+    
+    if (json['soulStone'] != null) {
+      p.soulStone = json['soulStone'] as int;
     }
 
     if (json['autoCraftTiers'] != null) {

@@ -134,7 +134,7 @@ class HuntingZoneData {
       monsterNames: ['탑의 수호자', '심판자', '고대 병기', '차원 감시자', '타락한 신관'],
       keyDrops: ['고급 잠재의 큐브', '전설 강화석', '영혼석'],
       type: ZoneType.special,
-      difficultyMultiplier: 1.0,
+      difficultyMultiplier: 20.0,
       minEnhance: 0,
       maxEnhance: 9999,
     ),

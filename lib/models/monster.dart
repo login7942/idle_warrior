@@ -81,7 +81,19 @@ class Monster {
 
     // 4. 엘리트/타워 보정 적용
     double eliteMult = 1.0;
-    if (isElite) {
+    if (isTower) {
+      // 🆕 [v0.5.49] 무한의 탑 전용 성장: 층당 5%씩 복리 증가 + 기본 스탯 대폭 상향
+      double towerScaling = pow(1.05, s).toDouble();
+      multiplier *= towerScaling;
+      
+      baseHp *= 3.0;   // 맷집 3배
+      baseAtk *= 2.0;  // 공격력 2배
+      baseDef *= 1.5;  // 방어력 1.5배
+      
+      // 타워 보상은 효율보다 상징성 (층당 고정 보상 위주)
+      baseGold *= 5.0;
+      baseExp *= 5.0;
+    } else if (isElite) {
       baseHp *= 1.5;
       baseAtk *= 1.3;
       baseDef *= 1.2;
