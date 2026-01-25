@@ -122,97 +122,40 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
           
           // 메인 비주얼 엔진
           Stack(
-            alignment: Alignment.center,
+            alignment: Alignment.bottomCenter,
             children: [
-              // 1. 회전하는 매직 헤일로 (Back layer)
-              RotationTransition(
-                turns: _heroRotateController,
-                child: Container(
-                  width: 220, height: 220,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.blueAccent.withOpacity(0.05), width: 1),
-                  ),
-                  child: Stack(
-                    children: List.generate(4, (i) => Align(
-                      alignment: Alignment(cos(i * pi/2), sin(i * pi/2)),
-                      child: Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle)),
-                    )),
+              // 1~3. 고성능 통합 비주얼 엔진 (HeroEffectPainter) 적용 
+              // 메인 화면과 동일한 비주얼 로직으로 동기화함.
+              AnimatedBuilder(
+                animation: Listenable.merge([_heroPulseController, _heroRotateController]),
+                builder: (context, _) => IgnorePointer(
+                  child: CustomPaint(
+                    size: const Size(260, 260), // 🆕 220->260 상향
+                    painter: HeroEffectPainter(
+                      promotionLevel: player.promotionLevel,
+                      isPlayer: true,
+                      pulse: _heroPulseController.value,
+                      rotation: _heroRotateController.value,
+                    ),
                   ),
                 ),
               ),
-              
-              // 2. 멀티 레이어 펄스 오라 (Glow layer)
-              AnimatedBuilder(
-                animation: _heroPulseController,
-                builder: (context, child) {
-                  return Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // 외곽 광원
-                      Container(
-                        width: 160 + (30 * _heroPulseController.value),
-                        height: 160 + (30 * _heroPulseController.value),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blueAccent.withOpacity(0.12 * (1 - _heroPulseController.value)),
-                              blurRadius: 60 + (40 * _heroPulseController.value),
-                              spreadRadius: 5,
-                            )
-                          ],
-                        ),
-                      ),
-                      // 핵심 광원
-                      Container(
-                        width: 100, height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.cyanAccent.withOpacity(0.15),
-                              blurRadius: 30 + (10 * _heroPulseController.value),
-                              spreadRadius: 2,
-                            )
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
 
-              // 3. 부유 에너지 입자 (Particle simulation)
-              ...List.generate(6, (i) => _buildHeroParticle(i)),
-
-              // 4. 캐릭터 본체 (Breathing)
+              // 4. 캐릭터 본체 (Breathing Animation)
               AnimatedBuilder(
                 animation: _heroPulseController,
                 builder: (context, child) {
                   return Transform.translate(
-                    offset: Offset(0, -8 * _heroPulseController.value),
-                    child: SizedBox(
-                      height: 190,
-                      child: Stack(
-                        alignment: Alignment.bottomCenter,
-                        children: [
-                          // 캐릭터 그림자
-                          Container(
-                            width: 60 - (10 * _heroPulseController.value),
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3 + (0.1 * _heroPulseController.value)),
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
-                              borderRadius: const BorderRadius.all(Radius.elliptical(60, 10)),
-                            ),
-                          ),
-                          // 캐릭터 이미지 (TODO: 경로 확인 필요. 보통 lib 상위 기준 assets)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Image.asset('assets/images/warrior.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.person, size: 80, color: Colors.white24)),
-                          ),
-                        ],
+                    offset: Offset(0, -15 * _heroPulseController.value), // 부유 효과 감도 상향
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 25), 
+                      child: SizedBox(
+                        height: 195, // 🆕 아바타 크기 140->195 대폭 상향
+                        child: Image.asset(
+                          'assets/images/warrior.png', 
+                          fit: BoxFit.contain, 
+                          errorBuilder: (c, e, s) => const Icon(Icons.person, size: 80, color: Colors.white24)
+                        ),
                       ),
                     ),
                   );
@@ -226,34 +169,6 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
           _buildHeroScoreBar(player),
         ],
       ),
-    );
-  }
-
-  // 에너지 입자 생성기
-  Widget _buildHeroParticle(int index) {
-    return AnimatedBuilder(
-      animation: _heroPulseController,
-      builder: (context, child) {
-        final double speed = 0.5 + (index * 0.1);
-        final double progress = (_heroPulseController.value * speed + (index / 6)) % 1.0;
-        final double angle = (index * 60) * pi / 180;
-        final double radius = 80 + (20 * sin(progress * pi));
-        
-        return Transform.translate(
-          offset: Offset(cos(angle) * radius, -40 - (radius * 0.5 * progress)),
-          child: Opacity(
-            opacity: sin(progress * pi),
-            child: Container(
-              width: 3, height: 3,
-              decoration: BoxDecoration(
-                color: index % 2 == 0 ? Colors.cyanAccent : Colors.blueAccent,
-                shape: BoxShape.circle,
-                boxShadow: const [BoxShadow(color: Colors.white, blurRadius: 4)],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 

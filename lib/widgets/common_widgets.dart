@@ -857,3 +857,127 @@ class HexagonPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
+class HeroEffectPainter extends CustomPainter {
+  final int promotionLevel;
+  final bool isPlayer;
+  final double pulse; // 0.0 ~ 1.0 (Pulse Controller)
+  final double rotation; // 0.0 ~ 1.0 (Rotate Controller)
+
+  HeroEffectPainter({
+    required this.promotionLevel,
+    required this.isPlayer,
+    required this.pulse,
+    required this.rotation,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 🆕 기준점을 캔버스 하단 중앙(캐릭터 발끝)으로 재설정
+    final center = Offset(size.width / 2, size.height - 15);
+    final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
+
+    // 🆕 10단계 무지개 효과용 Hue 계산
+    Color getRainbowColor(double offset) {
+      if (promotionLevel < 10) return isPlayer ? Colors.cyanAccent : Colors.redAccent;
+      final double hue = (time * 60 + offset) % 360;
+      return HSVColor.fromAHSV(1.0, hue, 0.7, 1.0).toColor();
+    }
+
+    // 1. 바닥 그림자 (기본 탑재)
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: 60 - (10 * pulse), height: 12),
+      shadowPaint,
+    );
+
+    // 2. 발밑 마법진 (3단계 이상, 몬스터는 제외)
+    if (isPlayer && (promotionLevel >= 3)) {
+      final sealPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.cyan.withValues(alpha: 0.15);
+
+      if (promotionLevel >= 10) sealPaint.color = getRainbowColor(0).withValues(alpha: 0.3);
+
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(rotation * 2 * pi);
+      
+      // 1단 마법진
+      canvas.drawCircle(Offset.zero, 45, sealPaint);
+      
+      // 마법진 노드
+      final nodePaint = Paint()..style = PaintingStyle.fill;
+      for (int i = 0; i < 4; i++) {
+        double angle = i * pi / 2;
+        nodePaint.color = Colors.cyan;
+        if (promotionLevel >= 10) nodePaint.color = getRainbowColor(i * 90);
+        canvas.drawCircle(Offset(cos(angle) * 45, sin(angle) * 45), 2.5, nodePaint);
+      }
+
+      // 5단계 이상: 2단 마법진 (역회전)
+      if (promotionLevel >= 5) {
+        canvas.rotate(-rotation * 4 * pi);
+        canvas.drawCircle(Offset.zero, 52, sealPaint..strokeWidth = 0.8);
+      }
+      canvas.restore();
+    }
+
+    // 3. 블룸 오라 (4단계 이상, 몬스터는 제외)
+    if (isPlayer && (promotionLevel >= 4)) {
+      final auraPulse = 1.0 + (pulse * 0.1);
+      final auraColor = promotionLevel >= 10 ? getRainbowColor(180) : Colors.blueAccent;
+      
+      final auraPaint = Paint()
+        ..color = auraColor.withValues(alpha: 0.15 * (1 - pulse))
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 25 + (15 * pulse));
+      
+      // 오라 위치를 캐릭터 본체에 더 가깝게 조정
+      canvas.drawCircle(center + const Offset(0, -50), 35 * auraPulse, auraPaint);
+      
+      if (promotionLevel >= 7) {
+        // 전설 단계 이상: 핵심 코어 오라 추가
+        final corePaint = Paint()
+          ..color = auraColor.withValues(alpha: 0.25)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+        canvas.drawCircle(center + const Offset(0, -50), 18, corePaint);
+      }
+    }
+
+    // 4. 부유 파티클 (1단계 이상, 몬스터는 제외)
+    if (isPlayer && (promotionLevel >= 1)) {
+      int particleCount = (4 + (promotionLevel * 2)).clamp(4, 24);
+      for (int i = 0; i < particleCount; i++) {
+        final double speed = 0.3 + (i * 0.04); // 속도 약간 감속
+        final double progress = (pulse * speed + (i / particleCount)) % 1.0;
+        
+        // 🆕 입자 밀착도를 유지하되 시인성을 위해 범위를 소폭 상향 (v0.5.31)
+        final double zigZag = sin(progress * pi * 4 + i) * 12.0; 
+        final double startX = (i - (particleCount / 2)) * 10.0; // 가로 간격을 약간 넓힘
+        final double currentY = center.dy - 15 - (75 * progress); // 높이도 소폭 상향
+        
+        final pColor = promotionLevel >= 10 ? getRainbowColor(i * 30) : (i % 2 == 0 ? Colors.cyanAccent : Colors.blueAccent);
+        final pPaint = Paint()
+          ..color = pColor.withValues(alpha: (1 - progress) * 0.7)
+          ..style = PaintingStyle.fill;
+          
+        canvas.drawCircle(Offset(center.dx + startX + zigZag, currentY), 1.8, pPaint);
+        
+        // 고단계 입자 글로우
+        if (promotionLevel >= 8) {
+           canvas.drawCircle(Offset(center.dx + startX + zigZag, currentY), 3.5, pPaint..color = pColor.withValues(alpha: (1 - progress) * 0.15));
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant HeroEffectPainter oldDelegate) {
+    return oldDelegate.pulse != pulse || 
+           oldDelegate.rotation != rotation || 
+           oldDelegate.promotionLevel != promotionLevel;
+  }
+}
