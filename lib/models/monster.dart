@@ -115,6 +115,34 @@ class Monster {
 
     int totalLevel = (zone.minLevel + stage - 1);
     
+    // 🆕 [v0.5.35] 몬스터 종류별 이미지 매칭 및 가드 로직
+    String imagePath = 'assets/images/slime.png'; // 기본 fallback용 슬라임
+    final Map<String, String> monsterImgMap = {
+      // 초원
+      '슬라임': 'slime.png', 
+      '뿔토끼': 'horn_rabbit.png', '들쥐': 'field_rat.png', '풀숲뱀': 'grass_snake.png', '꼬마벌': 'small_bee.png',
+      // 숲
+      '고블린': 'goblin.png', '늑대': 'wolf.png', '식인식물': 'man_eater.png', '숲의요정': 'forest_fairy.png', '거대거미': 'giant_spider.png',
+      // 광산
+      '골렘': 'golem.png', '박쥐': 'bat.png', '미믹': 'mimic.png', '코볼트': 'kobold.png', '광산두더지': 'mine_mole.png',
+      // 던전
+      '스켈레톤': 'skeleton.png', '유령': 'ghost.png', '해골궁수': 'skeleton_archer.png', '좀비': 'zombie.png', '가고일': 'gargoyle.png',
+      // 화산
+      '파이어드레이크': 'fire_drake.png', '라바스피릿': 'lava_spirit.png', '불타는 골렘': 'fire_golem.png', '화염도마뱀': 'fire_lizard.png', '지옥견': 'hell_hound.png',
+      // 설원
+      '아이스자이언트': 'ice_giant.png', '설인': 'yeti.png', '서리늑대': 'frost_wolf.png', '눈보라정령': 'blizzard_spirit.png', '얼음펭귄': 'ice_penguin.png',
+      // 심연
+      '그림자 군단': 'shadow_legion.png', '어둠의 화신': 'dark_avatar.png', '공허의 수호자': 'void_guardian.png', '심연의 눈': 'abyss_eye.png', '카오스 기사': 'chaos_knight.png',
+      // 타워
+      '탑의 수호자': 'tower_guardian.png', '심판자': 'judge.png', '고대 병기': 'ancient_weapon.png', '차원 감시자': 'dimension_watcher.png', '타락한 신관': 'fallen_priest.png',
+    };
+
+    if (monsterImgMap.containsKey(species)) {
+      final fileName = monsterImgMap[species]!;
+      // 슬라임만 기존 루트 폴더, 나머지는 monsters 폴더
+      imagePath = (species == '슬라임') ? 'assets/images/slime.png' : 'assets/images/monsters/$fileName';
+    }
+
     return Monster(
       name: displayName,
       level: totalLevel,
@@ -124,6 +152,7 @@ class Monster {
       defense: mDef,
       expReward: mExp,
       goldReward: mGold,
+      imagePath: imagePath,
       itemDropChance: isBoss ? 1.0 : (isElite ? 0.5 : 0.2),
       isElite: isElite || isBoss,
       eliteMultiplier: isElite ? eliteMult : 1.0,

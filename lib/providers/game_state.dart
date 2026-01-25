@@ -600,6 +600,9 @@ class GameState extends ChangeNotifier {
       pendingMonsterSpawn = true;
       monsterSpawnScheduledTime = DateTime.now().add(const Duration(milliseconds: 250));
     }
+
+    // 🆕 [v0.5.40] 재료 획득 후 자동 제작 프로세스 실행
+    _processAutoCraft();
   }
 
   void _dropItem() {
@@ -607,8 +610,8 @@ class GameState extends ChangeNotifier {
     double dropChance = currentMonster!.itemDropChance * (player.dropBonus / 100);
     
     if (rand.nextDouble() < dropChance) {
-      // 현재 스테이지/지역에 맞는 티어 생성 (여기서는 예시로 1티어, 실제 로직은 지역별 티어 적용)
-      final newItem = Item.generate(player.level, tier: (currentStage ~/ 100).clamp(1, 6)); 
+      // 🆕 [v0.5.37] 장비 드랍 티어 고정 (상위 티어는 승급을 통해 획득)
+      final newItem = Item.generate(player.level, tier: 1); 
       
       // [자동 분해 체크]
       bool shouldAutoDismantle = autoDismantleGrade != -1 && autoDismantleTier != -1 &&
@@ -1225,4 +1228,38 @@ class GameState extends ChangeNotifier {
   }
 
   void refresh() => notifyListeners();
+
+  // 🆕 [v0.5.40] 자동 제작 엔진: 재료 충족 시 랜덤 부위 자동 생성
+  void _processAutoCraft() {
+    final Map<int, int> shardCosts = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
+    final Map<int, int> coreCosts = { 2: 5, 3: 10, 4: 30, 5: 30, 6: 30 };
+
+    for (int t = 2; t <= 6; t++) {
+      // 해당 티어의 자동 제작이 활성화되어 있는지 체크
+      if (player.autoCraftTiers[t] == true) {
+        int shardCost = shardCosts[t] ?? 999999;
+        int coreCost = coreCosts[t] ?? 999999;
+
+        // 재료가 충분하고 인벤토리에 여유가 있는 동안 반복 제작
+        while (player.shards >= shardCost && 
+               (player.tierCores[t] ?? 0) >= coreCost && 
+               player.inventory.length < player.maxInventory) {
+          
+          player.shards -= shardCost;
+          player.tierCores[t] = (player.tierCores[t] ?? 0) - coreCost;
+
+          // 6가지 종류 (무기, 투구, 갑옷, 신발, 반지, 목걸이) 중 랜덤 제작
+          final type = ItemType.values[Random().nextInt(6)]; 
+          final newItem = Item.generate(player.level, tier: t, forcedType: type);
+          
+          player.inventory.add(newItem);
+          player.totalItemsFound++;
+          player.updateEncyclopedia(newItem);
+          
+          addLog('[자동제작] T$t ${newItem.type.nameKr} 제작 완료!', LogType.item);
+          onLootAcquired?.call('🔨', 'T$t ${newItem.name}', newItem.grade, amount: 1);
+        }
+      }
+    }
+  }
 }

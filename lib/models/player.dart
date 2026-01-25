@@ -89,6 +89,9 @@ class Player {
     ItemType.necklace: 0,
   };
 
+  // 🆕 [v0.5.40] 티어별 자동 제작 설정 (T2 ~ T6)
+  Map<int, bool> autoCraftTiers = {2: false, 3: false, 4: false, 5: false, 6: false};
+
   // [v0.4.8] 기능 해금 알림 여부 (50, 300, 1000)
   List<int> notifiedMilestones = [];
 
@@ -290,6 +293,7 @@ class Player {
     Skill(id: 'pas_1', name: '광폭화', description: '공격 속도가 영구적으로 증가합니다.', type: SkillType.passive, iconEmoji: '🔥', unlockLevel: 10, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 30, valuePerLevel: 2.0, baseCooldown: 0), 
     Skill(id: 'pas_2', name: '철벽', description: '방어력이 % 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '🛡️', unlockLevel: 20, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 2.0, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
     Skill(id: 'act_3', name: '얼음 화살', description: '고위력 공격 및 적을 빙결시킵니다.', type: SkillType.active, iconEmoji: '❄️', unlockLevel: 30, unlockCost: 5000, baseUpgradeCost: 5000, costMultiplier: 1.8, baseValue: 300, valuePerLevel: 40, baseCooldown: 15),
+    Skill(id: 'pas_atk', name: '근력 강화', description: '기본 공격력이 % 비율로 증가합니다.', type: SkillType.passive, iconEmoji: '💪', unlockLevel: 35, unlockCost: 6000, baseUpgradeCost: 6000, costMultiplier: 2.1, baseValue: 10, valuePerLevel: 1.5, baseCooldown: 0), // 🆕 신규 패시브
     Skill(id: 'pas_3', name: '탐욕의 시선', description: '골드 및 아이템 획득량이 증가합니다.', type: SkillType.passive, iconEmoji: '👁️', unlockLevel: 45, unlockCost: 8000, baseUpgradeCost: 8000, costMultiplier: 2.2, baseValue: 10, valuePerLevel: 2, baseCooldown: 0),
     Skill(id: 'act_4', name: '화염구', description: '강력한 마법형 광역 데미지.', type: SkillType.active, iconEmoji: '☄️', unlockLevel: 60, unlockCost: 8000, baseUpgradeCost: 8000, costMultiplier: 2.0, baseValue: 600, valuePerLevel: 80, baseCooldown: 20),
     Skill(id: 'pas_4', name: '약점 노출', description: '치명타 피해량이 대폭 증가합니다.', type: SkillType.passive, iconEmoji: '🎯', unlockLevel: 80, unlockCost: 10000, baseUpgradeCost: 10000, costMultiplier: 2.5, baseValue: 20, valuePerLevel: 5, baseCooldown: 0),
@@ -458,7 +462,7 @@ class Player {
 
     int totalAtk = (baseAttack * petBonus * (1.0 + encyclopediaAtkMultiplier)).toInt() + flat + encyclopediaAtkBonus.toInt();
     
-    double finalMult = activePetMultiplier;
+    double finalMult = activePetMultiplier + (getSkillValue('pas_atk') / 100);
     if (promotionLevel >= 10) finalMult += 0.1; // 10단계 보너스: 모든능력치 +10%
     if (promotionLevel >= 8) finalMult += 0.1;  // 8단계 보너스: 최종 피해량 +10%
 
@@ -744,6 +748,7 @@ class Player {
     'slotEnhanceStreakCounts': slotEnhanceStreakCounts.map((k, v) => MapEntry(k.name, v)),
     'notifiedMilestones': notifiedMilestones,
     'promotionLevel': promotionLevel,
+    'autoCraftTiers': autoCraftTiers.map((k, v) => MapEntry(k.toString(), v)),
   };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -892,6 +897,11 @@ class Player {
 
     if (json['promotionLevel'] != null) {
       p.promotionLevel = json['promotionLevel'] as int;
+    }
+
+    if (json['autoCraftTiers'] != null) {
+      var map = Map<String, dynamic>.from(json['autoCraftTiers']);
+      p.autoCraftTiers = map.map((k, v) => MapEntry(int.tryParse(k) ?? 2, v as bool));
     }
 
     return p;

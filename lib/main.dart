@@ -1120,10 +1120,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     Map<int, int> unlockLevels = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
     int currentTotal = player.totalSlotEnhanceLevel;
 
-    // 현재 선택된 티어의 다음 단계 목표 찾기
-    int nextTier = _selectedCraftTier + 1;
-    if (nextTier > 6) nextTier = 6;
-    int nextGoal = unlockLevels[nextTier] ?? 0;
+    // 🆕 [v0.5.38] 실제 해금 순서에 맞는 다음 목표 찾기
+    int actualNextTier = 2;
+    for (int t = 2; t <= 6; t++) {
+      if (currentTotal < (unlockLevels[t] ?? 0)) {
+        actualNextTier = t;
+        break;
+      }
+    }
+    
+    int nextGoal = unlockLevels[actualNextTier] ?? 1;
     double progress = (currentTotal / nextGoal).clamp(0.0, 1.0);
 
     return Column(
@@ -1151,25 +1157,58 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       color: isSel ? Colors.blueAccent.withValues(alpha: 0.8) : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Center(
-                      child: Row(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (isLocked) const Padding(
-                            padding: EdgeInsets.only(right: 4),
-                            child: Icon(Icons.lock, size: 10, color: Colors.white24),
-                          ),
-                          Text(
-                            'T$t', 
-                            style: TextStyle(
-                              color: isSel ? Colors.white : (isLocked ? Colors.white10 : Colors.white60),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13
-                            )
+                          // 🆕 [v0.5.40] 자동 제작 토글 (A 아이콘)
+                          if (!isLocked)
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  player.autoCraftTiers[t] = !(player.autoCraftTiers[t] ?? false);
+                                });
+                                if (player.autoCraftTiers[t] == true) {
+                                  _showToast('재료가 모이면 자동으로 제작됩니다', isError: false);
+                                } else {
+                                  _showToast('T$t 자동 제작 비활성화');
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: (player.autoCraftTiers[t] ?? false) ? Colors.greenAccent : Colors.white10,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'AUTO', 
+                                  style: TextStyle(
+                                    color: (player.autoCraftTiers[t] ?? false) ? Colors.black : Colors.white30, 
+                                    fontSize: 7, 
+                                    fontWeight: FontWeight.w900
+                                  )
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 2),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isLocked) const Padding(
+                                padding: EdgeInsets.only(right: 4),
+                                child: Icon(Icons.lock, size: 10, color: Colors.white24),
+                              ),
+                              Text(
+                                'T$t', 
+                                style: TextStyle(
+                                  color: isSel ? Colors.white : (isLocked ? Colors.white10 : Colors.white60),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13
+                                )
+                              ),
+                            ],
                           ),
                         ],
                       )
-                    ),
                   ),
                 ),
               );
@@ -1186,7 +1225,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('다음 티어 해금까지 ($currentTotal / $nextGoal)', style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold)),
+                    Text('T$actualNextTier 해금까지 ($currentTotal / $nextGoal)', style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold)),
                     Text('${(progress * 100).toInt()}%', style: const TextStyle(color: Colors.blueAccent, fontSize: 9, fontWeight: FontWeight.w900)),
                   ],
                 ),
@@ -2111,23 +2150,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                      ),
                    ),
 
-                  // 3-5. 액터 본체 (Breathing + Movement)
+                  // 🆕 [v0.5.39] 실루엣 중복 레이어 제거 (선명도 최우선)
                   Transform.translate(
                     offset: p ? Offset(0, -6.0 * _heroPulseController.value) : Offset(0, -3.0 * _heroPulseController.value),
-                    child: Stack(
-                      alignment: Alignment.bottomCenter,
-                      children: [
-                        // 실루엣 이너 글로우 효과 (Shadow Trick)
-                        SizedBox(
-                          width: 88, height: 88,
-                          child: Image.asset(img, fit: BoxFit.contain, color: p ? Colors.blueAccent.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.1), colorBlendMode: BlendMode.srcATop),
-                        ),
-                        // 실제 이미지
-                        SizedBox(
-                          width: 85, height: 85, 
-                          child: Image.asset(img, fit: BoxFit.contain)
-                        ),
-                      ],
+                    child: SizedBox(
+                      width: 85, height: 85, 
+                      child: Image.asset(img, fit: BoxFit.contain)
                     ),
                   ),
                 ],
