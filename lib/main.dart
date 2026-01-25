@@ -2381,17 +2381,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 ShadowText('시스템 설정', fontSize: 24, fontWeight: FontWeight.bold),
                 const SizedBox(height: 12),
                 const SizedBox(height: 12),
-                // 🆕 현재 로그인 정보 표시
+                // 🆕 현재 로그인 정보 표시 (정규 로직으로 개선)
                 Text(
                   !_authService.isLoggedIn 
                     ? '상태: 로그아웃됨' 
-                    : (_authService.userId!.startsWith('anon') 
+                    : (_authService.isAnonymous 
                         ? '상태: 익명 계정 (보호되지 않음)' 
-                        : '상태: 구글 계정 연동됨'),
+                        : '상태: ${_authService.userEmail ?? "구글 계정 연동됨"}'),
                   style: TextStyle(
                     color: !_authService.isLoggedIn 
                       ? Colors.grey 
-                      : (_authService.userId!.startsWith('anon') ? Colors.orangeAccent : Colors.greenAccent),
+                      : (_authService.isAnonymous ? Colors.orangeAccent : Colors.greenAccent),
                     fontSize: 12,
                     fontWeight: FontWeight.bold
                   )
@@ -2406,13 +2406,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       Colors.white, 
                       () async {
                         _showToast('구글 로그인 창을 띄웁니다...');
-                        await _authService.signInWithGoogle();
+                        final success = await _authService.signInWithGoogle();
+                        if (success) {
+                           _showToast('로그인 성공! 데이터를 불러옵니다...');
+                           await gameState.loadGameData();
+                        }
                       },
                       icon: Icons.login,
                     ),
                   ),
                 // 🆕 구글 계정 보호 버튼 (익명 계정일 때 표시)
-                if (_authService.isLoggedIn && _authService.userId!.startsWith('anon'))
+                if (_authService.isLoggedIn && _authService.isAnonymous)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: PopBtn(
@@ -2420,7 +2424,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       Colors.white, 
                       () async {
                         _showToast('구글 로그인 창을 띄웁니다...');
-                        await _authService.signInWithGoogle();
+                        final success = await _authService.signInWithGoogle();
+                        if (success) {
+                           _showToast('계정 보호 완료! 데이터를 불러옵니다...');
+                           await gameState.loadGameData();
+                        }
                       },
                       icon: Icons.security,
                     ),

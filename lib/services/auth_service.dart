@@ -10,6 +10,12 @@ class AuthService {
   
   /// 로그인 상태 확인
   bool get isLoggedIn => _supabase.auth.currentUser != null;
+
+  /// 익명 계정 여부 확인
+  bool get isAnonymous => _supabase.auth.currentUser?.isAnonymous ?? false;
+
+  /// 사용자 이메일
+  String? get userEmail => _supabase.auth.currentUser?.email;
   
   /// 익명 로그인
   Future<bool> signInAnonymously() async {
