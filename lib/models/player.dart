@@ -124,19 +124,19 @@ class Player {
     return slotEnhanceLevels.values.fold(0, (maxIv, lv) => lv > maxIv ? lv : maxIv);
   }
 
-  // 🆕 [v0.5.26] 승급 정보 헬퍼
+  // 🆕 [v0.5.57] 승급 정보 헬퍼 (조건 완화 적용)
   static const List<Map<String, dynamic>> promotionSteps = [
     {'lv': 0, 'req': 0, 'name': '수련생', 'bonus': '보너스 없음'},
-    {'lv': 1, 'req': 10, 'name': '모험가', 'bonus': '골드 획득량 +5%'},
-    {'lv': 2, 'req': 50, 'name': '신출내기', 'bonus': '경험치 획득량 +5%'},
-    {'lv': 3, 'req': 100, 'name': '용병', 'bonus': '공격 속도 +10%'},
-    {'lv': 4, 'req': 500, 'name': '정예 기사', 'bonus': '콤보 1,2타 피해 +10%'},
-    {'lv': 5, 'req': 1000, 'name': '기사단장', 'bonus': '콤보 3타 피해 +10%'},
-    {'lv': 6, 'req': 1500, 'name': '영웅', 'bonus': '콤보 최종타 피해 +10%'},
-    {'lv': 7, 'req': 2000, 'name': '전설', 'bonus': '크리티컬 데미지 +15%'},
-    {'lv': 8, 'req': 2500, 'name': '신화', 'bonus': '최종 피해량 +10%'},
-    {'lv': 9, 'req': 2800, 'name': '초월자', 'bonus': '스킬 재사용 대기시간 -10%'},
-    {'lv': 10, 'req': 3000, 'name': '무한의 경지', 'bonus': '모든 능력치 +10%'},
+    {'lv': 1, 'req': 50, 'name': '모험가', 'bonus': '골드 획득량 +5%'},
+    {'lv': 2, 'req': 100, 'name': '신출내기', 'bonus': '경험치 획득량 +5%'},
+    {'lv': 3, 'req': 200, 'name': '용병', 'bonus': '공격 속도 +10%'},
+    {'lv': 4, 'req': 400, 'name': '정예 기사', 'bonus': '콤보 1,2타 피해 +10%'},
+    {'lv': 5, 'req': 600, 'name': '기사단장', 'bonus': '콤보 3타 피해 +10%'},
+    {'lv': 6, 'req': 800, 'name': '영웅', 'bonus': '콤보 최종타 피해 +10%'},
+    {'lv': 7, 'req': 1000, 'name': '전설', 'bonus': '크리티컬 데미지 +15%'},
+    {'lv': 8, 'req': 1300, 'name': '신화', 'bonus': '최종 피해량 +10%'},
+    {'lv': 9, 'req': 1700, 'name': '초월자', 'bonus': '스킬 재사용 대기시간 -10%'},
+    {'lv': 10, 'req': 2200, 'name': '무한의 경지', 'bonus': '모든 능력치 +10%'},
   ];
 
   String get promotionName => promotionLevel < promotionSteps.length 

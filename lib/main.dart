@@ -277,16 +277,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       // 2. 몬스터 사망 애니메이션 실행
       _monsterDeathController.forward(from: 0);
 
-      // 3. 드롭 파티클 연출 (좌표 계산 후 실행)
+      // 3. 드롭 파티클 연출 제거 (v0.5.54)
+      /* 
       final monsterBox = _monsterKey.currentContext?.findRenderObject() as RenderBox?;
       final battleBox = _battleSceneKey.currentContext?.findRenderObject() as RenderBox?;
       
       if (monsterBox != null && battleBox != null) {
-        // 몬스터 중심의 글로벌 좌표를 배틀 박스의 로컬 좌표로 변환
         final globalCenter = monsterBox.localToGlobal(monsterBox.size.center(Offset.zero));
         final localPos = battleBox.globalToLocal(globalCenter);
         _spawnLootParticles(gold, exp, localPos);
       }
+      */
 
       // 4. 무한의 탑일 경우 결과창 표시
       if (gameState.currentZone.id == ZoneId.tower) {
@@ -332,7 +333,30 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkOfflineRewards();
       UpdateService.checkUpdate(context);
+      _precacheCurrentZoneImages(); // 🆕 시작 시 이미지 사전 캐싱
     });
+  }
+
+  // 🆕 [v0.5.55] 현재 지역 및 인접 사냥터 이미지 사전 캐싱 (디코딩 지연 방지)
+  void _precacheCurrentZoneImages() {
+    if (!mounted) return;
+    
+    // 현재 지역 몬스터 이미지들
+    final zoneIds = [gameState.currentZone.id];
+    
+    for (var zid in zoneIds) {
+      final zone = HuntingZoneData.list.firstWhere((z) => z.id == zid);
+      for (var species in zone.monsterNames) {
+        final fileName = Monster.monsterImgMap[species];
+        if (fileName != null) {
+          final path = (species == '슬라임') 
+            ? 'assets/images/slime.png' 
+            : 'assets/images/monsters/$fileName';
+          
+          precacheImage(AssetImage(path), context);
+        }
+      }
+    }
   }
 
   // 🆕 분당 효율 통계 계산
@@ -570,20 +594,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         // 핵심: 바디 콘텐츠를 RepaintBoundary로 감싸서 다른 UI와 렌더링 레이어 분리
                         Positioned.fill(child: RepaintBoundary(child: _buildBodyContent())),
                         Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomDock()),
-                        // 최적화된 파티클 레이어 (전투 탭에서만 활성화)
-                        if (_selectedIndex == 0)
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: RepaintBoundary(
-                                child: CustomPaint(
-                                  painter: LootParticlePainter(
-                                    particles: _lootParticles,
-                                    ticker: _uiTickerController,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                        // 🆕 파티클 레이어 제거 (v0.5.54)
                       ],
                     ),
                   ),
@@ -793,6 +804,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   _selectedIndex = 0;
                   gameState.addLog('${zone.name} 지역으로 이동했습니다.', LogType.event);
                   _spawnMonster();
+                  _precacheCurrentZoneImages(); // 🆕 지역 이동 시 즉시 캐싱
                 });
               }
             },
@@ -3101,54 +3113,110 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // 🆕 [v0.5.27] 승급 성공 전용 팝업 다이얼로그
   void _showPromotionDialog(int level, String name, String bonus) {
-    showDialog(
+    showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogCtx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: GlassContainer(
-          padding: const EdgeInsets.all(32),
-          borderRadius: 30,
-          border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.5), width: 2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.workspace_premium, color: Colors.amberAccent, size: 80),
-              const SizedBox(height: 24),
-              const ShadowText('승급 성공!', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-              const SizedBox(height: 12),
-              const Text('새로운 경지에 도달하셨습니다.', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              const SizedBox(height: 32),
-              
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                decoration: BoxDecoration(
-                  color: Colors.amberAccent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
-                ),
-                child: Column(
-                  children: [
-                    Text(name, style: const TextStyle(color: Colors.amberAccent, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                    const SizedBox(height: 12),
-                    Divider(color: Colors.amberAccent.withValues(alpha: 0.3), thickness: 0.5),
-                    const SizedBox(height: 12),
-                    const Text('승급 보너스 효과', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    Text(bonus, style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-                  ],
-                ),
+      barrierLabel: 'Promotion',
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      transitionDuration: const Duration(milliseconds: 600),
+      pageBuilder: (context, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        final curve = Curves.elasticOut.transform(anim1.value);
+        return Transform.scale(
+          scale: curve,
+          child: Opacity(
+            opacity: anim1.value,
+            child: Dialog(
+              backgroundColor: Colors.transparent,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // 배경 발광 효과
+                  Container(
+                    width: 320, height: 450,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Colors.amberAccent.withValues(alpha: 0.15 * anim1.value), blurRadius: 100, spreadRadius: 50),
+                      ],
+                    ),
+                  ),
+                  GlassContainer(
+                    padding: const EdgeInsets.all(32),
+                    borderRadius: 40,
+                    border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.5), width: 2),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 화려한 아이콘 영역
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(seconds: 1),
+                          builder: (context, val, _) => Transform.rotate(
+                            angle: val * 2 * pi,
+                            child: Icon(Icons.workspace_premium, color: Colors.amberAccent, size: 100 + (10 * sin(val * 2 * pi))),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const ShadowText('🎉 승급 성공! 🎉', fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white),
+                        const SizedBox(height: 8),
+                        Text('당신의 한계가 다시 한번 확장되었습니다.', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 32),
+                        
+                        // 새로운 칭호 및 효과 카드
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.amberAccent.withValues(alpha: 0.2),
+                                Colors.orangeAccent.withValues(alpha: 0.1),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              const Text('CURRENT TITLE', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                              const SizedBox(height: 8),
+                              Text(name, style: const TextStyle(color: Colors.amberAccent, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 4, shadows: [Shadow(color: Colors.orange, blurRadius: 10)])),
+                              const SizedBox(height: 16),
+                              Container(height: 1, width: 60, color: Colors.amberAccent.withValues(alpha: 0.3)),
+                              const SizedBox(height: 16),
+                              const Text('UNLOCK BONUS', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.greenAccent.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(bonus, style: const TextStyle(color: Colors.greenAccent, fontSize: 15, fontWeight: FontWeight.w900)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 40),
+                        PopBtn('새로운 경지 확인', Colors.orangeAccent, () {
+                           Navigator.of(context).pop();
+                        }, isFull: true),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              
-              const SizedBox(height: 40),
-              PopBtn('확인', Colors.orangeAccent, () {
-                Navigator.of(dialogCtx).pop();
-              }),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

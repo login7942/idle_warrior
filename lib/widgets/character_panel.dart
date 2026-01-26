@@ -91,81 +91,162 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
 
   Widget _buildHeroShowcase(player) {
     return GlassContainer(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       borderRadius: 34,
       child: Column(
         children: [
-          // 상단 타이틀 뱃지
+          // 1. 상단 타이틀 뱃지 (이름 및 칭호)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(width: 30, height: 1, decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, Colors.blueAccent]))),
+              Container(width: 20, height: 1, decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, Colors.blueAccent]))),
               const SizedBox(width: 12),
               Column(
                 children: [
-                  Text(player.promotionName.toUpperCase(), style: TextStyle(color: Colors.blueAccent.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 3)),
-                  const SizedBox(height: 4),
-                  ShadowText(player.name, fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white),
+                  Text(player.promotionName.toUpperCase(), style: TextStyle(color: Colors.blueAccent.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 3)),
+                  const SizedBox(height: 2),
+                  ShadowText(player.name, fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
                 ],
               ),
               const SizedBox(width: 12),
-              Container(width: 30, height: 1, decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.blueAccent, Colors.transparent]))),
+              Container(width: 20, height: 1, decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.blueAccent, Colors.transparent]))),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 2. 메인 대시보드 (아바타 | 승급 효과 리스트)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // [좌측 영역] 캐릭터 아바타 및 이펙트
+              Expanded(
+                flex: 4,
+                child: Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    // 이펙트 레이어 (사이즈 축소 260 -> 180)
+                    AnimatedBuilder(
+                      animation: Listenable.merge([_heroPulseController, _heroRotateController]),
+                      builder: (context, _) => IgnorePointer(
+                        child: CustomPaint(
+                          size: const Size(180, 180),
+                          painter: HeroEffectPainter(
+                            promotionLevel: player.promotionLevel,
+                            isPlayer: true,
+                            pulse: _heroPulseController.value,
+                            rotation: _heroRotateController.value,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 아바타 본체 (사이즈 축소 195 -> 140)
+                    AnimatedBuilder(
+                      animation: _heroPulseController,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(0, -10 * _heroPulseController.value),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 20), 
+                            child: SizedBox(
+                              height: 140, 
+                              child: Image.asset(
+                                'assets/images/warrior.png', 
+                                fit: BoxFit.contain, 
+                                errorBuilder: (c, e, s) => const Icon(Icons.person, size: 60, color: Colors.white24)
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(width: 10),
+
+              // [우측 영역] 전체 승급 효과 리스트
+              Expanded(
+                flex: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.stars, size: 12, color: Colors.amberAccent),
+                          const SizedBox(width: 6),
+                          Text('승급 보너스 리스트', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ...Player.promotionSteps.skip(1).map((step) {
+                        final bool isUnlocked = player.promotionLevel >= step['lv'];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.5),
+                          child: Row(
+                            children: [
+                              // 단계 인디케이터
+                              Container(
+                                width: 14,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isUnlocked ? Colors.blueAccent : Colors.white.withValues(alpha: 0.05),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${step['lv']}', 
+                                    style: TextStyle(
+                                      color: isUnlocked ? Colors.white : Colors.white24, 
+                                      fontSize: 8, 
+                                      fontWeight: FontWeight.bold
+                                    )
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // 효과 텍스트
+                              Expanded(
+                                child: Text(
+                                  isUnlocked ? step['bonus'] : '보너스 ???????', 
+                                  style: TextStyle(
+                                    color: isUnlocked ? Colors.white : Colors.white24,
+                                    fontSize: 10,
+                                    fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal,
+                                    letterSpacing: -0.2,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // 고정 유도 레이블 (미작성 시 ? 처리)
+                              if (!isUnlocked)
+                                Text('?', style: TextStyle(color: Colors.white.withValues(alpha: 0.1), fontSize: 10, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
 
-          // 🆕 [v0.5.26] 승급 배너 버튼
+          // 3. 승급 배너 버튼
           Consumer<GameState>(
             builder: (context, gameState, _) => _buildPromotionBanner(gameState),
           ),
           const SizedBox(height: 20),
           
-          // 메인 비주얼 엔진
-          Stack(
-            alignment: Alignment.bottomCenter,
-            children: [
-              // 1~3. 고성능 통합 비주얼 엔진 (HeroEffectPainter) 적용 
-              // 메인 화면과 동일한 비주얼 로직으로 동기화함.
-              AnimatedBuilder(
-                animation: Listenable.merge([_heroPulseController, _heroRotateController]),
-                builder: (context, _) => IgnorePointer(
-                  child: CustomPaint(
-                    size: const Size(260, 260), // 🆕 220->260 상향
-                    painter: HeroEffectPainter(
-                      promotionLevel: player.promotionLevel,
-                      isPlayer: true,
-                      pulse: _heroPulseController.value,
-                      rotation: _heroRotateController.value,
-                    ),
-                  ),
-                ),
-              ),
-
-              // 4. 캐릭터 본체 (Breathing Animation)
-              AnimatedBuilder(
-                animation: _heroPulseController,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(0, -15 * _heroPulseController.value), // 부유 효과 감도 상향
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 25), 
-                      child: SizedBox(
-                        height: 195, // 🆕 아바타 크기 140->195 대폭 상향
-                        child: Image.asset(
-                          'assets/images/warrior.png', 
-                          fit: BoxFit.contain, 
-                          errorBuilder: (c, e, s) => const Icon(Icons.person, size: 80, color: Colors.white24)
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 40),
-          
-          // 전투력 요약 바
+          // 4. 전투력 요약 바
           _buildHeroScoreBar(player),
         ],
       ),

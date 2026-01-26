@@ -729,12 +729,12 @@ class GameState extends ChangeNotifier {
       if (rand.nextDouble() < baseProb) {
         player.tierCores[tier] = (player.tierCores[tier] ?? 0) + 1;
         addLog('★ [파이널] $tier티어 핵심 재료 [T$tier 구슬] 획득!', LogType.event);
-        onLootAcquired?.call('🔮', 'T$tier 심연의 구슬', ItemGrade.unique, amount: 1);
+        // onLootAcquired?.call('🔮', 'T$tier 심연의 구슬', ItemGrade.unique, amount: 1);
         
         // 보스인 경우 전용 알림
-        if (isBoss) {
-          onSpecialEvent?.call('BOSS LOOT!', '보스를 처치하고 $tier티어 핵심 재료를 획득했습니다!');
-        }
+        // if (isBoss) {
+        //   onSpecialEvent?.call('BOSS LOOT!', '보스를 처치하고 $tier티어 핵심 재료를 획득했습니다!');
+        // }
       }
     }
   }
@@ -762,7 +762,8 @@ class GameState extends ChangeNotifier {
     double mVariance = 0.9 + (Random().nextDouble() * 0.2);
     double pDefenseRating = 100 / (100 + player.defense);
     double rawMDmg = (currentMonster!.attack * pDefenseRating) * mVariance;
-    int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.1 * mVariance).toInt()).clamp(1, 999999999);
+    // 🆕 [v0.5.56] 최소 데미지 하한선 상향 (10% -> 20%)
+    int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.2 * mVariance).toInt()).clamp(1, 999999999);
 
     playerCurrentHp -= mDmg;
     onPlayerDamageTaken?.call(mDmg);
@@ -1049,6 +1050,13 @@ class GameState extends ChangeNotifier {
     int shards = rewards['shards']!;
     player.shards += shards;
     
+    // 🆕 티어 심연의 구슬 추가
+    int tier = rewards['tier']!;
+    int cores = rewards['cores'] ?? 0;
+    if (cores > 0) {
+      player.tierCores[tier] = (player.tierCores[tier] ?? 0) + cores;
+    }
+    
     addLog('[분해] ${item.name}을(를) 분해하여 재료를 획득했습니다.', LogType.item);
     saveGameData();
     notifyListeners();
@@ -1065,6 +1073,7 @@ class GameState extends ChangeNotifier {
     int totalProtection = 0;
     int totalCube = 0;
     int totalShards = 0;
+    Map<int, int> totalCores = {}; // 티어별 구슬 합산
 
     player.inventory.removeWhere((item) {
       if (item.grade.index <= maxGradeIdx && item.tier <= maxTier && !item.isLocked) {
@@ -1077,6 +1086,13 @@ class GameState extends ChangeNotifier {
         totalProtection += rewards['protection']!;
         totalCube += rewards['cube']!;
         totalShards += rewards['shards']!;
+        
+        // 티어 구슬 합산
+        int t = rewards['tier']!;
+        int c = rewards['cores'] ?? 0;
+        if (c > 0) {
+          totalCores[t] = (totalCores[t] ?? 0) + c;
+        }
         return true;
       }
       return false;
@@ -1089,6 +1105,11 @@ class GameState extends ChangeNotifier {
     player.protectionStone += totalProtection;
     player.cube += totalCube;
     player.shards += totalShards;
+    
+    // 누적된 티어 구슬 적용
+    totalCores.forEach((t, c) {
+      player.tierCores[t] = (player.tierCores[t] ?? 0) + c;
+    });
 
     if (dismantleCount > 0) {
       addLog('[일괄분해] $dismantleCount개의 아이템을 분해했습니다.', LogType.item);
@@ -1117,15 +1138,27 @@ class GameState extends ChangeNotifier {
     int protection = (item.grade.index >= 3 && rand.nextDouble() < 0.2) ? 1 : 0;
     int cube = (item.grade.index >= 4 && rand.nextDouble() < 0.1) ? 1 : 0;
 
-    int shards = 0;
+    // 🆕 [v0.5.53] 연성 파편 획득량 개편: (기본 * 5) * 2^(티어-1) * ±10%
+    int baseShards = 0;
     switch (item.grade) {
-      case ItemGrade.common: shards = 1; break;
-      case ItemGrade.uncommon: shards = 3; break;
-      case ItemGrade.rare: shards = 10; break;
-      case ItemGrade.epic: shards = 30; break;
-      case ItemGrade.unique: shards = 60; break;
-      case ItemGrade.legendary: shards = 150; break;
-      case ItemGrade.mythic: shards = 500; break;
+      case ItemGrade.common: baseShards = 1; break;
+      case ItemGrade.uncommon: baseShards = 3; break;
+      case ItemGrade.rare: baseShards = 10; break;
+      case ItemGrade.epic: baseShards = 30; break;
+      case ItemGrade.unique: baseShards = 60; break;
+      case ItemGrade.legendary: baseShards = 150; break;
+      case ItemGrade.mythic: baseShards = 500; break;
+    }
+    
+    double tierMultiplier = pow(2, item.tier - 1).toDouble();
+    int finalBaseShards = (baseShards * 5 * tierMultiplier).toInt();
+    // ±10% 변동폭 적용 (0.9 ~ 1.1)
+    int shards = (finalBaseShards * (0.9 + rand.nextDouble() * 0.2)).toInt();
+
+    // 🆕 [v0.5.53] 심연의 구슬 획득 로직 추가: T2 이상 1~5개 랜덤 (+등급 보너스)
+    int cores = 0;
+    if (item.tier >= 2) {
+      cores = (1 + rand.nextInt(5)) + item.grade.index;
     }
 
     return {
@@ -1135,14 +1168,15 @@ class GameState extends ChangeNotifier {
       'reroll': reroll,
       'protection': protection,
       'cube': cube,
-      'shards': shards,
+      'shards': max(1, shards),
+      'cores': cores,
       'tier': item.tier,
     };
   }
 
   void summonPet(int count) {
     int cost = count == 1 ? 10000 : 90000;
-    int soulCost = 1; // 🆕 펫 소환 시 영혼석 1개 고정 소모
+    int soulCost = count; // 🆕 펫 소환 시 소환 횟수만큼 영혼석 소모
     
     if (player.gold < cost || player.soulStone < soulCost) {
       return;
