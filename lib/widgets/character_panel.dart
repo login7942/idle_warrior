@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:idle_warrior/providers/game_state.dart';
 import 'package:idle_warrior/models/player.dart';
+import 'package:idle_warrior/models/item.dart';
 import 'common_widgets.dart';
 
 /// 👤 캐릭터 정보 및 스탯을 보여주는 패널 위젯
@@ -80,6 +81,11 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
               
               // 자산 및 재료 요약
               _buildAssetSummary(player),
+              const SizedBox(height: 20),
+              
+              // 🆕 세트 효과 요약
+              _buildSetEffectSummary(player),
+
               
               const SizedBox(height: 120), // 하단 독 여백
             ],
@@ -343,6 +349,78 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
       ),
     );
   }
+
+  Widget _buildSetEffectSummary(Player player) {
+    final setCounts = player.activeSetCounts;
+    if (setCounts.isEmpty) return const SizedBox.shrink();
+
+    return GlassContainer(
+      padding: const EdgeInsets.all(20),
+      borderRadius: 24,
+      color: Colors.purpleAccent.withValues(alpha: 0.05),
+      border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.2)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.auto_awesome_motion, size: 18, color: Colors.purpleAccent), 
+              const SizedBox(width: 10), 
+              ShadowText('공명 중인 세트 옵션', fontSize: 16, fontWeight: FontWeight.bold)
+            ]
+          ),
+          const SizedBox(height: 16),
+          ...setCounts.entries.map((entry) {
+            String setId = entry.key;
+            int count = entry.value;
+            String setName = Item.getSetName(setId);
+            
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('[$setName]', style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text('$count/6 장착 중', style: const TextStyle(color: Colors.white24, fontSize: 10)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                _buildSetBonusLine(setId, 2, count),
+                _buildSetBonusLine(setId, 4, count),
+                const SizedBox(height: 12),
+              ],
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSetBonusLine(String setId, int req, int current) {
+    bool isActive = current >= req;
+    String bonusText = "";
+
+    switch (setId) {
+      case 'desert': bonusText = (req == 2) ? "골드/EXP +20%" : "사냥터 이동 시 30초간 ATK +30%"; break;
+      case 'mine': bonusText = (req == 2) ? "방어력 +20%" : "피격 시 10% 확률로 HP 5% 회복"; break;
+      case 'dimension': bonusText = (req == 2) ? "스킬 데미지 +25%" : "스킬 쿨타임 -15%"; break;
+      case 'dragon': bonusText = (req == 2) ? "공격력 +30%" : "최종 피해량 증폭 +50%"; break;
+      case 'ancient': bonusText = (req == 2) ? "모든 능력치 +20%" : "공격 시 5% 확률 광역 번개"; break;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 2),
+      child: Row(
+        children: [
+          Icon(isActive ? Icons.check_circle : Icons.radio_button_off, size: 10, color: isActive ? Colors.greenAccent : Colors.white10),
+          const SizedBox(width: 8),
+          Text('$req세트: $bonusText', style: TextStyle(color: isActive ? Colors.white70 : Colors.white10, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildAssetItem(IconData icon, String label, int count, Color color) {
     return Expanded(

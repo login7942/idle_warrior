@@ -104,6 +104,58 @@ class Player {
   int currentQuestIndex = 0;
   bool isQuestRewardClaimable = false;
 
+  // 🆕 [v0.6.2] 펫 탐사 파견 시스템
+  // ZoneId (name) -> List of 3 Pet IDs (nullable)
+  Map<String, List<String?>> zoneExpeditions = {};
+  // ZoneId (name) -> ISO-8601 Last Claimed Timestamp
+  Map<String, String> zoneLastClaimedAt = {};
+  
+  // 🆕 [v0.7.0] 제작 숙련도 시스템
+  int craftingMasteryLevel = 1;
+  int craftingMasteryExp = 0;
+  
+  // 🆕 [v0.7.0] 세트 효과용 기간제 버프
+  DateTime? desertBuffEndTime;
+
+  
+  // 숙련도 경험치 테이블 (레벨당 필요한 경험치 증가)
+  int get craftingMasteryNextExp => craftingMasteryLevel * craftingMasteryLevel * 50;
+
+  // 🆕 [v0.7.0] 세트 효과 계산
+  Map<String, int> get activeSetCounts {
+    Map<String, int> counts = {};
+    equipment.values.forEach((item) {
+      if (item != null && item.setId != null) {
+        counts[item.setId!] = (counts[item.setId!] ?? 0) + 1;
+      }
+    });
+    return counts;
+  }
+
+  // 특정 세트 효과 활성화 여부 체크
+  bool isSetEffectActive(String setId, int reqCount) {
+    return (activeSetCounts[setId] ?? 0) >= reqCount;
+  }
+
+  // 🆕 [v0.7.0] 세트 효과 배율 계산
+  double get setFinalDamageMult {
+    double mult = 1.0;
+    // 드래곤 슬레이어 (T5) 4세트: 최종 피해량 증폭 +50%
+    if (isSetEffectActive('dragon', 4)) mult += 0.5;
+    return mult;
+  }
+
+  double get setSkillDamageMult {
+    double mult = 1.0;
+    // 차원 여행자 (T4) 2세트: 스킬 데미지 +25%
+    if (isSetEffectActive('dimension', 2)) mult += 0.25;
+    return mult;
+  }
+
+
+
+
+
 
   // 장착 중인 모든 부위(6개)의 평균 강화 수치 (기존 아이템 강화 기준)
   double get averageEnhanceLevel {
@@ -431,8 +483,12 @@ class Player {
 
     double finalMult = 1.0;
     if (promotionLevel >= 10) finalMult += 0.1; // 10단계 보너스: 모든능력치 +10%
+    
+    // [세트 효과] 태고의 신 (T6) 2세트: 모든 능력치 +20%
+    if (isSetEffectActive('ancient', 2)) finalMult += 0.2;
 
-    return ((baseHp * petBonus * (1.0 + encyclopediaHpMultiplier)).toInt() + flat + encyclopediaHpBonus.toInt() * finalMult).toInt();
+    return (((baseHp * petBonus * (1.0 + encyclopediaHpMultiplier)).toInt() + flat + encyclopediaHpBonus.toInt()) * finalMult).toInt();
+
   }
 
   int get attack {
@@ -472,8 +528,23 @@ class Player {
     double finalMult = activePetMultiplier + (getSkillValue('pas_atk') / 100);
     if (promotionLevel >= 10) finalMult += 0.1; // 10단계 보너스: 모든능력치 +10%
     if (promotionLevel >= 8) finalMult += 0.1;  // 8단계 보너스: 최종 피해량 +10%
+    
+    // [세트 효과] 드래곤 슬레이어 (T5) 2세트: 공격력 +30%
+    if (isSetEffectActive('dragon', 2)) finalMult += 0.3;
+    // [세트 효과] 태고의 신 (T6) 2세트: 모든 능력치 +20%
+    if (isSetEffectActive('ancient', 2)) finalMult += 0.2;
+    
+    // [숙련도 보너스] 레벨당 공격력 +0.5%
+    finalMult += (craftingMasteryLevel * 0.005);
+    
+    // [세트 효과] 사막의 약탈자 (T2) 4세트: 사냥터 이동 시 30초간 ATK +30%
+    if (desertBuffEndTime != null && DateTime.now().isBefore(desertBuffEndTime!)) {
+      finalMult += 0.3;
+    }
+
 
     return (totalAtk * finalMult).toInt();
+
   }
 
   int get defense {
@@ -510,8 +581,14 @@ class Player {
     }
     double finalMult = 1.0;
     if (promotionLevel >= 10) finalMult += 0.1; // 10단계 보너스: 모든능력치 +10%
+    
+    // [세트 효과] 광산의 수호자 (T3) 2세트: 방어력 +20%
+    if (isSetEffectActive('mine', 2)) finalMult += 0.2;
+    // [세트 효과] 태고의 신 (T6) 2세트: 모든 능력치 +20%
+    if (isSetEffectActive('ancient', 2)) finalMult += 0.2;
 
-    return ((baseDefense * bonus).toInt() + flat * finalMult).toInt();
+    return (((baseDefense * bonus).toInt() + flat) * finalMult).toInt();
+
   }
 
   double get attackSpeed {
@@ -570,7 +647,12 @@ class Player {
       if (item.potential?.name == '골드 획득') itemBonusPerc += item.potential!.value;
     });
     double promotionBonus = (promotionLevel >= 1) ? 5.0 : 0.0; // 1단계 보너스: 골드 +5%
-    return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc + promotionBonus;
+    
+    // [세트 효과] 사막의 개척자 (T2) 2세트: 골드 +20%
+    double setBonus = isSetEffectActive('desert', 2) ? 20.0 : 0.0;
+
+    return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc + promotionBonus + setBonus;
+
   }
 
   double get goldBonusBase => baseGoldBonus;
@@ -584,7 +666,12 @@ class Player {
       if (item.potential?.name == '경험치 획득') itemBonusPerc += item.potential!.value;
     });
     double promotionBonus = (promotionLevel >= 2) ? 5.0 : 0.0; // 2단계 보너스: 경험치 +5%
-    return 100.0 + itemBonusPerc + promotionBonus; // [v0.4.0] 수식 오류 수정: pas_4(약점 노출)는 치명타 피해 스킬이므로 제거
+    
+    // [세트 효과] 사막의 개척자 (T2) 2세트: EXP +20%
+    double setBonus = isSetEffectActive('desert', 2) ? 20.0 : 0.0;
+
+    return 100.0 + itemBonusPerc + promotionBonus + setBonus; // [v0.4.0] 수식 오류 수정: pas_4(약점 노출)는 치명타 피해 스킬이므로 제거
+
   }
 
   double get dropBonus {
@@ -600,8 +687,13 @@ class Player {
   double get offEfficiency => baseOffEfficiency;
   double get cdr {
     double promotionBonus = (promotionLevel >= 9) ? 10.0 : 0.0; // 9단계 보너스: 쿨감 +10%
-    return baseCdr + getSkillValue('pas_6') + potentialCdr + promotionBonus;
+    
+    // [세트 효과] 차원 여행자 (T4) 4세트: 쿨감 +15%
+    double setBonus = isSetEffectActive('dimension', 4) ? 15.0 : 0.0;
+    
+    return baseCdr + getSkillValue('pas_6') + potentialCdr + promotionBonus + setBonus;
   }
+
   double get lifesteal => getSkillValue('pas_5');
 
   bool addItem(Item item) {
@@ -778,7 +870,17 @@ class Player {
     'promotionLevel': promotionLevel,
     'soulStone': soulStone,
     'autoCraftTiers': autoCraftTiers.map((k, v) => MapEntry(k.toString(), v)),
+    
+    // 🆕 [v0.7.0] 펫 탐사 저장
+    'zoneExpeditions': zoneExpeditions,
+    'zoneLastClaimedAt': zoneLastClaimedAt,
+    'craftingMasteryLevel': craftingMasteryLevel,
+    'craftingMasteryExp': craftingMasteryExp,
+    'desertBuffEndTime': desertBuffEndTime?.toIso8601String(),
   };
+
+
+
 
   factory Player.fromJson(Map<String, dynamic> json) {
     var p = Player(
@@ -939,7 +1041,26 @@ class Player {
       var map = Map<String, dynamic>.from(json['autoCraftTiers']);
       p.autoCraftTiers = map.map((k, v) => MapEntry(int.tryParse(k) ?? 2, v as bool));
     }
+    
+    // 🆕 [v0.6.2] 펫 탐사 로드
+    if (json.containsKey('zoneExpeditions')) {
+      Map<String, dynamic> rawExp = json['zoneExpeditions'];
+      p.zoneExpeditions = rawExp.map((k, v) => MapEntry(k, List<String?>.from(v)));
+    }
+    if (json.containsKey('zoneLastClaimedAt')) {
+      p.zoneLastClaimedAt = Map<String, String>.from(json['zoneLastClaimedAt']);
+    }
+    
+    // 🆕 [v0.7.0] 제작 숙련도 로드
+    p.craftingMasteryLevel = json['craftingMasteryLevel'] ?? 1;
+    p.craftingMasteryExp = json['craftingMasteryExp'] ?? 0;
+    if (json['desertBuffEndTime'] != null) {
+      p.desertBuffEndTime = DateTime.parse(json['desertBuffEndTime']);
+    }
+
+
 
     return p;
+
   }
 }

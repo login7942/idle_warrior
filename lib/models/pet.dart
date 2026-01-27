@@ -87,7 +87,24 @@ class Pet {
 
   // 동행 효과 (성급에 따라 강화)
   double get currentCompanionValue => companionValue * (1 + star * 0.2);
+
+  // 🆕 [v0.6.2] 탐사 수확 효율 배율
+  double get dispatchEfficiency {
+    double base = 1.0;
+    switch (grade) {
+      case PetGrade.common: base = 1.0; break;
+      case PetGrade.uncommon: base = 1.5; break;
+      case PetGrade.rare: base = 2.5; break;
+      case PetGrade.epic: base = 5.0; break;
+      case PetGrade.unique: base = 10.0; break;
+      case PetGrade.legendary: base = 25.0; break;
+      case PetGrade.mythic: base = 70.0; break;
+    }
+    // 레벨당 1%, 성당 20% 추가 보너스
+    return base * (1 + (level - 1) * 0.01) * (1 + star * 0.2);
+  }
 }
+
 
 class PetData {
   static List<Pet> getInitialPets() {

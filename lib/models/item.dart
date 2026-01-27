@@ -172,8 +172,10 @@ class Item {
   bool isLocked;       // 아이템 잠금 여부
   ItemOption? potential; // 잠재능력 (v0.0.50 추가)
   int failStreak;      // [v0.4.4] 연속 강화 실패 횟수
+  String? setId;       // 🆕 [v0.7.0] 세트 아이템 ID (null이면 일반 아이템)
   
   bool get isBroken => durability <= 0; // 내구도 0 이하 시 파손 상태
+
   Item({
     required this.id,
     required this.name,
@@ -191,7 +193,9 @@ class Item {
     this.isLocked = false,
     this.potential,
     this.failStreak = 0,
+    this.setId,
   });
+
 
   Item copyWith({
     String? id,
@@ -210,7 +214,9 @@ class Item {
     bool? isLocked,
     ItemOption? potential,
     int? failStreak,
+    String? setId,
   }) {
+
     return Item(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -228,7 +234,9 @@ class Item {
       isLocked: isLocked ?? this.isLocked,
       potential: potential ?? this.potential,
       failStreak: failStreak ?? this.failStreak,
+      setId: setId ?? this.setId,
     );
+
   }
 
   // [v0.4.0] 강화 배율 테이블 (정확한 밸런스 유지용)
@@ -273,7 +281,9 @@ class Item {
         'isLocked': isLocked,
         'potential': potential?.toJson(),
         'failStreak': failStreak,
+        'setId': setId,
       };
+
 
   factory Item.fromJson(Map<String, dynamic> json) {
     ItemType type = ItemType.values.firstWhere(
@@ -337,7 +347,9 @@ class Item {
       isLocked: json['isLocked'] ?? false,
       potential: json['potential'] != null ? ItemOption.fromJson(json['potential']) : null,
       failStreak: json['failStreak'] ?? 0,
+      setId: json['setId'],
     );
+
   }
 
 
@@ -455,7 +467,8 @@ class Item {
   }
 
   // 드랍 아이템 생성기 (v0.0.59: T1 고정 드랍 및 등급 분리 시스템)
-  factory Item.generate(int playerLevel, {int tier = 1, ItemType? forcedType}) {
+  factory Item.generate(int playerLevel, {int tier = 1, ItemType? forcedType, String? setId}) {
+
     final rand = Random();
     final id = DateTime.now().millisecondsSinceEpoch.toString() + rand.nextInt(1000).toString();
     
@@ -526,6 +539,12 @@ class Item {
     String prefix = getGradeName(grade);
     String typeName = type.nameKr;
     String name = '$prefix $typeName'; 
+    
+    // [v0.7.0] 세트 명칭 반영
+    if (setId != null) {
+      String setName = getSetName(setId);
+      name = '[$setName] $name';
+    }
 
     return Item(
       id: id,
@@ -540,7 +559,9 @@ class Item {
       durability: 100,
       maxDurability: 100,
       isNew: true,
+      setId: setId,
     );
+
   }
 
   // 강화 성공 확률 (v0.4.3 개편)
@@ -717,6 +738,18 @@ class Item {
       case ItemGrade.mythic: return '신화의';
     }
   }
+
+  static String getSetName(String setId) {
+    switch (setId) {
+      case 'desert': return '사막의 개척자';
+      case 'mine': return '광산의 수호자';
+      case 'dimension': return '차원 여행자';
+      case 'dragon': return '드래곤 슬레이어';
+      case 'ancient': return '태고의 신';
+      default: return '알 수 없는 세트';
+    }
+  }
+
 
 
   static ItemOption _generateRandomOption(Random rand, int tier, ItemType type, {ItemGrade? grade}) {

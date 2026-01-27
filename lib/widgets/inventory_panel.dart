@@ -967,7 +967,10 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                     _buildSubOptions(currentItem),
                     if (currentItem.potential != null)
                       _buildPotentialSection(currentItem.potential!),
+                    if (currentItem.setId != null)
+                      _buildSetSection(currentItem),
                     const SizedBox(height: 20),
+
                     _buildFeatureButtons(gs, currentItem),
                     const SizedBox(height: 32),
                     _buildFinalActions(gs, currentItem, isEquipped),
@@ -1351,6 +1354,62 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
       ),
     );
   }
+
+  Widget _buildSetSection(Item item) {
+    if (item.setId == null) return const SizedBox.shrink();
+    String setName = Item.getSetName(item.setId!);
+    
+    String bonus2 = "";
+    String bonus4 = "";
+    switch (item.setId) {
+      case 'desert': bonus2 = "골드/EXP +20%"; bonus4 = "사냥터 이동 시 30초간 ATK +30%"; break;
+      case 'mine': bonus2 = "방어력 +20%"; bonus4 = "피격 시 10% 확률로 HP 5% 회복"; break;
+      case 'dimension': bonus2 = "스킬 데미지 +25%"; bonus4 = "스킬 쿨타임 -15%"; break;
+      case 'dragon': bonus2 = "공격력 +30%"; bonus4 = "최종 피해량 증폭 +50%"; break;
+      case 'ancient': bonus2 = "모든 능력치 +20%"; bonus4 = "공격 시 5% 확률 광역 번개"; break;
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.purpleAccent.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome_motion, size: 14, color: Colors.purpleAccent),
+              const SizedBox(width: 8),
+              Text('세트 아이탬: [$setName]', style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildSetBonusLine(2, bonus2),
+          _buildSetBonusLine(4, bonus4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSetBonusLine(int count, String bonus) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          const SizedBox(width: 4),
+          Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle)),
+          const SizedBox(width: 10),
+          Expanded(child: Text('$count세트: $bonus', style: const TextStyle(color: Colors.white60, fontSize: 11))),
+        ],
+      ),
+    );
+  }
+
 
   // ---------------------------------------------------------------------------
   // [Functional Buttons] - 강화, 재설정, 잠재능력 버튼

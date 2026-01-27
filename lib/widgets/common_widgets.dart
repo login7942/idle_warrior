@@ -131,6 +131,7 @@ class GlassContainer extends StatelessWidget {
   final Color? color;
   final double blur;
   final Border? border;
+  final DecorationImage? backgroundImage;
 
   const GlassContainer({
     super.key,
@@ -141,7 +142,9 @@ class GlassContainer extends StatelessWidget {
     this.color,
     this.blur = 10,
     this.border,
+    this.backgroundImage,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -170,15 +173,17 @@ class GlassContainer extends StatelessWidget {
               border: border ??
                   Border.all(
                       color: Colors.white.withValues(alpha: 0.15), width: 0.8),
-              gradient: LinearGradient(
+              image: backgroundImage,
+              gradient: backgroundImage == null ? LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
                   Colors.white.withValues(alpha: 0.1),
                   Colors.white.withValues(alpha: 0.02),
                 ],
-              ),
+              ) : null,
             ),
+
             child: child,
           ),
         ),

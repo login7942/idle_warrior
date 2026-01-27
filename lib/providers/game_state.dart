@@ -84,7 +84,15 @@ class GameState extends ChangeNotifier {
   HuntingZone _currentZone = HuntingZoneData.list[0];
   HuntingZone get currentZone => _currentZone;
   set currentZone(HuntingZone val) {
+    bool isChanged = _currentZone.id != val.id;
     _currentZone = val;
+    
+    // [세트 효과] 사막의 약탈자 (T2) 4세트: 사냥터 이동 시 30초간 ATK +30%
+    if (isChanged && player.isSetEffectActive('desert', 4)) {
+      player.desertBuffEndTime = DateTime.now().add(const Duration(seconds: 30));
+      addLog('⚔️ [세트효과] 사막의 기운으로 공격력이 일시적으로 상승합니다!', LogType.event);
+    }
+    
     notifyListeners();
   }
 
@@ -448,9 +456,13 @@ class GameState extends ChangeNotifier {
     double defenseRating = 100 / (100 + effectiveDefense);
     double variance = 0.9 + (Random().nextDouble() * 0.2);
     
-    // 콤보 배율 적용
-    double rawDamage = (player.attack * defenseRating) * variance * player.potentialFinalDamageMult * comboMultiplier;
+    // 콤보 배율 적용 (세트 효과: 최종 데미지 증폭 반영)
+    double rawDamage = (player.attack * defenseRating) * variance * 
+                       player.potentialFinalDamageMult * 
+                       player.setFinalDamageMult * 
+                       comboMultiplier;
     int baseDmg = max(rawDamage.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
+
     
     damageMonster(baseDmg, false, false, combo: _normalAttackCombo);
     // notifyListeners(); // 💡 최적화: Ticker가 이미 UI를 60FPS로 갱신 중임
@@ -485,8 +497,11 @@ class GameState extends ChangeNotifier {
       double variance = 0.9 + (Random().nextDouble() * 0.2);
       double powerMult = skill.currentValue;
       
-      double rawDmg = (player.attack * (powerMult / 100) * defenseRating) * variance * player.potentialFinalDamageMult;
+      // 세트 효과: 스킬 데미지 증폭 및 최종 데미지 증폭 반영
+      double rawDmg = (player.attack * ((powerMult * player.setSkillDamageMult) / 100) * defenseRating) * 
+                       variance * player.potentialFinalDamageMult * player.setFinalDamageMult;
       int baseDmg = max(rawDmg.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
+
       
       // 타격 시간 예약 (0ms, 150ms, 300ms)
       final scheduledTime = now.add(Duration(milliseconds: i * 150));
@@ -529,6 +544,18 @@ class GameState extends ChangeNotifier {
         onHeal?.call(lifestealAmt);
       }
     }
+
+    // [세트 효과] 태고의 신 (T6) 4세트: 공격 시 5% 확률 광역 번개 (무한 루프 방지를 위해 스킬/몬스터 공격 아닐때만 발동)
+    if (!isMonsterAtk && !isSkill && player.isSetEffectActive('ancient', 4)) {
+      if (Random().nextDouble() < 0.05) {
+        int lightningDmg = (player.attack * 5.0).toInt();
+        // 번개 데미지는 재귀를 피하기 위해 직접 처리
+        currentMonster!.hp -= lightningDmg;
+        _monsterCurrentHp = currentMonster!.hp;
+        onDamageDealt?.call('⚡$lightningDmg', lightningDmg, true, true, skillIcon: '⚡');
+      }
+    }
+
 
     // 사망 체크
     _checkMonsterDeath();
@@ -787,11 +814,20 @@ class GameState extends ChangeNotifier {
     playerCurrentHp -= mDmg;
     onPlayerDamageTaken?.call(mDmg);
     
+    // [세트 효과] 광산의 수호자 (T3) 4세트: 피격 시 10% 확률로 HP 5% 회복
+    if (player.isSetEffectActive('mine', 4) && Random().nextDouble() < 0.1) {
+      int healAmt = (player.maxHp * 0.05).toInt();
+      _playerCurrentHp = (_playerCurrentHp + healAmt).clamp(0, player.maxHp);
+      onHeal?.call(healAmt);
+      addLog('🛡️ [세트효과] 광산의 가호로 체력을 회복했습니다.', LogType.event);
+    }
+    
     if (playerCurrentHp <= 0) {
       playerCurrentHp = 0;
       handlePlayerDeath();
     }
     notifyListeners();
+
   }
 
   void handlePlayerDeath() {
@@ -1387,39 +1423,91 @@ class GameState extends ChangeNotifier {
 
   void refresh() => notifyListeners();
 
+  // 🆕 [v0.7.0] 제작 숙련도 경험치 획득 및 레벨업
+  void gainCraftingMasteryExp(int amount) {
+    player.craftingMasteryExp += amount;
+    bool leveledUp = false;
+    while (player.craftingMasteryExp >= player.craftingMasteryNextExp && player.craftingMasteryLevel < 100) {
+      player.craftingMasteryExp -= player.craftingMasteryNextExp;
+      player.craftingMasteryLevel++;
+      leveledUp = true;
+    }
+    if (leveledUp) {
+      addLog('⚒️ 제작 숙련도가 상승했습니다! (현재 Lv.${player.craftingMasteryLevel})', LogType.event);
+      onSpecialEvent?.call('제작 숙련도 상승', 'Lv.${player.craftingMasteryLevel} 달성!');
+    }
+  }
+
+  // 🆕 [v0.7.0] 공통 제작 로직 (수동/자동 공용)
+  Item? craftItem(ItemType type, int tier, {int shardCost = 0, int coreCost = 0}) {
+    if (player.inventory.length >= player.maxInventory) return null;
+    if (player.shards < shardCost || (player.tierCores[tier] ?? 0) < coreCost) return null;
+
+    player.shards -= shardCost;
+    player.tierCores[tier] = (player.tierCores[tier] ?? 0) - coreCost;
+
+    // 1. 세트 아이템 결정 (기본 15% + 숙련도 보너스 최대 15%)
+    String? setId;
+    double setRoll = Random().nextDouble();
+    double setChance = 0.15 + (player.craftingMasteryLevel * 0.0015); 
+    
+    if (setRoll < setChance) {
+      setId = _getSetIdForTier(tier);
+    }
+
+    // 2. 아이템 생성
+    Item newItem = Item.generate(player.level, tier: tier, forcedType: type, setId: setId);
+    
+    player.inventory.add(newItem);
+    player.totalItemsFound++;
+    player.updateEncyclopedia(newItem);
+
+    // 3. 숙련도 획득 (티어 * 10)
+    gainCraftingMasteryExp(tier * 10);
+    
+    return newItem;
+  }
+
+  String? _getSetIdForTier(int tier) {
+    switch (tier) {
+      case 2: return 'desert';
+      case 3: return 'mine';
+      case 4: return 'dimension';
+      case 5: return 'dragon';
+      case 6: return 'ancient';
+      default: return null;
+    }
+  }
+
   // 🆕 [v0.5.40] 자동 제작 엔진: 재료 충족 시 랜덤 부위 자동 생성
   void _processAutoCraft() {
     final Map<int, int> shardCosts = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
     final Map<int, int> coreCosts = { 2: 5, 3: 10, 4: 30, 5: 30, 6: 30 };
 
     for (int t = 2; t <= 6; t++) {
-      // 해당 티어의 자동 제작이 활성화되어 있는지 체크
       if (player.autoCraftTiers[t] == true) {
         int shardCost = shardCosts[t] ?? 999999;
         int coreCost = coreCosts[t] ?? 999999;
 
-        // 재료가 충분하고 인벤토리에 여유가 있는 동안 반복 제작
         while (player.shards >= shardCost && 
                (player.tierCores[t] ?? 0) >= coreCost && 
                player.inventory.length < player.maxInventory) {
           
-          player.shards -= shardCost;
-          player.tierCores[t] = (player.tierCores[t] ?? 0) - coreCost;
-
-          // 6가지 종류 (무기, 투구, 갑옷, 신발, 반지, 목걸이) 중 랜덤 제작
           final type = ItemType.values[Random().nextInt(6)]; 
-          final newItem = Item.generate(player.level, tier: t, forcedType: type);
+          final newItem = craftItem(type, t, shardCost: shardCost, coreCost: coreCost);
           
-          player.inventory.add(newItem);
-          player.totalItemsFound++;
-          player.updateEncyclopedia(newItem);
-          
-          addLog('[자동제작] T$t ${newItem.type.nameKr} 제작 완료!', LogType.item);
-          onLootAcquired?.call('🔨', 'T$t ${newItem.name}', newItem.grade, amount: 1);
+          if (newItem != null) {
+            addLog('[자동제작] T$t ${newItem.type.nameKr} 제작 완료!', LogType.item);
+            onLootAcquired?.call('🔨', 'T$t ${newItem.name}', newItem.grade, amount: 1);
+          } else {
+            break;
+          }
         }
       }
     }
+    notifyListeners();
   }
+
 
   // 🆕 [v0.5.58] 길잡이 퀘스트 시스템 로직
 
@@ -1461,5 +1549,133 @@ class GameState extends ChangeNotifier {
     saveGameData();
     notifyListeners();
   }
-}
 
+  // ---------------------------------------------------------------------------
+  // 🆕 [v0.6.2] 펫 탐사 파견 시스템 (Pet Expedition)
+  // ---------------------------------------------------------------------------
+
+  /// 특정 사냥터 슬롯에 펫을 파견합니다.
+  String? dispatchPetToZone(ZoneId zoneId, int slotIndex, String petId) {
+    final zoneKey = zoneId.name;
+    
+    // 1. 해당 펫이 이미 파견 중인지 체크
+    bool isAlreadyDispatched = player.zoneExpeditions.values.any((list) => list.contains(petId));
+    if (isAlreadyDispatched) return "이미 다른 지역에 파견된 펫입니다.";
+
+    // 2. 메인 동행 펫인지 체크
+    if (player.activePet?.id == petId) return "현재 동행 중인 펫은 파견할 수 없습니다.";
+
+    // 3. 기존 보상이 있다면 자동 정산
+    claimExpeditionRewards(zoneId);
+
+    // 4. 슬롯 초기화 및 배치
+    if (player.zoneExpeditions[zoneKey] == null) {
+      player.zoneExpeditions[zoneKey] = [null, null, null];
+    }
+    player.zoneExpeditions[zoneKey]![slotIndex] = petId;
+    
+    // 5. 파견 시간 갱신 (최초 파견 시 현재 시간 설정)
+    if (player.zoneLastClaimedAt[zoneKey] == null) {
+      player.zoneLastClaimedAt[zoneKey] = DateTime.now().toIso8601String();
+    }
+
+    saveGameData();
+    notifyListeners();
+    return null;
+  }
+
+  /// 파견된 펫을 회수합니다.
+  void recallPetFromZone(ZoneId zoneId, int slotIndex) {
+    final zoneKey = zoneId.name;
+    if (player.zoneExpeditions[zoneKey] == null) return;
+
+    // 회수 전 보상 정산
+    claimExpeditionRewards(zoneId);
+
+    player.zoneExpeditions[zoneKey]![slotIndex] = null;
+    
+    // 모든 펫이 회수되면 시간 데이터 삭제 (선택 사항)
+    bool hasAny = player.zoneExpeditions[zoneKey]!.any((id) => id != null);
+    if (!hasAny) {
+      player.zoneLastClaimedAt.remove(zoneKey);
+    }
+
+    saveGameData();
+    notifyListeners();
+  }
+
+  /// 특정 사냥터의 탐사 보상을 수령합니다.
+  Map<String, int> claimExpeditionRewards(ZoneId zoneId) {
+    final zoneKey = zoneId.name;
+    final rewards = calculateZoneExpeditionReward(zoneId);
+    if (rewards.isEmpty) return {};
+
+    // 보상 적용
+    player.gold += rewards['gold'] ?? 0;
+    player.shards += rewards['shards'] ?? 0;
+    player.tierCores[rewards['coreTier'] ?? 2] = (player.tierCores[rewards['coreTier'] ?? 2] ?? 0) + (rewards['cores'] ?? 0);
+    player.powder += rewards['powder'] ?? 0;
+    player.enhancementStone += rewards['stone'] ?? 0;
+
+    // 마지막 수령 시간 갱신
+    player.zoneLastClaimedAt[zoneKey] = DateTime.now().toIso8601String();
+
+    addLog('[탐사] ${HuntingZoneData.list.firstWhere((z) => z.id == zoneId).name} 정찰 보상을 수령했습니다.', LogType.event);
+    
+    saveGameData();
+    notifyListeners();
+    return rewards;
+  }
+
+  /// UI 표시 및 정산용 보상 계산 로직
+  Map<String, int> calculateZoneExpeditionReward(ZoneId zoneId) {
+    final zoneKey = zoneId.name;
+    final lastAtStr = player.zoneLastClaimedAt[zoneKey];
+    final petIds = player.zoneExpeditions[zoneKey];
+
+    if (lastAtStr == null || petIds == null || petIds.every((id) => id == null)) return {};
+
+    final lastAt = DateTime.tryParse(lastAtStr) ?? DateTime.now();
+    int minutes = DateTime.now().difference(lastAt).inMinutes;
+    if (minutes < 1) return {};
+    if (minutes > 1440) minutes = 1440; // 최대 24시간 제한
+
+    final zone = HuntingZoneData.list.firstWhere((z) => z.id == zoneId);
+    int tier = (zone.minLevel ~/ 40) + 1; // 대략적인 티어 계산 (초원 1, 숲 1, 광산 2...)
+    if (zone.id == ZoneId.abyss) tier = 6;
+    if (zone.id == ZoneId.tower) tier = 1;
+
+    double totalEfficiency = 0.0;
+    for (String? pid in petIds) {
+      if (pid == null) continue;
+      try {
+        final pet = player.pets.firstWhere((p) => p.id == pid);
+        totalEfficiency += pet.dispatchEfficiency;
+      } catch (_) {}
+    }
+
+    if (totalEfficiency <= 0) return {};
+
+    // 보상식: (시간 * 티어 계수 * 효율 총합)
+    // 밸런스: 티어 1 기준 1분당 약 100골드 * 효율
+    double baseGoldPerMin = 100.0 * tier;
+    double baseShardPerMin = 0.5 * tier;
+    
+    int gold = (minutes * baseGoldPerMin * totalEfficiency).toInt();
+    int shards = (minutes * baseShardPerMin * totalEfficiency).toInt();
+    int powder = (minutes * 0.2 * tier * totalEfficiency).toInt();
+    int stone = (minutes * 0.05 * tier * totalEfficiency).toInt();
+    int cores = (killsPerMin > 0 && tier >= 2) ? (minutes * 0.1 * totalEfficiency).toInt() : 0;
+
+
+    return {
+      'gold': gold,
+      'shards': shards,
+      'powder': powder,
+      'stone': stone,
+      'cores': cores,
+      'coreTier': tier.clamp(2, 6),
+      'minutes': minutes,
+    };
+  }
+}
