@@ -843,10 +843,13 @@ void _showDismantleResult(BuildContext context, Map<String, int> rewards) {
               children: [
                 if (rewards['gold']! > 0) _buildResultItem('💰', '골드', rewards['gold']!, Colors.amberAccent),
                 if (rewards['powder']! > 0) _buildResultItem('✨', '가루', rewards['powder']!, Colors.greenAccent),
+                if (rewards['shards'] != null && rewards['shards']! > 0) _buildResultItem('🧩', '연성 파편', rewards['shards']!, Colors.cyanAccent),
+                if (rewards['cores'] != null && rewards['cores']! > 0) _buildResultItem('🌑', '심연의 구슬', rewards['cores']!, Colors.indigoAccent),
                 if (rewards['stone']! > 0) _buildResultItem('💎', '강화석', rewards['stone']!, Colors.blueAccent),
                 if (rewards['reroll']! > 0) _buildResultItem('🎲', '재설정석', rewards['reroll']!, Colors.purpleAccent),
                 if (rewards['protection']! > 0) _buildResultItem('🛡️', '보호석', rewards['protection']!, Colors.orangeAccent),
                 if (rewards['cube']! > 0) _buildResultItem('🔮', '큐브', rewards['cube']!, Colors.redAccent),
+
               ],
             ),
             const SizedBox(height: 32),
@@ -1006,21 +1009,36 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentItem.grade.color),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () {
-                            context.read<GameState>().toggleItemLock(currentItem);
-                            setState(() {});
-                          },
-                          child: Icon(
-                            currentItem.isLocked ? Icons.lock : Icons.lock_open,
-                            size: 18,
-                            color: currentItem.isLocked ? Colors.amberAccent : Colors.white12,
+
                           ),
-                        ),
-                      ],
-                    ),
+                          if (currentItem.canPromote) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amberAccent,
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [BoxShadow(color: Colors.amberAccent.withOpacity(0.5), blurRadius: 8)],
+                              ),
+                              child: const Text('READY', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900)),
+
+                            ),
+                          ],
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () {
+                              context.read<GameState>().toggleItemLock(currentItem);
+                              setState(() {});
+                            },
+                            child: Icon(
+                              currentItem.isLocked ? Icons.lock : Icons.lock_open,
+                              size: 18,
+                              color: currentItem.isLocked ? Colors.amberAccent : Colors.white12,
+                            ),
+                          ),
+                        ],
+                      ),
+
                   ],
                 ),
               ),
@@ -1354,15 +1372,33 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
         const SizedBox(height: 16),
         if (item.canPromote)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _FeatureBtn(
-              title: '승급 (T${item.tier} -> T${item.tier + 1})', 
-              icon: Icons.upgrade, 
-              color: Colors.amberAccent, 
-              isFull: true,
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(color: Colors.amberAccent.withOpacity(0.15), blurRadius: 20, spreadRadius: 2),
+                ],
+              ),
+              child: _FeatureBtn(
+                title: '✨ 티어 승급 (T${item.tier} -> T${item.tier + 1}) ✨', 
+                icon: Icons.auto_awesome, 
+                color: Colors.amberAccent, 
+                isFull: true,
+
               enabled: true,
+              cost: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('💰', style: TextStyle(fontSize: 10)),
+                  Text(BigNumberFormatter.format(item.promotionGoldCost), style: const TextStyle(fontSize: 10, color: Colors.white54, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  const Text('💎', style: TextStyle(fontSize: 10)),
+                  Text(BigNumberFormatter.format(item.promotionStoneCost), style: const TextStyle(fontSize: 10, color: Colors.white54, fontWeight: FontWeight.bold)),
+                ],
+              ),
               onTap: () {
-                if (gs.player.gold < item.promotionGoldCost || gs.player.cube < item.promotionCubeCost) {
+                if (gs.player.gold < item.promotionGoldCost || gs.player.enhancementStone < item.promotionStoneCost) {
                   widget.onShowToast?.call('재화가 부족합니다!', isError: true);
                 } else {
                   gs.promoteItem(item);
@@ -1372,6 +1408,8 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
               },
             ),
           ),
+        ),
+
         Row(
           children: [
             Expanded(child: _FeatureBtn(
@@ -1482,10 +1520,12 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
           onTap: () {
             if (isEquipped) {
               gs.player.unequipItem(item.type);
+              gs.notifyListeners();
             } else {
-              gs.player.equipItem(item);
+              gs.equipItem(item);
             }
             gs.saveGameData(); Navigator.pop(context);
+
           },
           child: Container(
             height: 44,

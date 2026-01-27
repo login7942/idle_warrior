@@ -11,7 +11,9 @@ import '../models/skill.dart';
 import '../models/hunting_zone.dart';
 import '../models/pet.dart';
 import '../models/achievement.dart';
+import '../models/quest.dart';
 import '../services/auth_service.dart';
+
 import '../services/cloud_save_service.dart';
 
 enum LogType { damage, item, event }
@@ -142,6 +144,8 @@ class GameState extends ChangeNotifier {
   Function(String icon, String name, ItemGrade grade, {int amount})? onLootAcquired; // 🆕 아이콘 기반 알림용
   VoidCallback? onPlayerDeath; // 🆕 사망 연출 및 팝업용
   Function(int level, String name, String bonus)? onPromotionSuccess; // 🆕 [v0.5.27] 승급 성공 전용 콜백
+  Function(Item item, int oldTier, int oldStat1, int? oldStat2)? onItemPromotionSuccess; // 🆕 [v0.5.58] 아이템 승급 성공 콜백
+
 
   // 🆕 [v0.5.26] 승급 로직
   void promote() {
@@ -154,7 +158,13 @@ class GameState extends ChangeNotifier {
         player.promotionLevel = nextLevel;
         final step = Player.promotionSteps[nextLevel];
         onPromotionSuccess?.call(nextLevel, step['name'], step['bonus']);
+        
+        // 🆕 [v0.5.58] 퀘스트 체크: 캐릭터 승급
+        checkQuestProgress(QuestType.promotion, player.promotionLevel);
+        
+        saveGameData(forceCloud: true);
         notifyListeners();
+
       } else {
         onSpecialEvent?.call('승급 불가', '슬롯 평균 레벨이 부족합니다. (필요: $req)');
       }
@@ -575,6 +585,11 @@ class GameState extends ChangeNotifier {
         saveGameData(forceCloud: true);
       }
 
+      // 🆕 [v0.5.58] 퀘스트 체크: 스테이지 도달
+      checkQuestProgress(QuestType.reachStage, currentStage);
+
+
+
       if (!jumped) {
         stageKills++;
         if (stageKills >= targetKills) {
@@ -607,7 +622,11 @@ class GameState extends ChangeNotifier {
 
     // 🆕 [v0.5.40] 재료 획득 후 자동 제작 프로세스 실행
     _processAutoCraft();
+
+    // 🆕 [v0.5.58] 퀘스트 체크: 처치 수 또는 스테이지 도달
+    checkQuestProgress(QuestType.reachStage, currentStage);
   }
+
 
   void _dropItem() {
     final rand = Random();
@@ -796,7 +815,16 @@ class GameState extends ChangeNotifier {
 
   // --- [v0.0.85] 아이템 및 펫 비즈니스 로직 ---
 
+  void equipItem(Item item) {
+    player.equipItem(item);
+    // 🆕 [v0.5.58] 퀘스트 체크: 장비 장착
+    checkQuestProgress(QuestType.equip, 1);
+    saveGameData();
+    notifyListeners();
+  }
+
   void toggleItemLock(Item item) {
+
     item.isLocked = !item.isLocked;
     saveGameData();
     notifyListeners();
@@ -815,8 +843,12 @@ class GameState extends ChangeNotifier {
     
     item.rerollSubOptions(Random());
     
+    // 🆕 [v0.5.58] 퀘스트 체크: 옵션 재설정
+    checkQuestProgress(QuestType.reroll, 1);
+
     saveGameData();
     notifyListeners();
+
   }
 
   String enhanceItem(Item item) {
@@ -833,7 +865,10 @@ class GameState extends ChangeNotifier {
     if (isSuccess) {
       addLog(resultMsg, LogType.event);
       player.updateEncyclopedia(item);
+      // 🆕 [v0.5.58] 퀘스트 체크: 아이템 강화 성공 시
+      checkQuestProgress(QuestType.enhanceItem, item.enhanceLevel);
     } else {
+
       addLog(resultMsg, LogType.event);
       if (item.isBroken) {
         int successionLevel = (item.enhanceLevel * 0.7).floor();
@@ -848,19 +883,27 @@ class GameState extends ChangeNotifier {
 
   void promoteItem(Item item) {
     if (!item.canPromote) return;
-    if (player.gold < item.promotionGoldCost || player.cube < item.promotionCubeCost) return;
-
+    if (player.gold < item.promotionGoldCost || player.enhancementStone < item.promotionStoneCost) return;
+    
     player.gold -= item.promotionGoldCost;
-    player.cube -= item.promotionCubeCost;
+    player.enhancementStone -= item.promotionStoneCost;
+
     
     int oldTier = item.tier;
+    int oldStat1 = item.effectiveMainStat1;
+    int? oldStat2 = item.mainStat2 != null ? item.effectiveMainStat2 : null;
+
     item.promote();
     
     addLog("[승급 성공] ${item.name}이(가) T$oldTier에서 T${item.tier}로 진화했습니다! (+10 계승)", LogType.event);
     player.updateEncyclopedia(item);
     
+    // 🆕 승급 성공 연출 호출
+    onItemPromotionSuccess?.call(item, oldTier, oldStat1, oldStat2);
+    
     saveGameData();
     notifyListeners();
+
   }
 
   // --- [v0.3.0] 장착 슬롯 강화 시스템 ---
@@ -990,7 +1033,12 @@ class GameState extends ChangeNotifier {
 
       addLog('[슬롯 강화] ${type.nameKr} 슬롯이 +$nextLevel레벨이 되었습니다!', LogType.event);
       
+      // 🆕 [v0.5.58] 퀘스트 체크: 슬롯 누적 강화 총합 체크
+      checkQuestProgress(QuestType.totalSlotEnhance, player.totalSlotEnhanceLevel);
+
+
       // 🆕 천장(Pity)으로 성공한 경우 추가 알림
+
       if (info['isGuaranteed'] == true) {
         onSpecialEvent?.call('DESTINY SUCCESS!', '천장 도달! 확정 성공으로 슬롯이 강화되었습니다.');
       } else if (info['hasPity'] == true) {
@@ -1058,8 +1106,13 @@ class GameState extends ChangeNotifier {
     }
     
     addLog('[분해] ${item.name}을(를) 분해하여 재료를 획득했습니다.', LogType.item);
+    
+    // 🆕 [v0.5.58] 퀘스트 체크: 아이템 분해
+    checkQuestProgress(QuestType.dismantle, 1);
+
     saveGameData();
     notifyListeners();
+
 
     return rewards;
   }
@@ -1113,9 +1166,14 @@ class GameState extends ChangeNotifier {
 
     if (dismantleCount > 0) {
       addLog('[일괄분해] $dismantleCount개의 아이템을 분해했습니다.', LogType.item);
+      
+      // 🆕 [v0.5.58] 퀘스트 체크: 아이템 분해
+      checkQuestProgress(QuestType.dismantle, 1);
+
       saveGameData();
       notifyListeners();
     }
+
 
     return {
       'count': dismantleCount,
@@ -1125,8 +1183,10 @@ class GameState extends ChangeNotifier {
       'reroll': totalReroll,
       'protection': totalProtection,
       'cube': totalCube,
-      // shards 정보는 복잡하므로 count와 핵심 재화 위주로 반환하거나 필요시 확장
+      'shards': totalShards,
+      'cores': totalCores.values.fold(0, (a, b) => a + b), // 모든 티어 구슬 합계
     };
+
   }
 
   Map<String, int> _calculateDismantleRewards(Item item) {
@@ -1213,9 +1273,13 @@ class GameState extends ChangeNotifier {
       }
     }
     
+    // 🆕 [v0.5.58] 퀘스트 체크: 펫 소환
+    checkQuestProgress(QuestType.summonPet, 1);
+
     saveGameData();
     notifyListeners();
   }
+
 
   void upgradeSkill(Skill skill) {
     if (player.gold < skill.upgradeCost || player.level < skill.unlockLevel) return;
@@ -1223,8 +1287,13 @@ class GameState extends ChangeNotifier {
     player.gold -= skill.upgradeCost;
     skill.level++;
     addLog('[스킬] ${skill.name} ${skill.level}레벨 달성!', LogType.event);
+
+    // 🆕 [v0.5.58] 퀘스트 체크: 스킬 레벨업
+    checkQuestProgress(QuestType.learnSkill, skill.level);
+
     saveGameData(); // 스킬 업글 후 저장
     notifyListeners();
+
   }
 
   void togglePetActive(Pet? pet) {
@@ -1266,8 +1335,13 @@ class GameState extends ChangeNotifier {
 
   void claimEncyclopediaRewards() {
     player.claimAllEncyclopediaRewards();
+
+    // 🆕 [v0.5.58] 퀘스트 체크: 도감 수령
+    checkQuestProgress(QuestType.encyclopedia, 1);
+
     saveGameData();
     notifyListeners();
+
   }
 
   /// 🆕 업적 일괄 수령 기능
@@ -1346,4 +1420,46 @@ class GameState extends ChangeNotifier {
       }
     }
   }
+
+  // 🆕 [v0.5.58] 길잡이 퀘스트 시스템 로직
+
+  void checkQuestProgress(QuestType type, int value) {
+    if (player.currentQuestIndex >= GuideQuestData.quests.length) return;
+    if (player.isQuestRewardClaimable) return;
+
+    final quest = GuideQuestData.quests[player.currentQuestIndex];
+    if (quest.type == type) {
+      if (value >= quest.targetValue) {
+        player.isQuestRewardClaimable = true;
+        addLog('★ 퀘스트 완료! [${quest.title}] 보상을 확인하세요.', LogType.event);
+        notifyListeners();
+      }
+    }
+  }
+
+  void claimQuestReward() {
+    if (!player.isQuestRewardClaimable) return;
+    if (player.currentQuestIndex >= GuideQuestData.quests.length) return;
+
+    final quest = GuideQuestData.quests[player.currentQuestIndex];
+    final r = quest.reward;
+
+    // 보상 지급
+    player.gold += r.gold;
+    player.enhancementStone += r.stone;
+    player.powder += r.powder;
+    player.shards += r.shards;
+    player.cube += r.cube;
+    player.soulStone += r.soulStone;
+
+    addLog('[퀘스트 보상] ${quest.title} 완료 보상을 획득했습니다.', LogType.event);
+    
+    // 다음 퀘스트로 진행
+    player.currentQuestIndex++;
+    player.isQuestRewardClaimable = false;
+
+    saveGameData();
+    notifyListeners();
+  }
 }
+

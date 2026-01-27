@@ -670,8 +670,18 @@ class Item {
   // --- [승급 시스템] (v0.1.14) ---
   bool get canPromote => enhanceLevel >= 20 && tier < 6;
   
-  int get promotionGoldCost => tier * 50000;
-  int get promotionCubeCost => tier * 10;
+  int get promotionGoldCost => tier * 500000;
+  int get promotionStoneCost {
+    switch (tier) {
+      case 1: return 100;
+      case 2: return 1000;
+      case 3: return 10000;
+      case 4: return 30000;
+      case 5: return 50000;
+      default: return 99999999;
+    }
+  }
+
 
   void promote() {
     if (!canPromote) return;

@@ -100,6 +100,11 @@ class Player {
   // 🆕 [v0.5.26] 승급 시스템 (Promotion Level 0~10)
   int promotionLevel = 0;
 
+  // 🆕 [v0.5.58] 길잡이 퀘스트 시스템
+  int currentQuestIndex = 0;
+  bool isQuestRewardClaimable = false;
+
+
   // 장착 중인 모든 부위(6개)의 평균 강화 수치 (기존 아이템 강화 기준)
   double get averageEnhanceLevel {
     int total = 0;
@@ -661,7 +666,7 @@ class Player {
     return null;
   }
 
-  Map<String, dynamic> calculateOfflineRewards(DateTime lastTime, double goldMin, double expMin, double killsMin) {
+  Map<String, dynamic> calculateOfflineRewards(DateTime lastTime, double goldMin, double expMin, double killsMin, {int tier = 1}) {
     int minutes = DateTime.now().difference(lastTime).inMinutes;
     if (minutes > 1440) minutes = 1440; // 최대 24시간
     if (minutes < 1) return {};
@@ -682,19 +687,25 @@ class Player {
     int protectReward = (totalKills * 0.01).toInt();// 보호석: 처치당 0.01개
     int cubeReward = (totalKills * 0.005).toInt();  // 큐브: 처치당 0.005개
     
+    // 🆕 구슬 보상: T2 이상 사냥터에서 처치당 0.05개 (5% 확률)
+    int coreReward = (tier >= 2) ? (totalKills * 0.05).toInt() : 0;
+    
     return {
       'minutes': minutes,
       'gold': totalGold,
       'exp': totalExp,
       'kills': totalKills,
       'bonusStones': stoneReward, 
-      'shards': shardReward, // 통합 파편으로 변경
+      'shards': shardReward,
       'powder': powderReward,
       'rerollStone': rerollReward,
       'protectionStone': protectReward,
       'cube': cubeReward,
+      'cores': coreReward,
+      'coreTier': tier,
     };
   }
+
 
   void applyOfflineRewards(Map<String, dynamic> rewards) {
     if (rewards.isEmpty) return;
@@ -723,6 +734,16 @@ class Player {
     if (rewards.containsKey('cube')) {
       cube += rewards['cube'] as int;
     }
+
+    // 🆕 구슬 보상 적용
+    if (rewards.containsKey('cores') && rewards.containsKey('coreTier')) {
+      int t = rewards['coreTier'] as int;
+      int c = rewards['cores'] as int;
+      if (t >= 2 && c > 0) {
+        tierCores[t] = (tierCores[t] ?? 0) + c;
+      }
+    }
+
   }
 
   // --- JSON 직렬화 및 역직렬화 ---
@@ -742,6 +763,11 @@ class Player {
     'pets': pets.map((p) => p.toJson()).toList(),
     'activePetId': activePet?.id,
     'encyclopediaProgress': encyclopediaProgress,
+    'shards': shards,
+    'tierCores': tierCores.map((k, v) => MapEntry(k.toString(), v)),
+    'currentQuestIndex': currentQuestIndex,
+    'isQuestRewardClaimable': isQuestRewardClaimable,
+
     'encyclopediaClaims': encyclopediaClaims, 
     'shards': shards,
     'tierCores': tierCores.map((k, v) => MapEntry(k.toString(), v)),
@@ -785,6 +811,9 @@ class Player {
     p.totalGoldEarned = json['totalGoldEarned'] ?? 0;
     p.totalItemsFound = json['totalItemsFound'] ?? 0;
     p.totalSkillsUsed = json['totalSkillsUsed'] ?? 0;
+    p.currentQuestIndex = json['currentQuestIndex'] ?? 0;
+    p.isQuestRewardClaimable = json['isQuestRewardClaimable'] ?? false;
+
     
     if (json['achievementSteps'] != null) {
       p.achievementSteps = Map<String, int>.from(json['achievementSteps']);

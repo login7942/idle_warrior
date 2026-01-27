@@ -22,7 +22,9 @@ import 'widgets/pet_panel.dart';
 import 'widgets/achievement_panel.dart';
 import 'widgets/character_panel.dart';
 import 'widgets/common_widgets.dart';
+import 'widgets/quest_overlay.dart';
 import 'engine/game_loop.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -316,6 +318,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _showPromotionDialog(level, name, bonus);
     };
 
+    gameState.onItemPromotionSuccess = (item, oldTier, oldStat1, oldStat2) {
+      if (!mounted) return;
+      _showItemPromotionDialog(item, oldTier, oldStat1, oldStat2);
+    };
+
+
     // 초기 실행 시 몬스터가 이미 있다면 등장 애니메이션 실행
     if (gameState.currentMonster != null) {
       _monsterSpawnController.forward(from: 0);
@@ -594,7 +602,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         // 핵심: 바디 콘텐츠를 RepaintBoundary로 감싸서 다른 UI와 렌더링 레이어 분리
                         Positioned.fill(child: RepaintBoundary(child: _buildBodyContent())),
                         Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomDock()),
+                        if (_selectedIndex == 0) const QuestOverlay(),
                         // 🆕 파티클 레이어 제거 (v0.5.54)
+
                       ],
                     ),
                   ),
@@ -2997,12 +3007,26 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       effectiveExpMin = (gameState.currentMonster?.expReward.toDouble() ?? (gameState.currentStage * 5.0)) * 5.0;
     }
 
+    int zoneTier = 1;
+    switch (gameState.currentZone.id) {
+      case ZoneId.grassland: zoneTier = 1; break;
+      case ZoneId.forest: zoneTier = 2; break;
+      case ZoneId.mine: zoneTier = 3; break;
+      case ZoneId.dungeon: zoneTier = 4; break;
+      case ZoneId.volcano: zoneTier = 5; break;
+      case ZoneId.snowfield: zoneTier = 6; break;
+      case ZoneId.abyss: zoneTier = 6; break;
+      default: zoneTier = 1;
+    }
+
     final rewards = gameState.player.calculateOfflineRewards(
       lastSave, 
       effectiveGoldMin, 
       effectiveExpMin, 
-      effectiveKillsMin
+      effectiveKillsMin,
+      tier: zoneTier,
     );
+
 
     if (rewards.isEmpty) return;
     _showOfflineRewardDialog(rewards);
@@ -3039,13 +3063,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               _buildOfflineRewardItem('💰', '골드', rewards['gold']),
               _buildOfflineRewardItem('✨', '경험치', rewards['exp']),
               _buildOfflineRewardItem('💀', '처치 수', rewards['kills']),
-              if (rewards.containsKey('tierShards')) ...[
-                ...((rewards['tierShards'] as Map<int, int>).entries.map((e) =>
-                    _buildOfflineRewardItem('🧩', 'T${e.key} 파편', e.value)
-                )),
-              ],
+              if (rewards.containsKey('shards'))
+                _buildOfflineRewardItem('🧩', '연성 파편', rewards['shards']),
+              if (rewards.containsKey('cores') && rewards['cores'] > 0)
+                _buildOfflineRewardItem('🌑', 'T${rewards['coreTier']} 심연의 구슬', rewards['cores']),
               if (rewards.containsKey('powder'))
                 _buildOfflineRewardItem('✨', '가루', rewards['powder']),
+
               if (rewards['bonusStones'] > 0 || rewards.containsKey('rerollStone') || rewards.containsKey('protectionStone') || rewards.containsKey('cube')) ...[
                 const Divider(color: Colors.white24, height: 24),
                 const Text(
@@ -3220,7 +3244,157 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
+  void _showItemPromotionDialog(Item item, int oldTier, int oldStat1, int? oldStat2) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'ItemPromotion',
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      transitionDuration: const Duration(milliseconds: 700),
+      pageBuilder: (context, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        final curve = Curves.elasticOut.transform(anim1.value);
+        return Transform.scale(
+          scale: curve,
+          child: Opacity(
+            opacity: anim1.value,
+            child: Dialog(
+              backgroundColor: Colors.transparent,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // 배경 레이어 (파티클 느낌 발광)
+                  Container(
+                    width: 340, height: 500,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: item.grade.color.withValues(alpha: 0.2 * anim1.value), 
+                          blurRadius: 120, spreadRadius: 60
+                        ),
+                      ],
+                    ),
+                  ),
+                  GlassContainer(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                    borderRadius: 40,
+                    border: Border.all(color: item.grade.color.withValues(alpha: 0.5), width: 2),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 티어 변화 연출
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildStaticTierBadge(oldTier),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.keyboard_double_arrow_right, color: Colors.white54, size: 24),
+                            const SizedBox(width: 12),
+                            _buildElevatedTierBadge(item.tier),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        // 아이템 이름 및 등급
+                        ShadowText(item.name.split(' T')[0], fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
+                        const SizedBox(height: 8),
+                        Text(item.grade.name, style: TextStyle(color: item.grade.color, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // 능력치 변화 리스트 (Before -> After)
+                        _buildStatChangeRow(item.mainStatName1, oldStat1, item.effectiveMainStat1),
+                        if (item.mainStatName2 != null && oldStat2 != null) ...[
+                          const SizedBox(height: 12),
+                          _buildStatChangeRow(item.mainStatName2!, oldStat2, item.effectiveMainStat2),
+                        ],
+                        
+                        const SizedBox(height: 40),
+                        
+                        // 확인 버튼
+                        PopBtn('진화된 위력 확인', item.grade.color, () {
+                           Navigator.of(context).pop();
+                        }, isFull: true),
+                      ],
+                    ),
+                  ),
+                  
+                  // 상단 장식 아이콘
+                  Positioned(
+                    top: -10,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(seconds: 2),
+                      builder: (context, val, _) => Transform.translate(
+                        offset: Offset(0, 10 * sin(val * 2 * pi)),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF141622),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: item.grade.color, width: 2),
+                            boxShadow: [BoxShadow(color: item.grade.color.withValues(alpha: 0.5), blurRadius: 15)],
+                          ),
+                          child: Icon(Icons.auto_awesome, color: item.grade.color, size: 32),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStaticTierBadge(int tier) {
+     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white24)),
+      child: Text('T$tier', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white38)),
+    );
+  }
+
+  Widget _buildElevatedTierBadge(int tier) {
+     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.blueAccent.withValues(alpha: 0.2), 
+        borderRadius: BorderRadius.circular(14), 
+        border: Border.all(color: Colors.blueAccent, width: 2),
+        boxShadow: [BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.3), blurRadius: 10)]
+      ),
+      child: Text('T$tier', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+    );
+  }
+
+  Widget _buildStatChangeRow(String label, int oldVal, int newVal) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.bold)),
+          const Spacer(),
+          Text(BigNumberFormatter.format(oldVal), style: const TextStyle(color: Colors.white38, fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 12),
+          const Icon(Icons.arrow_right_alt, color: Colors.greenAccent, size: 20),
+          const SizedBox(width: 12),
+          Text(BigNumberFormatter.format(newVal), style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+
   void _showTowerResultDialog(bool isSuccess) {
+
     if (_isTowerResultShowing) return;
     _isTowerResultShowing = true;
     _isEnteringTower = false; // 결과가 나오면 입장 상태 해제
