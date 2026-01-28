@@ -12,6 +12,8 @@ enum QuestType {
   encyclopedia,   // 도감 수령
   reroll,         // 옵션 재설정
   promotion,       // 캐릭터 승급 🆕
+  enhanceAttempt,  // 장비 강화 시도 🆕
+  reachTowerFloor, // 무한의 탑 층 도달 🆕
 }
 
 class QuestReward {
@@ -109,12 +111,28 @@ class GuideQuestData {
       reward: QuestReward(gold: 1500000, cube: 20),
     ),
     Quest(
+      id: 'q12',
+      title: '장비 연마의 길: 강화 시도',
+      description: '장비 강화를 50회 시도하여 숙련도를 높이세요.',
+      type: QuestType.enhanceAttempt,
+      targetValue: 50,
+      reward: QuestReward(gold: 2000000, stone: 1000),
+    ),
+    Quest(
       id: 'q9',
       title: '한계 돌파: 캐릭터 승급',
       description: '캐릭터 상세에서 첫 번째 승급을 달성하세요.',
       type: QuestType.promotion,
       targetValue: 1,
       reward: QuestReward(gold: 3000000, shards: 3000),
+    ),
+    Quest(
+      id: 'q13',
+      title: '시련의 증표: 무한의 탑',
+      description: '사냥터-무한의 탑에 도전하여 영혼석을 획득하세요!',
+      type: QuestType.reachTowerFloor,
+      targetValue: 1,
+      reward: QuestReward(gold: 5000000, soulStone: 30),
     ),
     Quest(
       id: 'q4',

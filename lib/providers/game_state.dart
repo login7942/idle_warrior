@@ -594,6 +594,9 @@ class GameState extends ChangeNotifier {
     if (isTower) {
       player.soulStone += 10; // 🆕 무한의 탑 승리 시 영혼석 10개 확정 지급
       addLog('무한의 탑 돌파! 영혼석 10개를 획득했습니다.', LogType.event);
+      
+      // 🆕 [v0.7.2] 퀘스트 체크: 무한의 탑 도달 층
+      checkQuestProgress(QuestType.reachTowerFloor, currentStage);
     }
     if (!isTower) {
       bool isBossStage = currentStage % 50 == 0;
@@ -895,13 +898,17 @@ class GameState extends ChangeNotifier {
     player.gold -= item.enhanceCost;
     player.enhancementStone -= item.stoneCost;
     
+    // 🆕 [v0.7.1] 퀘스트 체크: 강화 시도 횟수 누적
+    player.totalEnhanceAttempts++;
+    checkQuestProgress(QuestType.enhanceAttempt, player.totalEnhanceAttempts);
+
     bool isSuccess = Random().nextDouble() < item.successChance;
     String resultMsg = item.processEnhance(isSuccess);
     
     if (isSuccess) {
       addLog(resultMsg, LogType.event);
       player.updateEncyclopedia(item);
-      // 🆕 [v0.5.58] 퀘스트 체크: 아이템 강화 성공 시
+      // 🆕 [v0.5.58] 퀘스트 체크: 아이템 강화 성공 시 (기존 로직 유지)
       checkQuestProgress(QuestType.enhanceItem, item.enhanceLevel);
     } else {
 

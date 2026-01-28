@@ -13,7 +13,7 @@ class QuestOverlay extends StatelessWidget {
       builder: (context, gameState, child) {
         final player = gameState.player;
         if (player.currentQuestIndex >= GuideQuestData.quests.length) {
-          return const SizedBox.shrink();
+          return const Positioned(child: SizedBox.shrink());
         }
 
         final quest = GuideQuestData.quests[player.currentQuestIndex];

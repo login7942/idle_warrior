@@ -51,6 +51,7 @@ class Player {
   int totalGoldEarned = 0;
   int totalItemsFound = 0;
   int totalSkillsUsed = 0;
+  int totalEnhanceAttempts = 0; // 🆕 장비 강화 총 시도 횟수
   Map<String, int> achievementSteps = {}; // 각 업적별 현재 단계
   
   // 강화 계승 시스템: 티어별 저장된 강화 레벨 (70% 계승용)
@@ -846,6 +847,7 @@ class Player {
     'protectionStone': protectionStone, 'cube': cube,
     'totalKills': totalKills, 'totalGoldEarned': totalGoldEarned,
     'totalItemsFound': totalItemsFound, 'totalSkillsUsed': totalSkillsUsed,
+    'totalEnhanceAttempts': totalEnhanceAttempts,
     'achievementSteps': achievementSteps,
     'enhancementSuccession': enhancementSuccession.map((k, v) => MapEntry(k.toString(), v)),
     'baseHp': baseHp, 'baseAttack': baseAttack, 'baseDefense': baseDefense,
@@ -913,6 +915,7 @@ class Player {
     p.totalGoldEarned = json['totalGoldEarned'] ?? 0;
     p.totalItemsFound = json['totalItemsFound'] ?? 0;
     p.totalSkillsUsed = json['totalSkillsUsed'] ?? 0;
+    p.totalEnhanceAttempts = json['totalEnhanceAttempts'] ?? 0;
     p.currentQuestIndex = json['currentQuestIndex'] ?? 0;
     p.isQuestRewardClaimable = json['isQuestRewardClaimable'] ?? false;
 
