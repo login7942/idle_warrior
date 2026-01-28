@@ -564,27 +564,45 @@ class Item {
 
   }
 
-  // 강화 성공 확률 (v0.4.3 개편)
+  // 강화 성공 확률 (v0.8.4 티어별 페널티 적용)
   double get successChance {
-    if (enhanceLevel < 6) return 1.0;     // +0~+5: 100%
-    switch (enhanceLevel) {
-      case 6: return 0.95;
-      case 7: return 0.90;
-      case 8: return 0.85;
-      case 9: return 0.80;
-      case 10: return 0.75;
-      case 11: return 0.65;
-      case 12: return 0.60;
-      case 13: return 0.55;
-      case 14: return 0.50;
-      case 15: return 0.45;
-      case 16: return 0.40;
-      case 17: return 0.35;
-      case 18: return 0.30;
-      case 19: return 0.25;
-      case 20: return 0.20;
-      default: return 0.20;
+    double base;
+    if (enhanceLevel < 6) {
+      base = 1.0; // +0~+5: 기본 100%
+    } else {
+      switch (enhanceLevel) {
+        case 6: base = 0.95; break;
+        case 7: base = 0.90; break;
+        case 8: base = 0.85; break;
+        case 9: base = 0.80; break;
+        case 10: base = 0.75; break;
+        case 11: base = 0.65; break;
+        case 12: base = 0.60; break;
+        case 13: base = 0.55; break;
+        case 14: base = 0.50; break;
+        case 15: base = 0.45; break;
+        case 16: base = 0.40; break;
+        case 17: base = 0.35; break;
+        case 18: base = 0.30; break;
+        case 19: base = 0.25; break;
+        case 20: base = 0.20; break;
+        default: base = 0.20;
+      }
     }
+
+    // [v0.8.4] 티어별 페널티 계수 적용
+    double multiplier = 1.0;
+    switch (tier) {
+      case 1: multiplier = 1.0; break;
+      case 2: multiplier = 0.7; break;
+      case 3: multiplier = 0.5; break;
+      case 4: multiplier = 0.4; break;
+      case 5: multiplier = 0.3; break;
+      case 6: multiplier = 0.25; break;
+      default: multiplier = 0.25;
+    }
+
+    return base * multiplier;
   }
 
   // 강화 비용 계산 (골드)
@@ -609,8 +627,8 @@ class Item {
     return 15;
   }
 
-  // 강화 처리 로직 (v0.4.4 누적 보호 시스템 적용)
-  String processEnhance(bool success) {
+  // 강화 처리 로직 (v0.8.5 보호석 지원 추가)
+  String processEnhance(bool success, {bool useProtection = false}) {
     if (isBroken) return "파손된 장비는 강화할 수 없습니다.";
     if (enhanceLevel >= 20) return "이미 최대 강화 단계(+20)에 도달했습니다.";
 
@@ -620,17 +638,19 @@ class Item {
       return _applyLevelMilestone();
     } else {
       failStreak++;
-      int loss = durabilityLoss;
-      String protectionMsg = "";
+      int loss = useProtection ? 0 : durabilityLoss;
+      String protectionMsg = useProtection ? " (보호석 효과: 내구도 보존)" : "";
 
-      // [v0.4.4] 누적 보호 로직
-      if (failStreak >= 6) {
-        loss = 0; // 6회 이상 실패 시 내구도 감소 없음
-        failStreak = 0; // 보호 발동 후 리셋
-        protectionMsg = " (보호 발동: 내구도 보호!)";
-      } else if (failStreak >= 3) {
-        loss = (loss * 0.5).floor(); // 3회 이상 실패 시 감소량 50% 완화
-        protectionMsg = " (완충 발동: 내구도 소모 50% 감소)";
+      if (!useProtection) {
+        // [v0.4.4] 누적 보호 로직 (보호석 미사용 시에만 체크)
+        if (failStreak >= 6) {
+          loss = 0; // 6회 이상 실패 시 내구도 감소 없음
+          failStreak = 0; // 보호 발동 후 리셋
+          protectionMsg = " (보호 발동: 내구도 보호!)";
+        } else if (failStreak >= 3) {
+          loss = (loss * 0.5).floor(); // 3회 이상 실패 시 감소량 50% 완화
+          protectionMsg = " (완충 발동: 내구도 소모 50% 감소)";
+        }
       }
 
       // [Last Chance 보호 로직] 

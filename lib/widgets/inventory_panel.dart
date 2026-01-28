@@ -6,7 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:idle_warrior/models/player.dart';
 import 'package:idle_warrior/models/item.dart';
 import 'package:idle_warrior/providers/game_state.dart';
+import 'character_panel.dart';
 import 'common_widgets.dart';
+import 'quick_menu_panel.dart'; // 🆕 통합 메뉴 임포트
 
 // =============================================================================
 // [InventoryPanel]
@@ -106,83 +108,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
     );
   }
 
-  void _showAutoDismantleSettingsDialog(GameState gameState) {
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          bool isActive = gameState.autoDismantleGrade != -1 && gameState.autoDismantleTier != -1;
-          
-          return AlertDialog(
-            backgroundColor: const Color(0xFF1A1D2E),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: const Row(
-              children: [
-                Icon(Icons.settings_suggest_outlined, color: Colors.blueAccent, size: 20),
-                SizedBox(width: 8),
-                Text('자동 분해 설정', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('획득 즉시 설정한 조건에 따라 아이템을 분해합니다.', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 24),
-                // 등급 슬라이더
-                _buildDismantleSlider(
-                  label: "자동분해 등급",
-                  value: gameState.autoDismantleGrade.toDouble() + 1,
-                  max: 7,
-                  divisions: 7,
-                  labels: ["OFF", "일반", "고급", "희귀", "영웅", "고유", "전설", "신화"],
-                  onChanged: (v) {
-                    setDialogState(() => gameState.autoDismantleGrade = v.toInt() - 1);
-                    gameState.saveGameData();
-                  },
-                  activeColor: gameState.autoDismantleGrade != -1 
-                      ? ItemGrade.values[gameState.autoDismantleGrade].color 
-                      : Colors.white24,
-                ),
-                const SizedBox(height: 16),
-                // 티어 슬라이더
-                _buildDismantleSlider(
-                  label: "자동분해 티어",
-                  value: gameState.autoDismantleTier == -1 ? 0 : gameState.autoDismantleTier.toDouble(),
-                  max: 6,
-                  divisions: 6,
-                  labels: ["OFF", "T1", "T2", "T3", "T4", "T5", "T6"],
-                  onChanged: (v) {
-                    setDialogState(() => gameState.autoDismantleTier = v == 0 ? -1 : v.toInt());
-                    gameState.saveGameData();
-                  },
-                  activeColor: Colors.blueAccent,
-                ),
-                const SizedBox(height: 24),
-                if (isActive)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
-                    child: Text(
-                      '${gameState.autoDismantleGrade == -1 ? "OFF" : ItemGrade.values[gameState.autoDismantleGrade].name} 이하 / ${gameState.autoDismantleTier == -1 ? "OFF" : "T${gameState.autoDismantleTier}"} 이하 자동분해 진행 중',
-                      style: const TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context), 
-                child: const Text('닫기', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold))
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
+
 
   Widget _buildDismantleSlider({
     required String label,
@@ -332,9 +258,21 @@ class _InventoryPanelState extends State<InventoryPanel> {
               const SizedBox(width: 8),
               _buildSortBtn('강화순', 2, Icons.upgrade),
               const SizedBox(width: 8),
-              // 자동 분해 설정 버튼 (⚙️)
+              // 자동 분해 설정 버튼 -> 🆕 통합 메뉴로 연결
               PressableScale(
-                onTap: () => _showAutoDismantleSettingsDialog(gameState),
+                onTap: () {
+                  showGeneralDialog(
+                    context: context,
+                    barrierDismissible: true,
+                    barrierLabel: 'QuickMenu',
+                    barrierColor: Colors.black54,
+                    transitionDuration: const Duration(milliseconds: 300),
+                    pageBuilder: (context, anim1, anim2) => const QuickMenuPanel(),
+                    transitionBuilder: (context, anim1, anim2, child) {
+                      return FadeTransition(opacity: anim1, child: child);
+                    },
+                  );
+                },
                 child: Container(
                   width: 34, height: 34,
                   decoration: BoxDecoration(
@@ -913,6 +851,7 @@ class _ItemDetailDialog extends StatefulWidget {
 class _ItemDetailDialogState extends State<_ItemDetailDialog> {
   late Item currentItem;
   bool isCompareExpanded = false;
+  bool useProtection = false; // 🆕 보호석 사용 여부 토글 상태 추가
 
   @override
   void initState() {
@@ -1470,7 +1409,9 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
         ),
 
         Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            // 1. 재설정 버튼
             Expanded(child: _FeatureBtn(
               title: isRerollUnlocked ? '재설정 (${item.rerollCount}/5)' : '슬롯 300강', 
               icon: isRerollUnlocked ? Icons.refresh : Icons.lock_outline, 
@@ -1498,6 +1439,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
               },
             )),
             const SizedBox(width: 6),
+            // 2. 잠재능력 버튼
             Expanded(child: _FeatureBtn(
               title: isPotentialUnlocked ? '잠재능력' : '슬롯 1000강', 
               icon: isPotentialUnlocked ? Icons.auto_awesome : Icons.lock_outline, 
@@ -1525,43 +1467,85 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
               },
             )),
             const SizedBox(width: 6),
-            Expanded(child: _FeatureBtn(
-              title: isEnhanceUnlocked ? '강화 (+${item.enhanceLevel})' : '슬롯 50강', 
-              icon: isEnhanceUnlocked ? Icons.flash_on : Icons.lock_outline, 
-              color: Colors.blueAccent,
-              enabled: isEnhanceUnlocked,
-              cost: isEnhanceUnlocked ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            // 3. 강화 버튼 (보호석 토글 포함)
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('💰', style: TextStyle(fontSize: 9)),
-                  Text(item.enhanceCost > 10000 ? '${(item.enhanceCost/1000).toStringAsFixed(1)}k' : _formatNumber(item.enhanceCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 4),
-                  const Text('💎', style: TextStyle(fontSize: 9)),
-                  Text(_formatNumber(item.stoneCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
-                ],
-              ) : Text('(현재 $totalSlotLv / 50)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
-              onTap: () async {
-                if (item.isLocked) {
-                  widget.onShowToast?.call('잠긴 아이템은 강화할 수 없습니다!', isError: true);
-                } else if (gs.player.gold < item.enhanceCost || gs.player.enhancementStone < item.stoneCost) {
-                  widget.onShowToast?.call('재화가 부족합니다!', isError: true);
-                } else if (item.isBroken) {
-                  widget.onShowToast?.call('파손된 장비는 강화할 수 없습니다!', isError: true);
-                } else {
-                  // [v0.5.15] 내구도 1 경고 팝업
-                  if (item.durability == 1) {
-                    bool? proceed = await _showLastChanceConfirm(context);
-                    if (proceed != true) return;
-                  }
+                  if (isEnhanceUnlocked)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: PressableScale(
+                        onTap: () => setState(() => useProtection = !useProtection),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: useProtection ? Colors.orangeAccent.withOpacity(0.12) : Colors.black26,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: useProtection ? Colors.orangeAccent.withOpacity(0.4) : Colors.white10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.shield_outlined, size: 10, color: useProtection ? Colors.orangeAccent : Colors.white24),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  '보호: ${gs.player.protectionStone}',
+                                  style: TextStyle(
+                                    color: useProtection ? Colors.orangeAccent : Colors.white38,
+                                    fontSize: 7, 
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  _FeatureBtn(
+                    title: isEnhanceUnlocked ? '강화 (+${item.enhanceLevel})' : '슬롯 50강', 
+                    icon: isEnhanceUnlocked ? Icons.flash_on : Icons.lock_outline, 
+                    color: Colors.blueAccent,
+                    enabled: isEnhanceUnlocked,
+                    cost: isEnhanceUnlocked ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('💰', style: TextStyle(fontSize: 9)),
+                        Text(item.enhanceCost > 10000 ? '${(item.enhanceCost/1000).toStringAsFixed(1)}k' : _formatNumber(item.enhanceCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 3),
+                        const Text('💎', style: TextStyle(fontSize: 9)),
+                        Text(_formatNumber(item.stoneCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                      ],
+                    ) : Text('(현재 $totalSlotLv / 50)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
+                    onTap: () async {
+                      if (item.isLocked) {
+                        widget.onShowToast?.call('잠긴 아이템은 강화할 수 없습니다!', isError: true);
+                      } else if (gs.player.gold < item.enhanceCost || gs.player.enhancementStone < item.stoneCost) {
+                        widget.onShowToast?.call('재화가 부족합니다!', isError: true);
+                      } else if (useProtection && gs.player.protectionStone < 1) {
+                        widget.onShowToast?.call('보호석이 부족합니다!', isError: true);
+                      } else if (item.isBroken) {
+                        widget.onShowToast?.call('파손된 장비는 강화할 수 없습니다!', isError: true);
+                      } else {
+                        if (!useProtection && item.durability == 1) {
+                          bool? proceed = await _showLastChanceConfirm(context);
+                          if (proceed != true) return;
+                        }
 
-                  int oldLevel = currentItem.enhanceLevel;
-                  String result = gs.enhanceItem(currentItem);
-                  bool isSuccess = currentItem.enhanceLevel > oldLevel;
-                  widget.onShowToast?.call(result, isError: !isSuccess);
-                  setState(() {});
-                }
-              },
-            )),
+                        int oldLevel = currentItem.enhanceLevel;
+                        String result = gs.enhanceItem(currentItem, useProtection: useProtection);
+                        bool isSuccess = currentItem.enhanceLevel > oldLevel;
+                        widget.onShowToast?.call(result, isError: !isSuccess);
+                        setState(() {});
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ],

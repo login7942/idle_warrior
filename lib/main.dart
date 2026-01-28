@@ -25,6 +25,7 @@ import 'widgets/achievement_panel.dart';
 import 'widgets/character_panel.dart';
 import 'widgets/common_widgets.dart';
 import 'widgets/quest_overlay.dart';
+import 'widgets/quick_menu_panel.dart'; // 🆕 신규 통합 메뉴 도입
 import 'engine/game_loop.dart';
 
 
@@ -127,6 +128,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   OverlayEntry? _activeNotification;
   bool _showJumpEffect = false; // [v0.0.79] 경량화된 점프 애니메이션 상태
   Timer? _jumpEffectTimer;
+
+  // 🆕 화면 흔들림(Screen Shake) 관련 상태
+  double _shakeOffsetX = 0;
+  double _shakeOffsetY = 0;
+  Timer? _shakeTimer;
 
   // --- [신규 v0.0.60] 제작 시스템 상태 ---
   int _selectedCraftTier = 2; // 기본 선택 티어 (T2)
@@ -514,8 +520,28 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
 
-
   // 🆕 데미지 텍스트 추가 API (통합 관리)
+  // 🆕 통합 관제 센터 메뉴 열기
+  void _showQuickMenu() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'QuickMenu',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, anim1, anim2) => const QuickMenuPanel(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return FadeTransition(
+          opacity: anim1,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.9, end: 1.0).animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutBack)),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   void _addFloatingText(String text, bool isMonsterTarget, {
     bool isCrit = false, 
     bool isSkill = false,
@@ -569,6 +595,33 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       skillIcon: skillIcon, // 🆕 아이콘 전달
       combo: combo, // 🆕 콤보 전달
     ));
+  }
+
+  // 🆕 화면 흔들림 효과 유도함수
+  void _triggerScreenShake({double intensity = 5.0, int duration = 200}) {
+    if (_displayMode == DisplayMode.powerSave) return; // 절전 모드 시 스킵
+    
+    _shakeTimer?.cancel();
+    final endTime = DateTime.now().add(Duration(milliseconds: duration));
+    final rand = Random();
+    
+    _shakeTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!mounted || DateTime.now().isAfter(endTime)) {
+        timer.cancel();
+        if (mounted) {
+          setState(() {
+            _shakeOffsetX = 0;
+            _shakeOffsetY = 0;
+          });
+        }
+        return;
+      }
+      
+      setState(() {
+        _shakeOffsetX = (rand.nextDouble() * 2 - 1) * intensity;
+        _shakeOffsetY = (rand.nextDouble() * 2 - 1) * intensity;
+      });
+    });
   }
 
   @override
@@ -796,7 +849,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         bool isCurrent = gameState.currentZone.id == zone.id;
         int stage = gameState.zoneStages[zone.id] ?? 1;
         final player = gameState.player;
-        final bool isOptimal = player.averageSlotEnhanceLevel >= zone.minEnhance && player.averageSlotEnhanceLevel <= zone.maxEnhance;
+        final bool isOptimal = player.totalSlotEnhanceLevel >= zone.minEnhance && player.totalSlotEnhanceLevel <= zone.maxEnhance;
 
         // 배경 이미지 경로 맵핑
         String bgPath = 'assets/images/backgrounds/bg_${zone.id.name}.png';
@@ -1205,7 +1258,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           children: [
                             const Text('제작 티어 선택', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
                             Text(
-                              '현재 평균 슬롯 강화: +${player.averageSlotEnhanceLevel.toStringAsFixed(1)}',
+                              '현재 슬롯 강화 총합: +${player.totalSlotEnhanceLevel}',
                               style: TextStyle(
                                 color: player.averageSlotEnhanceLevel >= 60 ? Colors.greenAccent : Colors.white38,
                                 fontSize: 10,
@@ -1907,7 +1960,28 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       ],
                     ),
                     if (gameState.currentZone.id != ZoneId.tower)
-                      Text('${gameState.stageKills} / ${gameState.targetKills}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: gameState.autoAdvance ? Colors.greenAccent.withOpacity(0.2) : Colors.orangeAccent.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: (gameState.autoAdvance ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.5), width: 0.5),
+                            ),
+                            child: Text(
+                              gameState.autoAdvance ? 'AUTO' : 'FARM(고정)',
+                              style: TextStyle(
+                                color: gameState.autoAdvance ? Colors.greenAccent : Colors.orangeAccent,
+                                fontSize: 7,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('${gameState.stageKills} / ${gameState.targetKills}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -2041,11 +2115,25 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween, // 균형 잡힌 배치
                 children: [
-                  Expanded(child: _buildStatItem(Colors.amber, gameState.goldPerMin.toInt().toString(), '분당골드')),
+                  Expanded(child: _buildStatItem(Colors.amber, _formatNumber(gameState.goldPerMin), '분당골드')),
                   _buildStatDivider(),
-                  Expanded(child: _buildStatItem(Colors.blueAccent, gameState.expPerMin.toInt().toString(), '분당EXP')),
+                  Expanded(child: _buildStatItem(Colors.blueAccent, _formatNumber(gameState.expPerMin), '분당EXP')),
                   _buildStatDivider(),
                   Expanded(child: _buildStatItem(Colors.redAccent, gameState.killsPerMin.toStringAsFixed(1), '분당처치')),
+                  const SizedBox(width: 8),
+                  // 🆕 통합 관제 센터 버튼 (여기에 통합)
+                  PressableScale(
+                    onTap: _showQuickMenu,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                      ),
+                      child: const Icon(Icons.widgets_outlined, size: 16, color: Colors.blueAccent),
+                    ),
+                  ),
                 ],
               ),
               const Padding(

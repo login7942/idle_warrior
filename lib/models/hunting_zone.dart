@@ -44,7 +44,7 @@ class HuntingZoneData {
       type: ZoneType.general,
       difficultyMultiplier: 1.0,
       minEnhance: 0,
-      maxEnhance: 60,
+      maxEnhance: 360,
     ),
     HuntingZone(
       id: ZoneId.forest,
@@ -56,8 +56,8 @@ class HuntingZoneData {
       keyDrops: ['강화석', '마법 가루', '초원의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 2.0,
-      minEnhance: 60,
-      maxEnhance: 150,
+      minEnhance: 360,
+      maxEnhance: 900,
     ),
     HuntingZone(
       id: ZoneId.mine,
@@ -69,8 +69,8 @@ class HuntingZoneData {
       keyDrops: ['재설정석', '강화석', '사막의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 4.0,
-      minEnhance: 150,
-      maxEnhance: 300,
+      minEnhance: 900,
+      maxEnhance: 1800,
     ),
     HuntingZone(
       id: ZoneId.dungeon,
@@ -82,8 +82,8 @@ class HuntingZoneData {
       keyDrops: ['마법 가루', '재설정석', '사막의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 8.0,
-      minEnhance: 300,
-      maxEnhance: 600,
+      minEnhance: 1800,
+      maxEnhance: 3600,
     ),
     HuntingZone(
       id: ZoneId.volcano,
@@ -95,8 +95,8 @@ class HuntingZoneData {
       keyDrops: ['잠재의 큐브', '빛나는 강화석', '설원의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 16.0,
-      minEnhance: 600,
-      maxEnhance: 1200,
+      minEnhance: 3600,
+      maxEnhance: 7200,
     ),
     HuntingZone(
       id: ZoneId.snowfield,
@@ -108,8 +108,8 @@ class HuntingZoneData {
       keyDrops: ['빛나는 강화석', '잠재의 큐브', '설원의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 32.0,
-      minEnhance: 1200,
-      maxEnhance: 2500,
+      minEnhance: 7200,
+      maxEnhance: 15000,
     ),
     HuntingZone(
       id: ZoneId.abyss,
@@ -121,8 +121,8 @@ class HuntingZoneData {
       keyDrops: ['신화의 정수', '빛나는 강화석', '심연의 파편'],
       type: ZoneType.general,
       difficultyMultiplier: 64.0,
-      minEnhance: 2500,
-      maxEnhance: 9999,
+      minEnhance: 15000,
+      maxEnhance: 99999,
     ),
     // --- 특별 사냥터 ---
     HuntingZone(

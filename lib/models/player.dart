@@ -185,16 +185,16 @@ class Player {
   // 🆕 [v0.5.57] 승급 정보 헬퍼 (조건 완화 적용)
   static const List<Map<String, dynamic>> promotionSteps = [
     {'lv': 0, 'req': 0, 'name': '수련생', 'bonus': '보너스 없음'},
-    {'lv': 1, 'req': 50, 'name': '모험가', 'bonus': '골드 획득량 +5%'},
-    {'lv': 2, 'req': 100, 'name': '신출내기', 'bonus': '경험치 획득량 +5%'},
-    {'lv': 3, 'req': 200, 'name': '용병', 'bonus': '공격 속도 +10%'},
-    {'lv': 4, 'req': 400, 'name': '정예 기사', 'bonus': '콤보 1,2타 피해 +10%'},
-    {'lv': 5, 'req': 600, 'name': '기사단장', 'bonus': '콤보 3타 피해 +10%'},
-    {'lv': 6, 'req': 800, 'name': '영웅', 'bonus': '콤보 최종타 피해 +10%'},
-    {'lv': 7, 'req': 1000, 'name': '전설', 'bonus': '크리티컬 데미지 +15%'},
-    {'lv': 8, 'req': 1300, 'name': '신화', 'bonus': '최종 피해량 +10%'},
-    {'lv': 9, 'req': 1700, 'name': '초월자', 'bonus': '스킬 재사용 대기시간 -10%'},
-    {'lv': 10, 'req': 2200, 'name': '무한의 경지', 'bonus': '모든 능력치 +10%'},
+    {'lv': 1, 'req': 300, 'name': '모험가', 'bonus': '골드 획득량 +5%'},
+    {'lv': 2, 'req': 600, 'name': '신출내기', 'bonus': '경험치 획득량 +5%'},
+    {'lv': 3, 'req': 1200, 'name': '용병', 'bonus': '공격 속도 +10%'},
+    {'lv': 4, 'req': 2400, 'name': '정예 기사', 'bonus': '콤보 1,2타 피해 +10%'},
+    {'lv': 5, 'req': 3600, 'name': '기사단장', 'bonus': '콤보 3타 피해 +10%'},
+    {'lv': 6, 'req': 4800, 'name': '영웅', 'bonus': '콤보 최종타 피해 +10%'},
+    {'lv': 7, 'req': 6000, 'name': '전설', 'bonus': '크리티컬 데미지 +15%'},
+    {'lv': 8, 'req': 7800, 'name': '신화', 'bonus': '최종 피해량 +10%'},
+    {'lv': 9, 'req': 10200, 'name': '초월자', 'bonus': '스킬 재사용 대기시간 -10%'},
+    {'lv': 10, 'req': 13200, 'name': '무한의 경지', 'bonus': '모든 능력치 +10%'},
   ];
 
   String get promotionName => promotionLevel < promotionSteps.length 
@@ -769,10 +769,10 @@ class Player {
     int totalExp = (minutes * expMin * efficiency).toInt();
     int totalKills = (minutes * killsMin * efficiency).toInt();
     
-    // [v0.4.9] 통합 파편 보상 (평균 강화도 기반 효율 상승)
+    // [v0.4.9] 통합 파편 보상 (슬롯 강화 총합 기반 효율 상승)
     int shardReward = (totalKills * 0.5).toInt();   // 기본: 처치당 0.5개
-    if (averageSlotEnhanceLevel >= 300) shardReward = (totalKills * 0.8).toInt();
-    if (averageSlotEnhanceLevel >= 1000) shardReward = (totalKills * 1.5).toInt();
+    if (totalSlotEnhanceLevel >= 1800) shardReward = (totalKills * 0.8).toInt();
+    if (totalSlotEnhanceLevel >= 6000) shardReward = (totalKills * 1.5).toInt();
     
     int powderReward = (totalKills * 0.3).toInt();  // 가루: 처치당 0.3개
     int stoneReward = (totalKills * 0.05).toInt();  // 강화석: 처치당 0.05개

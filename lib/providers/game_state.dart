@@ -157,12 +157,12 @@ class GameState extends ChangeNotifier {
 
   // 🆕 [v0.5.26] 승급 로직
   void promote() {
-    double avg = player.averageSlotEnhanceLevel;
+    int totalLv = player.totalSlotEnhanceLevel;
     int nextLevel = player.promotionLevel + 1;
     
     if (nextLevel < Player.promotionSteps.length) {
       int req = Player.promotionSteps[nextLevel]['req'];
-      if (avg >= req) {
+      if (totalLv >= req) {
         player.promotionLevel = nextLevel;
         final step = Player.promotionSteps[nextLevel];
         onPromotionSuccess?.call(nextLevel, step['name'], step['bonus']);
@@ -174,7 +174,7 @@ class GameState extends ChangeNotifier {
         notifyListeners();
 
       } else {
-        onSpecialEvent?.call('승급 불가', '슬롯 평균 레벨이 부족합니다. (필요: $req)');
+        onSpecialEvent?.call('승급 불가', '슬롯 강화 총합이 부족합니다. (필요: $req)');
       }
     } else {
       onSpecialEvent?.call('최고 단계', '이미 최고 단계에 도달하셨습니다.');
@@ -187,8 +187,8 @@ class GameState extends ChangeNotifier {
 
   // 🆕 [v0.3.6] 적정 강화 구간 보너스 판정
   bool get isOptimalZone {
-    double avgSlot = player.averageSlotEnhanceLevel;
-    return avgSlot >= currentZone.minEnhance && avgSlot <= currentZone.maxEnhance;
+    int totalLv = player.totalSlotEnhanceLevel;
+    return totalLv >= currentZone.minEnhance && totalLv <= currentZone.maxEnhance;
   }
 
   // --- 초기화 ---
@@ -237,12 +237,12 @@ class GameState extends ChangeNotifier {
       'current_zone_id': currentZone.id.name,
       'last_save_time': nowStr,
       'zone_stages': zoneStages.map((k, v) => MapEntry(k.name, v)),
-      'auto_advance': autoAdvance,
+      'autoAdvance': autoAdvance, // 🆕 자동 진행 상태 저장
       'gold_per_min': goldPerMin,
       'exp_per_min': expPerMin,
       'kills_per_min': killsPerMin,
-      'auto_dismantle_grade': autoDismantleGrade,
-      'auto_dismantle_tier': autoDismantleTier,
+      'autoDismantleGrade': autoDismantleGrade,
+      'autoDismantleTier': autoDismantleTier,
     };
 
     await prefs.setString('player_save_data', jsonEncode(saveData['player']));
@@ -252,9 +252,9 @@ class GameState extends ChangeNotifier {
     await prefs.setDouble('gold_per_min', goldPerMin);
     await prefs.setDouble('exp_per_min', expPerMin);
     await prefs.setDouble('kills_per_min', killsPerMin);
-    await prefs.setInt('auto_dismantle_grade', autoDismantleGrade);
-    await prefs.setInt('auto_dismantle_tier', autoDismantleTier);
-    await prefs.setBool('auto_advance', autoAdvance);
+    await prefs.setInt('autoDismantleGrade', autoDismantleGrade);
+    await prefs.setInt('autoDismantleTier', autoDismantleTier);
+    await prefs.setBool('autoAdvance', autoAdvance); // 🆕 자동 진행 상태 저장
     await prefs.setString('zone_stages', jsonEncode(zoneStages.map((k, v) => MapEntry(k.name, v))));
     
     if (authService.isLoggedIn) {
@@ -302,9 +302,9 @@ class GameState extends ChangeNotifier {
         'gold_per_min': prefs.getDouble('gold_per_min') ?? 0,
         'exp_per_min': prefs.getDouble('exp_per_min') ?? 0,
         'kills_per_min': prefs.getDouble('kills_per_min') ?? 0,
-        'auto_dismantle_grade': prefs.getInt('auto_dismantle_grade') ?? -1,
-        'auto_dismantle_tier': prefs.getInt('auto_dismantle_tier') ?? -1,
-        'auto_advance': prefs.getBool('auto_advance') ?? true,
+        'autoDismantleGrade': prefs.getInt('autoDismantleGrade') ?? -1,
+        'autoDismantleTier': prefs.getInt('autoDismantleTier') ?? -1,
+        'autoAdvance': prefs.getBool('autoAdvance') ?? true, // 🆕 자동 진행 상태 로드
         'zone_stages': jsonDecode(prefs.getString('zone_stages') ?? '{}'),
       };
     }
@@ -335,7 +335,7 @@ class GameState extends ChangeNotifier {
       currentZone = HuntingZoneData.list.firstWhere((z) => z.id.name == zoneName);
     }
     
-    autoAdvance = targetData['auto_advance'] ?? true;
+    autoAdvance = targetData['autoAdvance'] ?? true; // 🆕 자동 진행 상태 로드
     if (targetData.containsKey('zone_stages')) {
       var zs = Map<String, dynamic>.from(targetData['zone_stages']);
       zs.forEach((k, v) {
@@ -349,8 +349,8 @@ class GameState extends ChangeNotifier {
     goldPerMin = (targetData['gold_per_min'] ?? 0).toDouble();
     expPerMin = (targetData['exp_per_min'] ?? 0).toDouble();
     killsPerMin = (targetData['kills_per_min'] ?? 0).toDouble();
-    autoDismantleGrade = targetData['auto_dismantle_grade'] ?? -1;
-    autoDismantleTier = targetData['auto_dismantle_tier'] ?? -1;
+    autoDismantleGrade = targetData['autoDismantleGrade'] ?? -1;
+    autoDismantleTier = targetData['autoDismantleTier'] ?? -1;
     
     isCloudSynced = true;
     notifyListeners();
@@ -666,10 +666,10 @@ class GameState extends ChangeNotifier {
       // 🆕 [v0.5.37] 장비 드랍 티어 고정 (상위 티어는 승급을 통해 획득)
       final newItem = Item.generate(player.level, tier: 1); 
       
-      // [자동 분해 체크]
+      // [자동 분해 체크] - 계층적 판별 적용 (사용자 설정 티어 이하 & 등급 이하)
       bool shouldAutoDismantle = autoDismantleGrade != -1 && autoDismantleTier != -1 &&
-                                newItem.grade.index <= autoDismantleGrade &&
-                                newItem.tier <= autoDismantleTier;
+                                newItem.tier <= autoDismantleTier &&
+                                newItem.grade.index <= autoDismantleGrade;
 
       if (shouldAutoDismantle) {
         var rewards = _calculateDismantleRewards(newItem);
@@ -890,20 +890,22 @@ class GameState extends ChangeNotifier {
 
   }
 
-  String enhanceItem(Item item) {
+  String enhanceItem(Item item, {bool useProtection = false}) {
     if (item.isLocked) return "잠긴 아이템은 강화할 수 없습니다.";
     if (player.gold < item.enhanceCost || player.enhancementStone < item.stoneCost) return "재화가 부족합니다.";
+    if (useProtection && player.protectionStone < 1) return "보호석이 부족합니다.";
     if (item.isBroken) return "파손된 장비는 강화할 수 없습니다.";
 
     player.gold -= item.enhanceCost;
     player.enhancementStone -= item.stoneCost;
+    if (useProtection) player.protectionStone -= 1;
     
     // 🆕 [v0.7.1] 퀘스트 체크: 강화 시도 횟수 누적
     player.totalEnhanceAttempts++;
     checkQuestProgress(QuestType.enhanceAttempt, player.totalEnhanceAttempts);
 
     bool isSuccess = Random().nextDouble() < item.successChance;
-    String resultMsg = item.processEnhance(isSuccess);
+    String resultMsg = item.processEnhance(isSuccess, useProtection: useProtection);
     
     if (isSuccess) {
       addLog(resultMsg, LogType.event);
@@ -1172,7 +1174,8 @@ class GameState extends ChangeNotifier {
     Map<int, int> totalCores = {}; // 티어별 구슬 합산
 
     player.inventory.removeWhere((item) {
-      if (item.grade.index <= maxGradeIdx && item.tier <= maxTier && !item.isLocked) {
+      // [일괄 분해 체크] - 계층적 판별 적용 (설정 티어 이하 & 설정 등급 이하)
+      if (item.tier <= maxTier && item.grade.index <= maxGradeIdx && !item.isLocked) {
         dismantleCount++;
         var rewards = _calculateDismantleRewards(item);
         totalGold += rewards['gold']!;
@@ -1351,6 +1354,8 @@ class GameState extends ChangeNotifier {
 
   void claimAchievement(Achievement achievement) {
     int currentStep = player.achievementSteps[achievement.id] ?? 0;
+    if (currentStep >= achievement.targets.length) return; // 🆕 이미 모든 단계를 완료함
+
     int target = achievement.getTargetForStep(currentStep);
     int reward = achievement.getRewardForStep(currentStep);
     
@@ -1469,6 +1474,9 @@ class GameState extends ChangeNotifier {
     player.totalItemsFound++;
     player.updateEncyclopedia(newItem);
 
+    // 🆕 [v0.7.9] 퀘스트 체크: 아이템 제작
+    checkQuestProgress(QuestType.craftItem, tier);
+
     // 3. 숙련도 획득 (티어 * 10)
     gainCraftingMasteryExp(tier * 10);
     
@@ -1546,6 +1554,7 @@ class GameState extends ChangeNotifier {
     player.shards += r.shards;
     player.cube += r.cube;
     player.soulStone += r.soulStone;
+    player.protectionStone += r.protectionStone; // 🆕 보호석 보상 추가
 
     addLog('[퀘스트 보상] ${quest.title} 완료 보상을 획득했습니다.', LogType.event);
     

@@ -449,7 +449,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
     final int nextLv = player.promotionLevel + 1;
     final bool isMax = nextLv >= Player.promotionSteps.length;
     final int req = isMax ? 0 : Player.promotionSteps[nextLv]['req'];
-    final bool canPromote = !isMax && player.averageSlotEnhanceLevel >= req;
+    final bool canPromote = !isMax && player.totalSlotEnhanceLevel >= req;
     
     return PressableScale(
       onTap: canPromote ? () => gameState.promote() : null,
@@ -493,7 +493,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
                 ),
                 if (!isMax)
                   Text(
-                    '평균 슬롯 레벨: ${player.averageSlotEnhanceLevel.toStringAsFixed(1)} / $req',
+                    '강화 총합: ${player.totalSlotEnhanceLevel} / $req',
                     style: TextStyle(
                       color: canPromote ? Colors.white70 : Colors.white24,
                       fontSize: 10,

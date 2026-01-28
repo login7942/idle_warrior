@@ -148,8 +148,9 @@ class _AchievementPanelState extends State<AchievementPanel> {
               }
 
               int currentStep = player.achievementSteps[achievement.id] ?? 0;
+              bool isMax = currentStep >= achievement.targets.length;
               int target = achievement.getTargetForStep(currentStep);
-              double percent = (progress / target).clamp(0.0, 1.0);
+              double percent = isMax ? 1.0 : (progress / target).clamp(0.0, 1.0);
               int reward = achievement.getRewardForStep(currentStep);
 
               return GlassContainer(
@@ -167,7 +168,7 @@ class _AchievementPanelState extends State<AchievementPanel> {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           borderRadius: 8,
                           color: Colors.amber.withValues(alpha: 0.15),
-                          child: ShadowText('${currentStep + 1}단계', color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                          child: ShadowText(isMax ? 'MAX' : '${currentStep + 1}단계', color: isMax ? Colors.cyanAccent : Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -211,7 +212,8 @@ class _AchievementPanelState extends State<AchievementPanel> {
                             Text('보상: $reward 강화석', style: const TextStyle(color: Colors.blueAccent, fontSize: 12, fontWeight: FontWeight.bold)),
                           ],
                         ),
-                        PopBtn('수령하기', percent >= 1.0 ? Colors.greenAccent : Colors.white12, () {
+                        PopBtn(isMax ? '달성 완료' : '수령하기', isMax ? Colors.cyanAccent.withOpacity(0.2) : (percent >= 1.0 ? Colors.greenAccent : Colors.white12), () {
+                          if (isMax) return;
                           if (percent >= 1.0) {
                             gameState.claimAchievement(achievement);
                           } else {
