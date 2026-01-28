@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// 클라우드 세이브 서비스 - Supabase를 통한 데이터 저장/로드
@@ -14,10 +15,14 @@ class CloudSaveService {
         return false;
       }
       
+      // 현재 앱 버전 정보 가져오기
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+      
       await _supabase.from('player_saves').upsert({
         'user_id': userId,
         'save_data': gameData,
-        'version': '0.0.50',
+        'version': currentVersion,
         'last_saved_at': DateTime.now().toIso8601String(),
         'device_info': 'Flutter App',
       }, onConflict: 'user_id'); // 🆕 user_id가 겹치면 업데이트하도록 명시

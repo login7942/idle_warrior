@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import '../providers/game_state.dart';
 import '../models/guide_data.dart';
 import '../models/item.dart';
+import 'package:flutter/services.dart';
 import 'common_widgets.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:intl/intl.dart';
 
 class QuickMenuPanel extends StatefulWidget {
   const QuickMenuPanel({super.key});
@@ -211,7 +214,7 @@ class _QuickMenuPanelState extends State<QuickMenuPanel> with SingleTickerProvid
             _buildSectionTitle('계정 및 데이터'),
             _buildActionCard(
               title: '클라우드 저장',
-              subtitle: '데이터를 서버에 강제 동기화합니다.',
+              subtitle: '데이터를 서버에 강제 동기화합니다. (최근 저장: ${gs.lastCloudSaveTime != null ? DateFormat('HH:mm:ss').format(gs.lastCloudSaveTime!) : '기록 없음'})',
               icon: Icons.cloud_upload_outlined,
               onTap: () {
                 gs.saveGameData(forceCloud: true);
@@ -220,6 +223,26 @@ class _QuickMenuPanelState extends State<QuickMenuPanel> with SingleTickerProvid
                 );
               },
             ),
+            const SizedBox(height: 12),
+            // 구글 로그인 연동 버튼 추가
+            if (gs.authService.isAnonymous)
+              _buildActionCard(
+                title: '구글 계정 연동',
+                subtitle: '현재 익명 계정을 구글 계정에 연결하여 데이터를 보호합니다.',
+                icon: Icons.account_circle_outlined,
+                onTap: () async {
+                  final success = await gs.authService.signInWithGoogle();
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('구글 계정 연동 성공! 데이터를 안전하게 보관합니다.'))
+                    );
+                    gs.saveGameData(forceCloud: true);
+                  }
+                },
+              )
+            else
+              _buildInfoCard('로그인 계정', gs.authService.userEmail ?? '알 수 없는 계정', Icons.email_outlined),
+            
             const SizedBox(height: 12),
             _buildActionCard(
               title: '로그아웃',
@@ -231,8 +254,54 @@ class _QuickMenuPanelState extends State<QuickMenuPanel> with SingleTickerProvid
               },
             ),
             const SizedBox(height: 24),
+            _buildSectionTitle('고객 지원 정보 (인식표)'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.02),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('유저 고유 ID (User ID)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          gs.authService.userId ?? '미인증 상태',
+                          style: const TextStyle(color: Colors.blueAccent, fontSize: 10, fontFamily: 'monospace'),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 16, color: Colors.white24),
+                        onPressed: () {
+                          if (gs.authService.userId != null) {
+                            Clipboard.setData(ClipboardData(text: gs.authService.userId!));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('User ID가 클립보드에 복사되었습니다.'))
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             _buildSectionTitle('게임 환경'),
-            _buildInfoCard('버전', 'v0.8.3', Icons.info_outline),
+            FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snapshot) {
+                final version = snapshot.hasData 
+                    ? 'v${snapshot.data!.version}+${snapshot.data!.buildNumber}' 
+                    : '로딩 중...';
+                return _buildInfoCard('앱 버전', version, Icons.info_outline);
+              },
+            ),
             _buildInfoCard('빌드 환경', 'Stable Production', Icons.terminal_outlined),
           ],
         );

@@ -42,7 +42,7 @@ class Player {
   int enhancementStone = 0; // 강화석
   int rerollStone = 0;      // 재설정
   int protectionStone = 0;   // 보호
-  int cube = 0;             // 큐브
+  int cube = 0;             // 잠재력 큐브
   int soulStone = 0;        // 영혼석
 
 
@@ -100,6 +100,9 @@ class Player {
 
   // 🆕 [v0.5.26] 승급 시스템 (Promotion Level 0~10)
   int promotionLevel = 0;
+  
+  // 🆕 [v0.8.14] 최고 도달 스테이지 (골드 가속 보너스용)
+  int maxStageReached = 0;
 
   // 🆕 [v0.5.58] 길잡이 퀘스트 시스템
   int currentQuestIndex = 0;
@@ -342,7 +345,11 @@ class Player {
   double baseHpRegen = 1.0;    
   double baseGoldBonus = 100.0;
   double baseDropBonus = 100.0;
-  double baseOffEfficiency = 0.7; // 🆕 방치 효율 상향 (30% -> 70%)
+  // 🆕 [v0.8.14] 성장형 방치 효율: 레벨에 따라 0.5 ~ 0.8까지 상승
+  double get baseOffEfficiency {
+    double eff = 0.5 + (level / 1000) * 0.3;
+    return eff.clamp(0.5, 0.8);
+  }
   double baseCdr = 0.0; // 기본 쿨타임 감소 0%
 
   // 스킬 목록 (v0.0.62 밸런스 개편)
@@ -652,7 +659,17 @@ class Player {
     // [세트 효과] 사막의 개척자 (T2) 2세트: 골드 +20%
     double setBonus = isSetEffectActive('desert', 2) ? 20.0 : 0.0;
 
-    return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc + promotionBonus + setBonus;
+    // [v0.8.14] 스테이지 마일스톤 가속 보너스
+    double stageMilestoneBonus = 0.0;
+    if (maxStageReached >= 1000) {
+      stageMilestoneBonus = 100.0; // 누적 +100%
+    } else if (maxStageReached >= 500) {
+      stageMilestoneBonus = 50.0;  // 누적 +50%
+    } else if (maxStageReached >= 300) {
+      stageMilestoneBonus = 20.0;  // +20%
+    }
+
+    return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc + promotionBonus + setBonus + stageMilestoneBonus;
 
   }
 
@@ -796,6 +813,7 @@ class Player {
       'cube': cubeReward,
       'cores': coreReward,
       'coreTier': tier,
+      'maxStage': 0, // 기본값, GameState에서 호출 시 실제 스테이지 주입 필요
     };
   }
 
@@ -828,6 +846,12 @@ class Player {
       cube += rewards['cube'] as int;
     }
 
+    // [v0.8.14] 스테이지 마일스톤 갱신 (오프라인 보전용)
+    if (rewards.containsKey('maxStage')) {
+      int s = rewards['maxStage'] as int;
+      if (s > maxStageReached) maxStageReached = s;
+    }
+
     // 🆕 구슬 보상 적용
     if (rewards.containsKey('cores') && rewards.containsKey('coreTier')) {
       int t = rewards['coreTier'] as int;
@@ -845,6 +869,7 @@ class Player {
     'name': name, 'level': level, 'exp': exp, 'maxExp': maxExp, 'gold': gold,
     'powder': powder, 'enhancementStone': enhancementStone, 'rerollStone': rerollStone,
     'protectionStone': protectionStone, 'cube': cube,
+    'maxStageReached': maxStageReached,
     'totalKills': totalKills, 'totalGoldEarned': totalGoldEarned,
     'totalItemsFound': totalItemsFound, 'totalSkillsUsed': totalSkillsUsed,
     'totalEnhanceAttempts': totalEnhanceAttempts,
@@ -911,6 +936,7 @@ class Player {
     p.rerollStone = json['rerollStone'] ?? 0;
     p.protectionStone = json['protectionStone'] ?? 0;
     p.cube = json['cube'] ?? 0;
+    p.maxStageReached = json['maxStageReached'] ?? 0;
     p.totalKills = json['totalKills'] ?? 0;
     p.totalGoldEarned = json['totalGoldEarned'] ?? 0;
     p.totalItemsFound = json['totalItemsFound'] ?? 0;

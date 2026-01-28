@@ -655,11 +655,13 @@ class Item {
 
       // [Last Chance 보호 로직] 
       // 현재 내구도가 1 초과라면, 어떤 감소량이 와도 일단 1에서 한 번 멈춰서 마지막 기회를 줌.
-      // 이미 1인 상태에서 실패해야만 0(파손)이 됨.
-      if (durability > 1) {
-        durability = max(1, durability - loss);
-      } else {
-        durability = 0;
+      // 이미 1인 상태에서 실패해야만 0(파손)이 됨. (단, loss가 0인 보호석 사용 시에는 발동 안함)
+      if (loss > 0) {
+        if (durability > 1) {
+          durability = max(1, durability - loss);
+        } else {
+          durability = 0;
+        }
       }
 
       String msg = "강화 실패 (내구도 -$loss)$protectionMsg";
@@ -729,7 +731,7 @@ class Item {
     // 티어 상승, 강화 수치 +10으로 조정
     int nextTier = tier + 1;
     enhanceLevel = 10;
-    durability = maxDurability;
+    // durability = maxDurability; <- 제거 (GameState에서 확률적으로 처리)
     
     // 티어 상승에 따른 기본 스택 재계산 (간소화: 4배 지수 성장 모델 적용)
     double tierMult = pow(4, nextTier - 1).toDouble();

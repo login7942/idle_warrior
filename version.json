@@ -1,6 +1,6 @@
 {
-  "version": "0.7.4",
-  "buildNumber": 74,
+  "version": "0.8.14",
+  "buildNumber": 88,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "길잡이 지침 데이터 복양 및 안정성 개선"
+  "changelog": "[v0.8.14] 성장형 방치 효율 도입, 펫 탐사 골드 20% 상향, 스테이지 마일스톤 골드 가속 시스템 추가"
 }

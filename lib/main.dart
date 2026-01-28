@@ -657,7 +657,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                         // 핵심: 바디 콘텐츠를 RepaintBoundary로 감싸서 다른 UI와 렌더링 레이어 분리
                         Positioned.fill(child: RepaintBoundary(child: _buildBodyContent())),
                         Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomDock()),
-                        if (_selectedIndex == 0) const QuestOverlay(),
+                        if (_selectedIndex == 0)
+                          const Positioned(
+                            right: 16,
+                            bottom: 160,
+                            child: QuestOverlay(),
+                          ),
                         // 🆕 파티클 레이어 제거 (v0.5.54)
 
                       ],
@@ -1091,7 +1096,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         // --- 실시간 수확 보상 정보 ---
         if (rewards.isNotEmpty)
           GestureDetector(
-            onTap: () => gs.claimExpeditionRewards(zone.id),
+            onTap: () {
+              final rewards = gs.claimExpeditionRewards(zone.id);
+              if (rewards.isNotEmpty) {
+                _showExpeditionResult(context, rewards, zone.name);
+              }
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -1220,6 +1230,78 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               Navigator.pop(context);
             }, 
             child: const Text('회수하기', style: TextStyle(color: Colors.redAccent))
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🧺 탐사 수확 결과 팝업
+  void _showExpeditionResult(BuildContext context, Map<String, int> rewards, String zoneName) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassContainer(
+          padding: const EdgeInsets.all(24),
+          borderRadius: 32,
+          color: const Color(0xFF10121D).withOpacity(0.95),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 48),
+              const SizedBox(height: 16),
+              Text('[$zoneName] 탐사 보상', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Text('${rewards['minutes']}분 동안의 탐사 결과입니다.', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 12, runSpacing: 12, alignment: WrapAlignment.center,
+                children: [
+                  if (rewards['gold']! > 0) _buildExpRewardItem('💰', '골드', rewards['gold']!, Colors.amberAccent),
+                  if (rewards['shards'] != null && rewards['shards']! > 0) _buildExpRewardItem('🧩', '연성 파편', rewards['shards']!, Colors.cyanAccent),
+                  if (rewards['cores'] != null && rewards['cores']! > 0) 
+                    _buildExpRewardItem('🌑', 'T${rewards['coreTier']} 심연의 구슬', rewards['cores']!, Colors.indigoAccent),
+                  if (rewards['powder'] != null && rewards['powder']! > 0) _buildExpRewardItem('✨', '신비의 가루', rewards['powder']!, Colors.greenAccent),
+                  if (rewards['stone'] != null && rewards['stone']! > 0) _buildExpRewardItem('💎', '강화석', rewards['stone']!, Colors.blueAccent),
+                ],
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('확인', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpRewardItem(String emoji, String label, int amount, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(
+            BigNumberFormatter.format(amount),
+            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
           ),
         ],
       ),
@@ -1656,18 +1738,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.9),
-      builder: (context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ShadowText('연성 성공!', fontSize: 28, color: Colors.amberAccent, fontWeight: FontWeight.w900),
-            const SizedBox(height: 30),
-            _buildPremiumItemSlot(item, size: 100, onTap: () {}),
-            const SizedBox(height: 20),
-            ShadowText(item.name, fontSize: 18, color: item.grade.color, fontWeight: FontWeight.bold),
-            const SizedBox(height: 40),
-            PopBtn('인벤토리 확인', Colors.blueAccent, () => Navigator.pop(context), isFull: false),
-          ],
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ShadowText('연성 성공!', fontSize: 28, color: Colors.amberAccent, fontWeight: FontWeight.w900),
+              const SizedBox(height: 30),
+              _buildPremiumItemSlot(item, size: 100, onTap: () {}),
+              const SizedBox(height: 20),
+              ShadowText(item.name, fontSize: 18, color: item.grade.color, fontWeight: FontWeight.bold),
+              const SizedBox(height: 40),
+              PopBtn('인벤토리 확인', Colors.blueAccent, () => Navigator.pop(context), isFull: false),
+            ],
+          ),
         ),
       ),
     );
@@ -1841,7 +1926,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 _buildPowerSaveRow('✨ 마법 가루', _formatNumber(_sessionPowder)),
                 _buildPowerSaveRow('🌀 재설정석', _formatNumber(_sessionReroll)),
                 _buildPowerSaveRow('🛡️ 보호석', _formatNumber(_sessionProtection)),
-                _buildPowerSaveRow('📦 강화 큐브', _formatNumber(_sessionCube)),
+                _buildPowerSaveRow('🔮 잠재력 큐브', _formatNumber(_sessionCube)),
                 
                 const Spacer(),
                 
@@ -2267,14 +2352,43 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          emojis[idx],
-                          style: TextStyle(
-                            fontSize: isSel ? 18 : 16,
-                            shadows: [
-                              Shadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 3, offset: const Offset(1, 1))
-                            ],
-                          ),
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Text(
+                              emojis[idx],
+                              style: TextStyle(
+                                fontSize: isSel ? 18 : 16,
+                                shadows: [
+                                  Shadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 3, offset: const Offset(1, 1))
+                                ],
+                              ),
+                            ),
+                            // 🆕 [v0.8.10] 스킬 업그레이드 가능 알림 (레드닷)
+                            if (idx == 5)
+                              Selector<GameState, bool>(
+                                selector: (_, gs) => gs.isAnySkillUpgradeable,
+                                builder: (context, canUpgrade, _) {
+                                  if (!canUpgrade) return const SizedBox.shrink();
+                                  return Positioned(
+                                    top: -2,
+                                    right: -2,
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: Colors.redAccent,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: const Color(0xFF1A1D2E), width: 1.5),
+                                        boxShadow: [
+                                          BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 4)
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 1),
                         Text(
@@ -2941,7 +3055,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 const SizedBox(height: 12),
                 _buildAdminResourceCard('보호석', player.protectionStone, (v) => setState(() => player.protectionStone += v)),
                 const SizedBox(height: 12),
-                _buildAdminResourceCard('잠재의 큐브', player.cube, (v) => setState(() => player.cube += v)),
+                _buildAdminResourceCard('잠재력 큐브', player.cube, (v) => setState(() => player.cube += v)),
                 const SizedBox(height: 30),
                 _buildAdminSliderCard(
                   label: "몬스터 방어력 배율",
@@ -3344,6 +3458,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       effectiveKillsMin,
       tier: zoneTier,
     );
+    // [v0.8.14] 현재 스테이지 정보를 주입하여 마일스톤 보존
+    rewards['maxStage'] = gameState.currentStage;
 
 
     if (rewards.isEmpty) return;
@@ -3401,7 +3517,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 if (rewards.containsKey('protectionStone'))
                   _buildOfflineRewardItem('🛡️', '보호석', rewards['protectionStone']),
                 if (rewards.containsKey('cube'))
-                  _buildOfflineRewardItem('🔮', '큐브', rewards['cube']),
+                  _buildOfflineRewardItem('🔮', '잠재력 큐브', rewards['cube']),
               ],
             ],
           ),

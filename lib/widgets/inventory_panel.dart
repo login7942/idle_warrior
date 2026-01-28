@@ -786,7 +786,7 @@ void _showDismantleResult(BuildContext context, Map<String, int> rewards) {
                 if (rewards['stone']! > 0) _buildResultItem('💎', '강화석', rewards['stone']!, Colors.blueAccent),
                 if (rewards['reroll']! > 0) _buildResultItem('🎲', '재설정석', rewards['reroll']!, Colors.purpleAccent),
                 if (rewards['protection']! > 0) _buildResultItem('🛡️', '보호석', rewards['protection']!, Colors.orangeAccent),
-                if (rewards['cube']! > 0) _buildResultItem('🔮', '큐브', rewards['cube']!, Colors.redAccent),
+                if (rewards['cube']! > 0) _buildResultItem('🔮', '잠재력 큐브', rewards['cube']!, Colors.redAccent),
 
               ],
             ),

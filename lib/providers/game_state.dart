@@ -191,6 +191,15 @@ class GameState extends ChangeNotifier {
     return totalLv >= currentZone.minEnhance && totalLv <= currentZone.maxEnhance;
   }
 
+  // 🆕 [v0.8.10] 업그레이드 가능한 스킬이 있는지 확인
+  bool get isAnySkillUpgradeable {
+    return player.skills.any((s) => 
+      player.level >= s.unlockLevel && 
+      player.gold >= s.upgradeCost && 
+      s.level < s.maxLevel
+    );
+  }
+
   // --- 초기화 ---
   GameState() {
     _initializeGame();
@@ -588,6 +597,11 @@ class GameState extends ChangeNotifier {
     player.totalKills++;
     player.totalGoldEarned += finalGold;
 
+    // [v0.8.14] 스테이지 마일스톤 가속 보너스용 최고 스테이지 갱신
+    if (currentStage > player.maxStageReached) {
+      player.maxStageReached = currentStage;
+    }
+
     onVictory?.call(finalGold, expReward);
 
     bool isTower = currentZone.id == ZoneId.tower;
@@ -731,12 +745,12 @@ class GameState extends ChangeNotifier {
       onLootAcquired?.call('🛡️', '보호석', ItemGrade.legendary, amount: 1);
     }
 
-    // 5. 강화 큐브 드롭 (v0.4.8: 광산 이상 사냥터에서만 드롭)
+    // 5. 잠재력 큐브 드롭 (v0.4.8: 광산 이상 사냥터에서만 드롭)
     bool canDropCube = currentZone.id.index >= ZoneId.mine.index;
     if (canDropCube && rand.nextDouble() < (0.001 * matBonus)) {
       player.cube += 1;
-      addLog('[신화] 강화 큐브 획득!', LogType.item);
-      onLootAcquired?.call('🧊', '강화 큐브', ItemGrade.mythic, amount: 1);
+      addLog('[신화] 잠재력 큐브 획득!', LogType.item);
+      onLootAcquired?.call('🔮', '잠재력 큐브', ItemGrade.mythic, amount: 1);
     }
 
     // --- [v0.3.8] 티어 재료 해금 + 지역 연동 드랍 시스템 ---
@@ -940,7 +954,20 @@ class GameState extends ChangeNotifier {
 
     item.promote();
     
-    addLog("[승급 성공] ${item.name}이(가) T$oldTier에서 T${item.tier}로 진화했습니다! (+10 계승)", LogType.event);
+    // 🆕 [v0.8.11] 승급 시 내구도 보너스 확률 적용 (성공 50%, 대성공 30%, 초대박 20%)
+    double durRoll = Random().nextDouble();
+    String bonusMsg = "";
+    if (durRoll < 0.2) {
+      item.durability = (item.durability + 50).clamp(0, item.maxDurability);
+      bonusMsg = "[초대박! 내구도 50 회복]";
+    } else if (durRoll < 0.5) {
+      item.durability = (item.durability + 30).clamp(0, item.maxDurability);
+      bonusMsg = "[대성공! 내구도 30 회복]";
+    } else {
+      bonusMsg = "[성공! 내구도 유지]";
+    }
+
+    addLog("[승급 성공] ${item.name}이(가) T$oldTier에서 T${item.tier}로 진화했습니다! $bonusMsg", LogType.event);
     player.updateEncyclopedia(item);
     
     // 🆕 승급 성공 연출 호출
@@ -1673,8 +1700,8 @@ class GameState extends ChangeNotifier {
     if (totalEfficiency <= 0) return {};
 
     // 보상식: (시간 * 티어 계수 * 효율 총합)
-    // 밸런스: 티어 1 기준 1분당 약 100골드 * 효율
-    double baseGoldPerMin = 100.0 * tier;
+  // 밸런스: 티어 1 기준 1분당 약 120골드 (v0.8.14 20% 상향) * 효율
+  double baseGoldPerMin = 120.0 * tier;
     double baseShardPerMin = 0.5 * tier;
     
     int gold = (minutes * baseGoldPerMin * totalEfficiency).toInt();
