@@ -48,6 +48,9 @@ class Monster {
     '그림자 군단': 'shadow_legion.png', '어둠의 화신': 'dark_avatar.png', '공허의 수호자': 'void_guardian.png', '심연의 눈': 'abyss_eye.png', '카오스 기사': 'chaos_knight.png',
     // 타워
     '탑의 수호자': 'tower_guardian.png', '심판자': 'judge.png', '고대 병기': 'ancient_weapon.png', '차원 감시자': 'dimension_watcher.png', '타락한 신관': 'fallen_priest.png',
+    // 🆕 황금의 방 / 시련의 방
+    '황금 슬라임': 'slime.png', '보물 상자': 'mimic.png', '황금 박쥐': 'bat.png', '골드 미믹': 'mimic.png', '황금 골렘': 'golem.png',
+    '시련의 정령': 'blizzard_spirit.png', '마력 결정체': 'lavs_spirit.png', '푸른 번개': 'blizzard_spirit.png', '결빙된 영혼': 'ghost.png', '시련의 수호자': 'gargoyle.png',
   };
 
   // 사냥터와 스테이지에 따른 몬스터 생성기
@@ -69,15 +72,18 @@ class Monster {
     // 2. 몬스터 유형 결정
     bool isBoss = (stage % 50 == 0) && isFinal;
     bool isTower = zone.id == ZoneId.tower;
-    bool isElite = !isBoss && (isTower || rand.nextDouble() < 0.10);
+    bool isGolden = zone.id == ZoneId.goldenRoom;
+    bool isTrial = zone.id == ZoneId.trialRoom;
+    bool isSpecialTimeDungeon = isGolden || isTrial;
+    bool isElite = !isBoss && (isTower || isSpecialTimeDungeon || rand.nextDouble() < 0.10);
 
     // 3. 베이스 스탯 결정
     double baseHp, baseAtk, baseDef, baseGold, baseExp;
     String species = zone.monsterNames[rand.nextInt(zone.monsterNames.length)];
 
     if (isBoss) {
-      baseHp = 800; 
-      baseAtk = 80; // 🆕 보스 베이스 공격력 상향 (35 -> 80)
+      baseHp = 2500; 
+      baseAtk = 45; // 🆕 보스 베이스 공격력 조정 (80 -> 45: 티키타카 유도)
       baseDef = 15; baseGold = 500; baseExp = 500;
     } else {
       baseHp = 60 + rand.nextInt(41).toDouble();
@@ -88,11 +94,22 @@ class Monster {
       baseExp = 15 + rand.nextInt(11).toDouble();
     }
 
-    // 4. 엘리트/타워 보정
+    // 4. 엘리트/타워/특별 던전 보정
     double eliteMult = 1.0;
     if (isTower) {
       multiplier *= pow(1.05, s).toDouble();
       baseHp *= 3.0; baseAtk *= 2.0; baseDef *= 1.5; baseGold *= 5.0; baseExp *= 5.0;
+    } else if (isSpecialTimeDungeon) {
+      // 🆕 특별 시간 던전: 체력은 적당히, 공격력은 매우 낮음 (샌드백)
+      baseHp *= 1.2; baseAtk *= 0.1; baseDef *= 0.8;
+      
+      if (isGolden) {
+        baseGold *= 20.0; // 골드 20배
+        baseExp *= 0.5;
+      } else if (isTrial) {
+        baseGold *= 0.5;
+        baseExp *= 2.0;
+      }
     } else if (isElite) {
       baseHp *= 1.5; baseAtk *= 1.3; baseDef *= 1.2;
       eliteMult = 2.0 + rand.nextDouble() * 3.0;
@@ -103,8 +120,8 @@ class Monster {
     int mHp = (baseHp * multiplier).toInt();
     
     // 🆕 [v0.5.56] 공격력 전용 스테이지 가속 (Atk Scaling) 도입
-    // 스테이지가 올라갈수록 공격력이 체력보다 더 가파르게 상승 (250층당 +100%)
-    double atkScaling = 1.0 + (s / 250);
+    // 스테이지가 올라갈수록 공격력이 체력보다 더 가파르게 상승 (500층당 +100%)
+    double atkScaling = 1.0 + (s / 500);
     int mAtk = (baseAtk * multiplier * atkScaling).toInt();
     
     int mDef = (baseDef * multiplier).toInt();
@@ -113,7 +130,14 @@ class Monster {
     int mExp = (baseExp * rewardMultiplier).toInt();
 
     // 6. 이름 및 비주얼 설정
-    String displayName = isBoss ? '👑 $species (BOSS)' : (isTower ? '👹 [TOWER] $species ($stage층)' : (isElite ? '⭐ $species (Elite)' : species));
+    String prefix = '';
+    if (isBoss) prefix = '👑 ';
+    else if (isTower) prefix = '👹 [TOWER] ';
+    else if (isGolden) prefix = '💰 [GOLD] ';
+    else if (isTrial) prefix = '✨ [TRIAL] ';
+    else if (isElite) prefix = '⭐ ';
+
+    String displayName = '$prefix$species' + (isBoss ? ' (BOSS)' : (isTower ? ' ($stage층)' : (isElite ? ' (Elite)' : '')));
     int totalLevel = (zone.minLevel + stage - 1);
     
     // 이미지 경로 설정 최적화

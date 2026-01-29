@@ -38,12 +38,14 @@ class Player {
   }
 
   // 5대 핵심 강화 재료
-  int powder = 0;           // 가루
   int enhancementStone = 0; // 강화석
   int rerollStone = 0;      // 재설정
   int protectionStone = 0;   // 보호
+  int abyssalPowder = 0;    // 🆕 심연의 가루 (통합 재료)
   int cube = 0;             // 잠재력 큐브
   int soulStone = 0;        // 영혼석
+  int goldDungeonTicket = 0;  // 🎫 황금의 방 입장권
+  int trialDungeonTicket = 0; // 🎫 시련의 방 입장권
 
 
   // 누적 통계 (업적용)
@@ -57,11 +59,8 @@ class Player {
   // 강화 계승 시스템: 티어별 저장된 강화 레벨 (70% 계승용)
   Map<int, int> enhancementSuccession = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}; 
 
-  // --- [신규 업데이트 v0.4.9] 제작 재료 통합 ---
   // 통합 파편 (Disassembly Shards): 장비 분해 및 사냥 시 획득
   int shards = 0;
-  // 티어 코어 (Gate Cores): 스펙 조건 충족 시 몬스터 드랍 (심연의 구슬 등)
-  Map<int, int> tierCores = {2: 0, 3: 0, 4: 0, 5: 0, 6: 0};
 
   // 장착 슬롯 강화 시스템 (v0.3.0)
   // +1 ~ +100레벨 시스템, 장비를 교체해도 유지됨
@@ -117,7 +116,8 @@ class Player {
   // 🆕 [v0.7.0] 제작 숙련도 시스템
   int craftingMasteryLevel = 1;
   int craftingMasteryExp = 0;
-  
+
+
   // 🆕 [v0.7.0] 세트 효과용 기간제 버프
   DateTime? desertBuffEndTime;
 
@@ -758,12 +758,10 @@ class Player {
   }
 
   void levelUp() {
-    // 레벨업 스탯 증가: HP +30, ATK +2, DEF +0.5 (2레벨당 1)
-    baseHp += 30;
+    // 레벨업 스탯 증가: HP +100, ATK +2, DEF +1
+    baseHp += 100;
     baseAttack += 2;
-    if (level % 2 == 0) {
-      baseDefense += 1;
-    }
+    baseDefense += 1;
   }
 
   String? checkAchievement(String id, int currentProgress, int target, int reward) {
@@ -797,8 +795,9 @@ class Player {
     int protectReward = (totalKills * 0.01).toInt();// 보호석: 처치당 0.01개
     int cubeReward = (totalKills * 0.005).toInt();  // 큐브: 처치당 0.005개
     
-    // 🆕 구슬 보상: T2 이상 사냥터에서 처치당 0.05개 (5% 확률)
+    // 🆕 구슬 보상 -> 심연의 가루로 통합 (v0.8.16)
     int coreReward = (tier >= 2) ? (totalKills * 0.05).toInt() : 0;
+    int abyssalReward = powderReward + coreReward;
     
     return {
       'minutes': minutes,
@@ -807,13 +806,11 @@ class Player {
       'kills': totalKills,
       'bonusStones': stoneReward, 
       'shards': shardReward,
-      'powder': powderReward,
+      'abyssalPowder': abyssalReward,
       'rerollStone': rerollReward,
       'protectionStone': protectReward,
       'cube': cubeReward,
-      'cores': coreReward,
-      'coreTier': tier,
-      'maxStage': 0, // 기본값, GameState에서 호출 시 실제 스테이지 주입 필요
+      'maxStage': 0, 
     };
   }
 
@@ -833,8 +830,8 @@ class Player {
       shards += rewards['shards'] as int;
     }
     
-    if (rewards.containsKey('powder')) {
-      powder += rewards['powder'] as int;
+    if (rewards.containsKey('abyssalPowder')) {
+      abyssalPowder += rewards['abyssalPowder'] as int;
     }
     if (rewards.containsKey('rerollStone')) {
       rerollStone += rewards['rerollStone'] as int;
@@ -851,24 +848,14 @@ class Player {
       int s = rewards['maxStage'] as int;
       if (s > maxStageReached) maxStageReached = s;
     }
-
-    // 🆕 구슬 보상 적용
-    if (rewards.containsKey('cores') && rewards.containsKey('coreTier')) {
-      int t = rewards['coreTier'] as int;
-      int c = rewards['cores'] as int;
-      if (t >= 2 && c > 0) {
-        tierCores[t] = (tierCores[t] ?? 0) + c;
-      }
-    }
-
   }
 
   // --- JSON 직렬화 및 역직렬화 ---
 
   Map<String, dynamic> toJson() => {
     'name': name, 'level': level, 'exp': exp, 'maxExp': maxExp, 'gold': gold,
-    'powder': powder, 'enhancementStone': enhancementStone, 'rerollStone': rerollStone,
-    'protectionStone': protectionStone, 'cube': cube,
+    'abyssalPowder': abyssalPowder, 'enhancementStone': enhancementStone, 'rerollStone': rerollStone,
+    'protectionStone': protectionStone, 'cube': cube, 'soulStone': soulStone,
     'maxStageReached': maxStageReached,
     'totalKills': totalKills, 'totalGoldEarned': totalGoldEarned,
     'totalItemsFound': totalItemsFound, 'totalSkillsUsed': totalSkillsUsed,
@@ -882,23 +869,18 @@ class Player {
     'pets': pets.map((p) => p.toJson()).toList(),
     'activePetId': activePet?.id,
     'encyclopediaProgress': encyclopediaProgress,
-    'shards': shards,
-    'tierCores': tierCores.map((k, v) => MapEntry(k.toString(), v)),
-    'currentQuestIndex': currentQuestIndex,
-    'isQuestRewardClaimable': isQuestRewardClaimable,
-
     'encyclopediaClaims': encyclopediaClaims, 
     'shards': shards,
-    'tierCores': tierCores.map((k, v) => MapEntry(k.toString(), v)),
+    'goldDungeonTicket': goldDungeonTicket,
+    'trialDungeonTicket': trialDungeonTicket,
     'slotEnhanceLevels': slotEnhanceLevels.map((k, v) => MapEntry(k.name, v)),
     'slotEnhanceFailCounts': slotEnhanceFailCounts.map((k, v) => MapEntry(k.name, v)),
     'slotEnhanceStreakCounts': slotEnhanceStreakCounts.map((k, v) => MapEntry(k.name, v)),
     'notifiedMilestones': notifiedMilestones,
     'promotionLevel': promotionLevel,
-    'soulStone': soulStone,
+    'currentQuestIndex': currentQuestIndex,
+    'isQuestRewardClaimable': isQuestRewardClaimable,
     'autoCraftTiers': autoCraftTiers.map((k, v) => MapEntry(k.toString(), v)),
-    
-    // 🆕 [v0.7.0] 펫 탐사 저장
     'zoneExpeditions': zoneExpeditions,
     'zoneLastClaimedAt': zoneLastClaimedAt,
     'craftingMasteryLevel': craftingMasteryLevel,
@@ -931,7 +913,21 @@ class Player {
     if (p.baseAttack < 10 + lvBonusAtk) p.baseAttack = 10 + lvBonusAtk;
     if (p.baseDefense < 3 + lvBonusDef) p.baseDefense = 3 + lvBonusDef;
 
-    p.powder = json['powder'] ?? 0;
+    // 🆕 [v0.8.16] 심연의 가루 통합 마이그레이션
+    int legacyPowder = json['powder'] ?? 0;
+    int currentAbyssalPowder = json['abyssalPowder'] ?? 0;
+    int coreSum = 0;
+    if (json['tierCores'] != null) {
+      try {
+        Map<String, dynamic> cores = Map<String, dynamic>.from(json['tierCores']);
+        cores.values.forEach((v) => coreSum += (v as int));
+      } catch (_) {}
+    }
+    p.abyssalPowder = currentAbyssalPowder + legacyPowder + coreSum;
+
+    p.goldDungeonTicket = json['goldDungeonTicket'] ?? 0;
+    p.trialDungeonTicket = json['trialDungeonTicket'] ?? 0;
+
     p.enhancementStone = json['enhancementStone'] ?? 0;
     p.rerollStone = json['rerollStone'] ?? 0;
     p.protectionStone = json['protectionStone'] ?? 0;
@@ -1021,10 +1017,6 @@ class Player {
         oldMap.forEach((_, v) { total += (v as int); });
         p.shards = total;
       } catch (_) {}
-    }
-    if (json['tierCores'] != null) {
-      var map = Map<String, dynamic>.from(json['tierCores']);
-      p.tierCores = map.map((k, v) => MapEntry(int.tryParse(k) ?? 2, v as int));
     }
 
     if (json['slotEnhanceLevels'] != null) {

@@ -331,6 +331,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _showItemPromotionDialog(item, oldTier, oldStat1, oldStat2);
     };
 
+    gameState.onSpecialDungeonEnd = () {
+      if (!mounted) return;
+      _exitSpecialDungeon();
+    };
+
 
     // 초기 실행 시 몬스터가 이미 있다면 등장 애니메이션 실행
     if (gameState.currentMonster != null) {
@@ -635,11 +640,23 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               child: RepaintBoundary(
                 child: Selector<GameState, ZoneId>(
                   selector: (_, gs) => gs.currentZone.id,
-                  builder: (context, zoneId, child) => Image(
-                    image: AssetImage('assets/images/backgrounds/bg_${zoneId.name}.png'),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(color: Colors.black), // 파일 부재 시 대비
-                  ),
+                  builder: (context, zoneId, child) {
+                    String bgName;
+                    if (zoneId == ZoneId.goldenRoom) {
+                      bgName = 'chamber';
+                    } else if (zoneId == ZoneId.trialRoom) {
+                      bgName = 'material';
+                    } else {
+                      bgName = zoneId.name;
+                    }
+                    return Image(
+                      image: AssetImage('assets/images/backgrounds/bg_$bgName.png'),
+                      fit: BoxFit.cover,
+                      color: Colors.black.withValues(alpha: 0.2),
+                      colorBlendMode: BlendMode.darken,
+                      errorBuilder: (context, error, stackTrace) => Container(color: Colors.black), 
+                    );
+                  },
                 ),
               ),
             ),
@@ -857,7 +874,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         final bool isOptimal = player.totalSlotEnhanceLevel >= zone.minEnhance && player.totalSlotEnhanceLevel <= zone.maxEnhance;
 
         // 배경 이미지 경로 맵핑
-        String bgPath = 'assets/images/backgrounds/bg_${zone.id.name}.png';
+        String bgName;
+        if (zone.id == ZoneId.goldenRoom) {
+          bgName = 'chamber';
+        } else if (zone.id == ZoneId.trialRoom) {
+          bgName = 'material';
+        } else {
+          bgName = zone.id.name;
+        }
+        String bgPath = 'assets/images/backgrounds/bg_$bgName.png';
 
         return GlassContainer(
           margin: const EdgeInsets.only(bottom: 10),
@@ -869,7 +894,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             image: AssetImage(bgPath),
             fit: BoxFit.cover,
             colorFilter: ColorFilter.mode(
-              Colors.black.withValues(alpha: isCurrent ? 0.5 : 0.75), 
+              Colors.black.withValues(alpha: isCurrent ? 0.3 : 0.5), 
               BlendMode.darken
             ),
           ),
@@ -883,6 +908,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
               if (zone.id == ZoneId.tower) {
                 _enterTower(zone);
+              } else if (zone.id == ZoneId.goldenRoom || zone.id == ZoneId.trialRoom) {
+                _enterSpecialDungeon(zone);
               } else {
                 setState(() {
                   gameState.zoneStages[gameState.currentZone.id] = gameState.currentStage;
@@ -952,8 +979,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     ],
                   ),
 
-                  const Divider(color: Colors.white10, height: 20),
-                  _buildExpeditionSlots(gameState, zone),
+                  if (zone.id != ZoneId.tower && zone.id != ZoneId.goldenRoom && zone.id != ZoneId.trialRoom) ...[
+                    const Divider(color: Colors.white10, height: 20),
+                    _buildExpeditionSlots(gameState, zone),
+                  ],
 
                 ],
               ),
@@ -1033,7 +1062,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   // 🆕 [v0.6.2] 펫 탐사 슬롯 UI 및 시스템
   // ---------------------------------------------------------------------------
   Widget _buildExpeditionSlots(GameState gs, HuntingZone zone) {
-    if (zone.id == ZoneId.tower) return const SizedBox.shrink(); // 무한의 탑은 제외
+    if (zone.id == ZoneId.tower || zone.id == ZoneId.goldenRoom || zone.id == ZoneId.trialRoom) return const SizedBox.shrink(); // 특별 던전 제외
     
     final zoneKey = zone.id.name;
     final maxStage = gs.zoneStages[zone.id] ?? 0;
@@ -1260,9 +1289,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 children: [
                   if (rewards['gold']! > 0) _buildExpRewardItem('💰', '골드', rewards['gold']!, Colors.amberAccent),
                   if (rewards['shards'] != null && rewards['shards']! > 0) _buildExpRewardItem('🧩', '연성 파편', rewards['shards']!, Colors.cyanAccent),
-                  if (rewards['cores'] != null && rewards['cores']! > 0) 
-                    _buildExpRewardItem('🌑', 'T${rewards['coreTier']} 심연의 구슬', rewards['cores']!, Colors.indigoAccent),
-                  if (rewards['powder'] != null && rewards['powder']! > 0) _buildExpRewardItem('✨', '신비의 가루', rewards['powder']!, Colors.greenAccent),
+                  if (rewards['abyssalPowder'] != null && rewards['abyssalPowder']! > 0) _buildExpRewardItem('✨', '심연의 가루', rewards['abyssalPowder']!, Colors.orangeAccent),
                   if (rewards['stone'] != null && rewards['stone']! > 0) _buildExpRewardItem('💎', '강화석', rewards['stone']!, Colors.blueAccent),
                 ],
               ),
@@ -1329,41 +1356,19 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             children: [
               _buildCraftCategory(
-                0, '⚔️ 장비 제작', 
-                child: Column(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('제작 티어 선택', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
-                            Text(
-                              '현재 슬롯 강화 총합: +${player.totalSlotEnhanceLevel}',
-                              style: TextStyle(
-                                color: player.averageSlotEnhanceLevel >= 60 ? Colors.greenAccent : Colors.white38,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          '※ 적정 구간 사냥 시 골드/재료 보너스가 활성화됩니다',
-                          style: TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTierTab(),
-                    const SizedBox(height: 16),
-                    _buildEquipmentCraftGrid(),
-                  ],
+                0, '⚔️ 장비 제작 (리뉴얼 중)', 
+                isLocked: true,
+                child: const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: Text('장비 제작 시스템 고도화를 위해 잠시 중단되었습니다.\n승급 시스템을 이용해 주세요.', 
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white24, fontSize: 12))),
                 )
               ),
-              _buildCraftCategory(1, '🧪 소모품 제작 (준비 중)', isLocked: true),
+              _buildCraftCategory(
+                1, '🧪 소모품 제작 (입장권)', 
+                child: _buildConsumableCraftGrid(),
+              ),
               _buildCraftCategory(2, '💎 유물 합성 (준비 중)', isLocked: true),
               const SizedBox(height: 100),
             ],
@@ -1375,11 +1380,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildCraftHeader() {
     int tier = _selectedCraftTier;
-    final Map<int, int> shardCosts = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
-    final Map<int, int> coreCosts = { 2: 5, 3: 10, 4: 30, 5: 30, 6: 30 };
-    
-    int shardCost = shardCosts[tier] ?? 999999;
-    int coreCost = coreCosts[tier] ?? 999999;
+    // 장비 제작은 중단되었으므로 가이드를 위해 기본 재료만 표시
     
     return GlassContainer(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1397,40 +1398,28 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             ],
           ),
           const SizedBox(height: 8),
-          // 숙련도 경험치 바
           Stack(
             children: [
-              Container(
-                height: 4,
-                width: double.infinity,
-                decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(2)),
-              ),
+              Container(height: 4, width: double.infinity, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(2))),
               FractionallySizedBox(
                 widthFactor: (player.craftingMasteryExp / player.craftingMasteryNextExp).clamp(0.0, 1.0),
-                child: Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent]),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+                child: Container(height: 4, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent]), borderRadius: BorderRadius.circular(2))),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          const Text('공통 제작 재료', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+          const Text('공통 제작 재질', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildLargeResourceItem('🧩', '연성 파편', player.shards, shardCost, Colors.tealAccent),
+              _buildLargeResourceItem('🧩', '연성 파편', player.shards, 0, Colors.tealAccent),
               Container(width: 1, height: 40, color: Colors.white10),
-              _buildLargeResourceItem('🔮', 'T$tier 구슬', player.tierCores[tier] ?? 0, coreCost, Colors.purpleAccent),
+              _buildLargeResourceItem('✨', '심연의 가루', player.abyssalPowder, 0, Colors.orangeAccent),
             ],
           ),
         ],
       ),
-
     );
   }
 
@@ -1634,6 +1623,72 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
+  Widget _buildConsumableCraftGrid() {
+    return Column(
+      children: [
+        _buildConsumableItem(
+          '황금의 방 입장권', '골드가 가득한 특수 던전에 입장할 수 있습니다.', '🎫',
+          500, 200, 
+          () => gameState.craftTicket('gold'),
+          player.goldDungeonTicket,
+        ),
+        const SizedBox(height: 12),
+        _buildConsumableItem(
+          '시련의 방 입장권', '강화석 등 성장 재료를 획득하는 던전에 입장할 수 있습니다.', '🎫',
+          2000, 1000, 
+          () => gameState.craftTicket('trial'),
+          player.trialDungeonTicket,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildConsumableItem(String name, String desc, String emoji, int shardCost, int abyssalCost, VoidCallback onCraft, int currentCount) {
+    bool canCraft = player.shards >= shardCost && player.abyssalPowder >= abyssalCost;
+
+    return GlassContainer(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      color: Colors.white.withValues(alpha: 0.03),
+      child: Row(
+        children: [
+          Container(
+            width: 50, height: 50,
+            decoration: BoxDecoration(color: Colors.blueAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Text('보유: $currentCount', style: const TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(desc, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _buildMiniResourceItem('🧩', '파편', shardCost, Colors.tealAccent),
+                    const SizedBox(width: 12),
+                    _buildMiniResourceItem('✨', '가루', abyssalCost, Colors.orangeAccent),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          PopBtn('제작', canCraft ? Colors.blueAccent : Colors.white12, onCraft, isFull: false, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEquipmentCraftGrid() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1663,7 +1718,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     int shardCost = shardCosts[tier] ?? 999999;
     int coreCost = coreCosts[tier] ?? 999999;
     
-    bool canCraft = player.shards >= shardCost && (player.tierCores[tier] ?? 0) >= coreCost;
+    bool canCraft = player.shards >= shardCost && player.abyssalPowder >= coreCost;
 
     return PressableScale(
       onTap: canCraft ? () => _executeCraft(type, tier, shardCost, coreCost) : () {
@@ -1726,7 +1781,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   void _executeCraft(ItemType type, int tier, int shardCost, int coreCost) {
     final gs = Provider.of<GameState>(context, listen: false);
-    final newItem = gs.craftItem(type, tier, shardCost: shardCost, coreCost: coreCost);
+    final newItem = gs.craftItem(type, tier, shardCost: shardCost, abyssalCost: coreCost);
     
     if (newItem != null) {
       _showCraftResult(newItem);
@@ -2646,7 +2701,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     final bool isOptimalZone = gameState.isOptimalZone;
     
     // 표시할 내용이 전혀 없으면 그리지 않음
-    if (pet == null && !isOptimalZone) return const SizedBox.shrink();
+    if (pet == null && !isOptimalZone && !gameState.isInSpecialDungeon) return const SizedBox.shrink();
 
     return AnimatedBuilder(
       animation: _uiTickerController,
@@ -2681,9 +2736,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     ),
                   ),
                 
-                if (pet != null && isOptimalZone) const SizedBox(width: 10),
+                if (pet != null && (isOptimalZone || gameState.isInSpecialDungeon)) const SizedBox(width: 10),
 
-                // 2. 적정 사냥터 보너스 표시 (펫 유무 상관없이 노출)
+                // 2. 던전 타이머 (특별 던전 시)
+                if (gameState.isInSpecialDungeon)
+                  _buildSpecialDungeonTimer(gameState),
+
+                if (gameState.isInSpecialDungeon && isOptimalZone) const SizedBox(width: 10),
+
+                // 3. 적정 사냥터 보너스 표시 (펫 유무 상관없이 노출)
                 if (isOptimalZone)
                   GestureDetector(
                     onTap: () {
@@ -2748,6 +2809,43 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSpecialDungeonTimer(GameState gameState) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: gameState.specialDungeonTimeLeft <= 10 ? Colors.redAccent : Colors.amberAccent,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (gameState.specialDungeonTimeLeft <= 10 ? Colors.redAccent : Colors.amberAccent).withValues(alpha: 0.3),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.timer_outlined,
+            size: 16,
+            color: gameState.specialDungeonTimeLeft <= 10 ? Colors.redAccent : Colors.amberAccent,
+          ),
+          const SizedBox(width: 6),
+          ShadowText(
+            '${gameState.specialDungeonTimeLeft}s',
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: gameState.specialDungeonTimeLeft <= 10 ? Colors.redAccent : Colors.white,
+          ),
+        ],
+      ),
     );
   }
 
@@ -3049,13 +3147,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 const SizedBox(height: 12),
                 _buildAdminResourceCard('강화석', player.enhancementStone, (v) => setState(() => player.enhancementStone += v)),
                 const SizedBox(height: 12),
-                _buildAdminResourceCard('마법 가루', player.powder, (v) => setState(() => player.powder += v)),
+                _buildAdminResourceCard('심연의 가루', player.abyssalPowder, (v) => setState(() => player.abyssalPowder += v)),
                 const SizedBox(height: 12),
                 _buildAdminResourceCard('재설정석', player.rerollStone, (v) => setState(() => player.rerollStone += v)),
                 const SizedBox(height: 12),
                 _buildAdminResourceCard('보호석', player.protectionStone, (v) => setState(() => player.protectionStone += v)),
                 const SizedBox(height: 12),
                 _buildAdminResourceCard('잠재력 큐브', player.cube, (v) => setState(() => player.cube += v)),
+                const SizedBox(height: 12),
+                _buildAdminResourceCard('영혼석', player.soulStone, (v) => setState(() => player.soulStone += v)),
                 const SizedBox(height: 30),
                 _buildAdminSliderCard(
                   label: "몬스터 방어력 배율",
@@ -3067,14 +3167,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   },
                 ),
                 const SizedBox(height: 30),
+                // 🆕 재화 대량 지급 버튼
                 PopBtn('모든 재화 1억 추가', Colors.amber, () {
                   setState(() {
                     player.gold += 100000000;
                     player.enhancementStone += 1000000;
-                    player.powder += 1000000;
+                    player.abyssalPowder += 1000000; // powder -> abyssalPowder
                     player.rerollStone += 10000;
                     player.protectionStone += 10000;
                     player.cube += 10000;
+                    player.soulStone += 10000; // Add soulStone
                   });
                   _showToast('모든 재화를 대량 지급했습니다.', isError: false);
                 }, isFull: true),
@@ -3407,6 +3509,58 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     }
   }
 
+  // --- 특별 시한 던전 로직 ---
+
+  void _enterSpecialDungeon(HuntingZone zone) {
+    if (gameState.isInSpecialDungeon) return;
+
+    // 1. 입장권 확인 및 소모
+    if (zone.id == ZoneId.goldenRoom) {
+      if (player.goldDungeonTicket < 1) {
+        _showToast('황금의 방 입장권이 부족합니다.', isError: true);
+        return;
+      }
+      player.goldDungeonTicket--;
+    } else if (zone.id == ZoneId.trialRoom) {
+      if (player.trialDungeonTicket < 1) {
+        _showToast('시련의 방 입장권이 부족합니다.', isError: true);
+        return;
+      }
+      player.trialDungeonTicket--;
+    }
+
+    // 2. 현재 상태 저장
+    _previousZone = _currentZone;
+    _previousStage = _currentStage;
+
+    // 3. 던전 이동
+    setState(() {
+      _currentZone = zone;
+      _currentStage = player.maxStageReached; // 플레이어의 최고 스테이지 기준으로 난이도 설정
+      gameState.stageKills = 0;
+      _selectedIndex = 0; // 전투 탭으로 이동
+      currentMonster = null;
+    });
+
+    // 4. 타이머 시작
+    gameState.startSpecialDungeon(zone.id);
+    _spawnMonster();
+    _showToast('${zone.name}에 진입했습니다! (60초)', isError: false);
+  }
+
+  void _exitSpecialDungeon() {
+    if (_previousZone != null) {
+      gameState.endSpecialDungeon();
+      setState(() {
+        _currentZone = _previousZone!;
+        _currentStage = _previousStage ?? 1;
+        gameState.stageKills = 0;
+        _spawnMonster();
+        _showSuccess('던전 탐험 종료', '보상 정산이 완료되었습니다.');
+      });
+    }
+  }
+
   void _checkOfflineRewards() async {
     final gameState = context.read<GameState>();
     // 🆕 데이터 로드가 완료될 때까지 대기
@@ -3499,10 +3653,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               _buildOfflineRewardItem('💀', '처치 수', rewards['kills']),
               if (rewards.containsKey('shards'))
                 _buildOfflineRewardItem('🧩', '연성 파편', rewards['shards']),
-              if (rewards.containsKey('cores') && rewards['cores'] > 0)
-                _buildOfflineRewardItem('🌑', 'T${rewards['coreTier']} 심연의 구슬', rewards['cores']),
-              if (rewards.containsKey('powder'))
-                _buildOfflineRewardItem('✨', '가루', rewards['powder']),
+              if (rewards.containsKey('abyssalPowder'))
+                _buildOfflineRewardItem('✨', '심연의 가루', rewards['abyssalPowder']),
 
               if (rewards['bonusStones'] > 0 || rewards.containsKey('rerollStone') || rewards.containsKey('protectionStone') || rewards.containsKey('cube')) ...[
                 const Divider(color: Colors.white24, height: 24),

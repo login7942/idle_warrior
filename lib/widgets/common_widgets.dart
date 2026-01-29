@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:intl/intl.dart';
@@ -57,6 +58,8 @@ class PopBtn extends StatelessWidget {
   final String? subLabel;
   final bool isFull;
   final IconData? icon;
+  final EdgeInsetsGeometry? padding; 
+  final bool isRepeating; // 🆕 자동 반복 여부
 
   const PopBtn(
     this.label,
@@ -66,59 +69,68 @@ class PopBtn extends StatelessWidget {
     this.subLabel,
     this.isFull = false,
     this.icon,
+    this.padding, 
+    this.isRepeating = false, // 🆕 기본값 false
   });
 
   @override
   Widget build(BuildContext context) {
+    // 🆕 RepeatingPressable 또는 기존 InkWell 선택적 사용
+    final content = Container(
+      padding: padding ?? EdgeInsets.symmetric(
+          horizontal: isFull ? 20 : 16, vertical: isFull ? 14 : 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+              color: color.withValues(alpha: 0.1),
+              blurRadius: 8,
+              spreadRadius: 1),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: isFull ? MainAxisSize.max : MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 8),
+          ],
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: isFull ? 16 : 14,
+                ),
+              ),
+              if (subLabel != null)
+                Text(
+                  subLabel!,
+                  style: TextStyle(
+                    color: color.withValues(alpha: 0.6),
+                    fontSize: 10,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (isRepeating && onTap != null) {
+      return RepeatingPressable(onTap: onTap, child: content);
+    }
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-            horizontal: isFull ? 20 : 16, vertical: isFull ? 14 : 10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.4), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-                color: color.withValues(alpha: 0.1),
-                blurRadius: 8,
-                spreadRadius: 1),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: isFull ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 8),
-            ],
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: isFull ? 16 : 14,
-                  ),
-                ),
-                if (subLabel != null)
-                  Text(
-                    subLabel!,
-                    style: TextStyle(
-                      color: color.withValues(alpha: 0.6),
-                      fontSize: 10,
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
+      child: content,
     );
   }
 }
@@ -637,6 +649,91 @@ class _PressableScaleState extends State<PressableScale>
       onTapDown: (_) => widget.onTap != null ? _controller.reverse() : null,
       onTapUp: (_) => widget.onTap != null ? _controller.forward() : null,
       onTapCancel: () => widget.onTap != null ? _controller.forward() : null,
+      onTap: widget.onTap,
+      child: ScaleTransition(scale: _controller, child: widget.child),
+    );
+  }
+}
+
+/// 🆕 길게 누르면 자동으로 반복 클릭되는 위젯
+class RepeatingPressable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final Duration interval;
+  final Duration initialDelay;
+
+  const RepeatingPressable({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.interval = const Duration(milliseconds: 150),
+    this.initialDelay = const Duration(milliseconds: 500),
+  });
+
+  @override
+  State<RepeatingPressable> createState() => _RepeatingPressableState();
+}
+
+class _RepeatingPressableState extends State<RepeatingPressable>
+    with SingleTickerProviderStateMixin {
+  Timer? _timer;
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 100),
+        lowerBound: 0.95,
+        upperBound: 1.0,
+        value: 1.0);
+  }
+
+  void _startTimer() {
+    _stopTimer();
+    _timer = Timer(widget.initialDelay, () {
+      _timer = Timer.periodic(widget.interval, (timer) {
+        if (widget.onTap != null) {
+          widget.onTap!();
+        }
+      });
+    });
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopTimer();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) {
+        if (widget.onTap != null) {
+          _controller.reverse();
+          _startTimer();
+        }
+      },
+      onTapUp: (_) {
+        if (widget.onTap != null) {
+          _controller.forward();
+          _stopTimer();
+        }
+      },
+      onTapCancel: () {
+        if (widget.onTap != null) {
+          _controller.forward();
+          _stopTimer();
+        }
+      },
       onTap: widget.onTap,
       child: ScaleTransition(scale: _controller, child: widget.child),
     );

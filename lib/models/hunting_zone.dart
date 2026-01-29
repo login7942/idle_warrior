@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum ZoneId { grassland, forest, mine, dungeon, volcano, snowfield, abyss, tower }
+enum ZoneId { grassland, forest, mine, dungeon, volcano, snowfield, abyss, tower, goldenRoom, trialRoom }
 enum ZoneType { general, special }
 
 class HuntingZone {
@@ -137,6 +137,32 @@ class HuntingZoneData {
       difficultyMultiplier: 20.0,
       minEnhance: 0,
       maxEnhance: 9999,
+    ),
+    HuntingZone(
+      id: ZoneId.goldenRoom,
+      name: '황금의 방',
+      description: '제한 시간 동안 대량의 골드를 획득하세요 (60초)',
+      color: Colors.amberAccent,
+      minLevel: 1,
+      monsterNames: ['황금 슬라임', '보물 상자', '황금 박쥐', '골드 미믹', '황금 골렘'],
+      keyDrops: ['💰 골드!!', '연성 파편'],
+      type: ZoneType.special,
+      difficultyMultiplier: 1.0, 
+      minEnhance: 0,
+      maxEnhance: 99999,
+    ),
+    HuntingZone(
+      id: ZoneId.trialRoom,
+      name: '시련의 방',
+      description: '강화석과 심연의 가루를 대량으로 획득하세요 (60초)',
+      color: Colors.cyanAccent,
+      minLevel: 1,
+      monsterNames: ['시련의 정령', '마력 결정체', '푸른 번개', '결빙된 영혼', '시련의 수호자'],
+      keyDrops: ['💎 강화석', '✨ 심연의 가루'],
+      type: ZoneType.special,
+      difficultyMultiplier: 1.0,
+      minEnhance: 0,
+      maxEnhance: 99999,
     ),
   ];
 }

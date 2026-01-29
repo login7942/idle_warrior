@@ -82,7 +82,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildCompactResource('✨', player.powder, Colors.greenAccent),
+              _buildCompactResource('✨', player.abyssalPowder, Colors.orangeAccent),
               _buildCompactResource('💎', player.enhancementStone, Colors.blueAccent),
               _buildCompactResource('🎲', player.rerollStone, Colors.purpleAccent),
               _buildCompactResource('🛡️', player.protectionStone, Colors.amberAccent),
@@ -671,7 +671,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
                   SizedBox(
                     width: double.infinity,
                     height: 54,
-                    child: PressableScale(
+                    child: RepeatingPressable(
                       onTap: (!isMax && canAfford) ? () => gs.enhanceSlot(type) : null,
                       child: Container(
                         decoration: BoxDecoration(
@@ -780,9 +780,8 @@ void _showDismantleResult(BuildContext context, Map<String, int> rewards) {
               spacing: 12, runSpacing: 12, alignment: WrapAlignment.center,
               children: [
                 if (rewards['gold']! > 0) _buildResultItem('💰', '골드', rewards['gold']!, Colors.amberAccent),
-                if (rewards['powder']! > 0) _buildResultItem('✨', '가루', rewards['powder']!, Colors.greenAccent),
+                if (rewards['abyssalPowder'] != null && rewards['abyssalPowder']! > 0) _buildResultItem('✨', '심연의 가루', rewards['abyssalPowder']!, Colors.orangeAccent),
                 if (rewards['shards'] != null && rewards['shards']! > 0) _buildResultItem('🧩', '연성 파편', rewards['shards']!, Colors.cyanAccent),
-                if (rewards['cores'] != null && rewards['cores']! > 0) _buildResultItem('🌑', '심연의 구슬', rewards['cores']!, Colors.indigoAccent),
                 if (rewards['stone']! > 0) _buildResultItem('💎', '강화석', rewards['stone']!, Colors.blueAccent),
                 if (rewards['reroll']! > 0) _buildResultItem('🎲', '재설정석', rewards['reroll']!, Colors.purpleAccent),
                 if (rewards['protection']! > 0) _buildResultItem('🛡️', '보호석', rewards['protection']!, Colors.orangeAccent),
@@ -1425,7 +1424,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                 ],
               ) : Text('(현재 $totalSlotLv / 300)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
               onTap: () {
-                if (gs.player.rerollStone < 1 || gs.player.powder < powderCost) {
+                if (gs.player.rerollStone < 1 || gs.player.abyssalPowder < powderCost) {
                   widget.onShowToast?.call('재료가 부족합니다!', isError: true);
                 } else if (item.isLocked) {
                   widget.onShowToast?.call('잠긴 아이템은 재설정할 수 없습니다!', isError: true);

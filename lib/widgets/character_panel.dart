@@ -332,7 +332,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
           ),
           const SizedBox(height: 20),
           Row(children: [
-            _buildAssetItem(Icons.auto_awesome, '가루', player.powder, Colors.orangeAccent),
+            _buildAssetItem(Icons.auto_awesome, '심연의 가루', player.abyssalPowder, Colors.orangeAccent),
             _buildAssetItem(Icons.diamond, '강화석', player.enhancementStone, Colors.blueAccent),
           ]),
           const SizedBox(height: 10),

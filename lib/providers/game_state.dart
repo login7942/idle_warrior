@@ -140,6 +140,10 @@ class GameState extends ChangeNotifier {
   // --- [최적화] 배치 저장용 ---
   int _victoryCountSinceSave = 0;
   Timer? _autoSaveTimer;
+  Timer? _specialDungeonTimer; // 🆕 특별 던전 타이머
+  int _specialDungeonTimeLeft = 0; // 🆕 남은 시간 (초)
+  int get specialDungeonTimeLeft => _specialDungeonTimeLeft;
+  bool get isInSpecialDungeon => _specialDungeonTimeLeft > 0;
   
   // --- UI 통신용 콜백 ---
   Function(String text, int damage, bool isCrit, bool isSkill, {double? ox, double? oy, bool shouldAnimate, String? skillIcon, int? combo})? onDamageDealt;
@@ -153,6 +157,7 @@ class GameState extends ChangeNotifier {
   VoidCallback? onPlayerDeath; // 🆕 사망 연출 및 팝업용
   Function(int level, String name, String bonus)? onPromotionSuccess; // 🆕 [v0.5.27] 승급 성공 전용 콜백
   Function(Item item, int oldTier, int oldStat1, int? oldStat2)? onItemPromotionSuccess; // 🆕 [v0.5.58] 아이템 승급 성공 콜백
+  VoidCallback? onSpecialDungeonEnd; // 🆕 특별 던전 종료 콜백
 
 
   // 🆕 [v0.5.26] 승급 로직
@@ -214,6 +219,7 @@ class GameState extends ChangeNotifier {
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
+    _specialDungeonTimer?.cancel();
     super.dispose();
   }
 
@@ -688,7 +694,7 @@ class GameState extends ChangeNotifier {
       if (shouldAutoDismantle) {
         var rewards = _calculateDismantleRewards(newItem);
         player.gold += rewards['gold']!;
-        player.powder += rewards['powder']!;
+        player.abyssalPowder += rewards['abyssalPowder']!;
         player.enhancementStone += rewards['stone']!;
         player.rerollStone += rewards['reroll']!;
         player.protectionStone += rewards['protection']!;
@@ -714,6 +720,9 @@ class GameState extends ChangeNotifier {
     // [v0.3.6] 적정 강화 구간 보너스: 강화 재료 드랍율 +40%
     double matBonus = isOptimalZone ? 1.4 : 1.0;
     
+    // [v0.8.17] 시련의 방 보너스: 재료 드랍율 5배 상향
+    if (currentZone.id == ZoneId.trialRoom) matBonus *= 5.0;
+    
     // 1. 강화석 드롭 (기본 10% -> 보너스 적용 시 14%)
     if (rand.nextDouble() < (0.1 * matBonus)) {
       int amount = 1 + (monsterLevel / 50).floor() + rand.nextInt(3);
@@ -725,9 +734,9 @@ class GameState extends ChangeNotifier {
     // 2. 가루 드롭 (기본 40% -> 보너스 적용 시 56%)
     if (rand.nextDouble() < (0.4 * matBonus)) {
       int amount = (monsterLevel / 5).ceil() + rand.nextInt(10);
-      player.powder += amount;
-      addLog('[추출] 신비로운 가루 $amount개 획득!', LogType.item);
-      onLootAcquired?.call('✨', '신비의 가루', ItemGrade.uncommon, amount: amount);
+      player.abyssalPowder += amount;
+      addLog('[추출] 심연의 가루 $amount개 획득!', LogType.item);
+      onLootAcquired?.call('✨', '심연의 가루', ItemGrade.uncommon, amount: amount);
     }
     
     // 3. 재설정석 드롭 (v0.4.8: 숲 이상 사냥터에서만 드롭)
@@ -790,14 +799,9 @@ class GameState extends ChangeNotifier {
       if (isOptimal) baseProb *= 1.5;
 
       if (rand.nextDouble() < baseProb) {
-        player.tierCores[tier] = (player.tierCores[tier] ?? 0) + 1;
-        addLog('★ [파이널] $tier티어 핵심 재료 [T$tier 구슬] 획득!', LogType.event);
-        // onLootAcquired?.call('🔮', 'T$tier 심연의 구슬', ItemGrade.unique, amount: 1);
-        
-        // 보스인 경우 전용 알림
-        // if (isBoss) {
-        //   onSpecialEvent?.call('BOSS LOOT!', '보스를 처치하고 $tier티어 핵심 재료를 획득했습니다!');
-        // }
+        player.abyssalPowder += 1;
+        addLog('★ [파이널] $tier티어 핵심 재료 [심연의 가루] 획득!', LogType.event);
+        onLootAcquired?.call('✨', '심연의 가루', ItemGrade.unique, amount: 1);
       }
     }
   }
@@ -825,8 +829,8 @@ class GameState extends ChangeNotifier {
     double mVariance = 0.9 + (Random().nextDouble() * 0.2);
     double pDefenseRating = 100 / (100 + player.defense);
     double rawMDmg = (currentMonster!.attack * pDefenseRating) * mVariance;
-    // 🆕 [v0.5.56] 최소 데미지 하한선 상향 (10% -> 20%)
-    int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.2 * mVariance).toInt()).clamp(1, 999999999);
+    // 🆕 [v0.8.18] 최소 데미지 하한선 조정 (20% -> 10%: 방어 효율 상향)
+    int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.1 * mVariance).toInt()).clamp(1, 999999999);
 
     playerCurrentHp -= mDmg;
     onPlayerDamageTaken?.call(mDmg);
@@ -889,10 +893,10 @@ class GameState extends ChangeNotifier {
     int lockCount = item.subOptions.where((o) => o.isLocked).length;
     int powderCost = lockCount == 0 ? 0 : (1000 * pow(10, lockCount - 1)).toInt();
     
-    if (player.rerollStone < 1 || player.powder < powderCost) return;
+    if (player.rerollStone < 1 || player.abyssalPowder < powderCost) return;
 
     player.rerollStone -= 1;
-    player.powder -= powderCost;
+    player.abyssalPowder -= powderCost;
     
     item.rerollSubOptions(Random());
     
@@ -1161,21 +1165,8 @@ class GameState extends ChangeNotifier {
     var rewards = _calculateDismantleRewards(item);
     
     player.gold += rewards['gold']!;
-    player.powder += rewards['powder']!;
+    player.abyssalPowder += rewards['abyssalPowder']!;
     player.enhancementStone += rewards['stone']!;
-    player.rerollStone += rewards['reroll']!;
-    player.protectionStone += rewards['protection']!;
-    player.cube += rewards['cube']!;
-    
-    int shards = rewards['shards']!;
-    player.shards += shards;
-    
-    // 🆕 티어 심연의 구슬 추가
-    int tier = rewards['tier']!;
-    int cores = rewards['cores'] ?? 0;
-    if (cores > 0) {
-      player.tierCores[tier] = (player.tierCores[tier] ?? 0) + cores;
-    }
     
     addLog('[분해] ${item.name}을(를) 분해하여 재료를 획득했습니다.', LogType.item);
     
@@ -1192,50 +1183,36 @@ class GameState extends ChangeNotifier {
   Map<String, int> executeBulkDismantle(int maxGradeIdx, int maxTier) {
     int dismantleCount = 0;
     int totalGold = 0;
-    int totalPowder = 0;
+    int totalAbyssal = 0;
     int totalStone = 0;
     int totalReroll = 0;
     int totalProtection = 0;
     int totalCube = 0;
     int totalShards = 0;
-    Map<int, int> totalCores = {}; // 티어별 구슬 합산
 
     player.inventory.removeWhere((item) {
-      // [일괄 분해 체크] - 계층적 판별 적용 (설정 티어 이하 & 설정 등급 이하)
       if (item.tier <= maxTier && item.grade.index <= maxGradeIdx && !item.isLocked) {
         dismantleCount++;
         var rewards = _calculateDismantleRewards(item);
         totalGold += rewards['gold']!;
-        totalPowder += rewards['powder']!;
+        totalAbyssal += rewards['abyssalPowder']!;
         totalStone += rewards['stone']!;
         totalReroll += rewards['reroll']!;
         totalProtection += rewards['protection']!;
         totalCube += rewards['cube']!;
         totalShards += rewards['shards']!;
-        
-        // 티어 구슬 합산
-        int t = rewards['tier']!;
-        int c = rewards['cores'] ?? 0;
-        if (c > 0) {
-          totalCores[t] = (totalCores[t] ?? 0) + c;
-        }
         return true;
       }
       return false;
     });
     
     player.gold += totalGold;
-    player.powder += totalPowder;
+    player.abyssalPowder += totalAbyssal;
     player.enhancementStone += totalStone;
     player.rerollStone += totalReroll;
     player.protectionStone += totalProtection;
     player.cube += totalCube;
     player.shards += totalShards;
-    
-    // 누적된 티어 구슬 적용
-    totalCores.forEach((t, c) {
-      player.tierCores[t] = (player.tierCores[t] ?? 0) + c;
-    });
 
     if (dismantleCount > 0) {
       addLog('[일괄분해] $dismantleCount개의 아이템을 분해했습니다.', LogType.item);
@@ -1251,13 +1228,12 @@ class GameState extends ChangeNotifier {
     return {
       'count': dismantleCount,
       'gold': totalGold,
-      'powder': totalPowder,
+      'abyssalPowder': totalAbyssal,
       'stone': totalStone,
       'reroll': totalReroll,
       'protection': totalProtection,
       'cube': totalCube,
       'shards': totalShards,
-      'cores': totalCores.values.fold(0, (a, b) => a + b), // 모든 티어 구슬 합계
     };
 
   }
@@ -1296,14 +1272,12 @@ class GameState extends ChangeNotifier {
 
     return {
       'gold': gold,
-      'powder': powder,
+      'abyssalPowder': powder + cores,
       'stone': stone,
       'reroll': reroll,
       'protection': protection,
       'cube': cube,
       'shards': max(1, shards),
-      'cores': cores,
-      'tier': item.tier,
     };
   }
 
@@ -1478,12 +1452,12 @@ class GameState extends ChangeNotifier {
   }
 
   // 🆕 [v0.7.0] 공통 제작 로직 (수동/자동 공용)
-  Item? craftItem(ItemType type, int tier, {int shardCost = 0, int coreCost = 0}) {
+  Item? craftItem(ItemType type, int tier, {int shardCost = 0, int abyssalCost = 0}) {
     if (player.inventory.length >= player.maxInventory) return null;
-    if (player.shards < shardCost || (player.tierCores[tier] ?? 0) < coreCost) return null;
+    if (player.shards < shardCost || player.abyssalPowder < abyssalCost) return null;
 
     player.shards -= shardCost;
-    player.tierCores[tier] = (player.tierCores[tier] ?? 0) - coreCost;
+    player.abyssalPowder -= abyssalCost;
 
     // 1. 세트 아이템 결정 (기본 15% + 숙련도 보너스 최대 15%)
     String? setId;
@@ -1510,6 +1484,30 @@ class GameState extends ChangeNotifier {
     return newItem;
   }
 
+  // 🆕 입장권 제작 로직 (v0.8.15)
+  bool craftTicket(String type) {
+    int shardCost = (type == 'gold') ? 500 : 2000;
+    int abyssalCost = (type == 'gold') ? 200 : 1000;
+
+    if (player.shards < shardCost || player.abyssalPowder < abyssalCost) return false;
+
+    player.shards -= shardCost;
+    player.abyssalPowder -= abyssalCost;
+
+    if (type == 'gold') {
+      player.goldDungeonTicket++;
+      addLog('🎫 황금의 방 입장권을 제작했습니다.', LogType.item);
+    } else {
+      player.trialDungeonTicket++;
+      addLog('🎫 시련의 방 입장권을 제작했습니다.', LogType.item);
+    }
+    
+    gainCraftingMasteryExp(50);
+    saveGameData();
+    notifyListeners();
+    return true;
+  }
+
   String? _getSetIdForTier(int tier) {
     switch (tier) {
       case 2: return 'desert';
@@ -1532,11 +1530,11 @@ class GameState extends ChangeNotifier {
         int coreCost = coreCosts[t] ?? 999999;
 
         while (player.shards >= shardCost && 
-               (player.tierCores[t] ?? 0) >= coreCost && 
+               player.abyssalPowder >= coreCost && 
                player.inventory.length < player.maxInventory) {
           
           final type = ItemType.values[Random().nextInt(6)]; 
-          final newItem = craftItem(type, t, shardCost: shardCost, coreCost: coreCost);
+          final newItem = craftItem(type, t, shardCost: shardCost, abyssalCost: coreCost);
           
           if (newItem != null) {
             addLog('[자동제작] T$t ${newItem.type.nameKr} 제작 완료!', LogType.item);
@@ -1577,11 +1575,11 @@ class GameState extends ChangeNotifier {
     // 보상 지급
     player.gold += r.gold;
     player.enhancementStone += r.stone;
-    player.powder += r.powder;
+    player.abyssalPowder += r.abyssalPowder;
     player.shards += r.shards;
     player.cube += r.cube;
     player.soulStone += r.soulStone;
-    player.protectionStone += r.protectionStone; // 🆕 보호석 보상 추가
+    player.protectionStone += r.protectionStone;
 
     addLog('[퀘스트 보상] ${quest.title} 완료 보상을 획득했습니다.', LogType.event);
     
@@ -1593,12 +1591,50 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+
+  // ---------------------------------------------------------------------------
+  // 🆕 [v0.8.17] 특별 시간 제한 던전 시스템 (Golden Room, Trial Room)
+  // ---------------------------------------------------------------------------
+
+  void startSpecialDungeon(ZoneId zoneId) {
+    _specialDungeonTimer?.cancel();
+    _specialDungeonTimeLeft = 60; // 60초 제한
+    
+    _specialDungeonTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_specialDungeonTimeLeft > 0) {
+        _specialDungeonTimeLeft--;
+        if (_specialDungeonTimeLeft == 0) {
+          timer.cancel();
+          onSpecialDungeonEnd?.call();
+        }
+        notifyListeners();
+      } else {
+        timer.cancel();
+        _specialDungeonTimeLeft = 0;
+      }
+    });
+
+    addLog('[던전 진입] ${currentZone.name}에 진입했습니다! (제한시간 60초)', LogType.event);
+    notifyListeners();
+  }
+
+  void endSpecialDungeon() {
+    _specialDungeonTimer?.cancel();
+    _specialDungeonTimeLeft = 0;
+    notifyListeners();
+  }
+
   // ---------------------------------------------------------------------------
   // 🆕 [v0.6.2] 펫 탐사 파견 시스템 (Pet Expedition)
   // ---------------------------------------------------------------------------
 
   /// 특정 사냥터 슬롯에 펫을 파견합니다.
   String? dispatchPetToZone(ZoneId zoneId, int slotIndex, String petId) {
+    // 0. 타워 및 특별 던전 파견 불가
+    if (zoneId == ZoneId.tower || zoneId == ZoneId.goldenRoom || zoneId == ZoneId.trialRoom) {
+      return "이 지역은 탐사 파견이 불가능합니다.";
+    }
+
     final zoneKey = zoneId.name;
     
     // 1. 해당 펫이 이미 파견 중인지 체크
@@ -1656,8 +1692,7 @@ class GameState extends ChangeNotifier {
     // 보상 적용
     player.gold += rewards['gold'] ?? 0;
     player.shards += rewards['shards'] ?? 0;
-    player.tierCores[rewards['coreTier'] ?? 2] = (player.tierCores[rewards['coreTier'] ?? 2] ?? 0) + (rewards['cores'] ?? 0);
-    player.powder += rewards['powder'] ?? 0;
+    player.abyssalPowder += rewards['abyssalPowder'] ?? 0;
     player.enhancementStone += rewards['stone'] ?? 0;
 
     // 마지막 수령 시간 갱신
@@ -1687,6 +1722,7 @@ class GameState extends ChangeNotifier {
     int tier = (zone.minLevel ~/ 40) + 1; // 대략적인 티어 계산 (초원 1, 숲 1, 광산 2...)
     if (zone.id == ZoneId.abyss) tier = 6;
     if (zone.id == ZoneId.tower) tier = 1;
+    if (zone.id == ZoneId.goldenRoom || zone.id == ZoneId.trialRoom) tier = (player.maxStageReached ~/ 500).clamp(1, 6);
 
     double totalEfficiency = 0.0;
     for (String? pid in petIds) {
@@ -1706,18 +1742,16 @@ class GameState extends ChangeNotifier {
     
     int gold = (minutes * baseGoldPerMin * totalEfficiency).toInt();
     int shards = (minutes * baseShardPerMin * totalEfficiency).toInt();
-    int powder = (minutes * 0.2 * tier * totalEfficiency).toInt();
+    int powderReward = (minutes * 0.2 * tier * totalEfficiency).toInt();
+    int coreReward = (killsPerMin > 0 && tier >= 2) ? (minutes * 0.1 * totalEfficiency).toInt() : 0;
     int stone = (minutes * 0.05 * tier * totalEfficiency).toInt();
-    int cores = (killsPerMin > 0 && tier >= 2) ? (minutes * 0.1 * totalEfficiency).toInt() : 0;
 
 
     return {
       'gold': gold,
       'shards': shards,
-      'powder': powder,
+      'abyssalPowder': powderReward + coreReward,
       'stone': stone,
-      'cores': cores,
-      'coreTier': tier.clamp(2, 6),
       'minutes': minutes,
     };
   }

@@ -229,6 +229,7 @@ class SkillPanel extends StatelessWidget {
                     onShowToast('${skill.name} 강화 성공!', isError: false);
                   }
                 },
+                isRepeating: true,
                 subLabel: '${_formatNumber(skill.upgradeCost)} G',
               ),
             ],

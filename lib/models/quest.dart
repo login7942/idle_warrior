@@ -20,7 +20,7 @@ enum QuestType {
 class QuestReward {
   final int gold;
   final int stone;
-  final int powder;
+  final int abyssalPowder;
   final int shards;
   final int cube;
   final int soulStone;
@@ -29,7 +29,7 @@ class QuestReward {
   const QuestReward({
     this.gold = 0,
     this.stone = 0,
-    this.powder = 0,
+    this.abyssalPowder = 0,
     this.shards = 0,
     this.cube = 0,
     this.soulStone = 0,
@@ -87,7 +87,7 @@ class GuideQuestData {
       description: '사용하지 않는 아이템을 분해하세요.',
       type: QuestType.dismantle,
       targetValue: 1,
-      reward: QuestReward(gold: 200000, powder: 3000),
+      reward: QuestReward(gold: 200000, abyssalPowder: 3000),
     ),
     Quest(
       id: 'q5',
@@ -151,7 +151,7 @@ class GuideQuestData {
       description: '해금된 옵션 재설정을 1회 진행하세요.',
       type: QuestType.reroll,
       targetValue: 1,
-      reward: QuestReward(gold: 4000000, powder: 10000),
+      reward: QuestReward(gold: 4000000, abyssalPowder: 10000),
     ),
     Quest(
       id: 'q14',
