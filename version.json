@@ -1,6 +1,6 @@
 {
-  "version": "0.8.14",
-  "buildNumber": 88,
+  "version": "0.8.24",
+  "buildNumber": 95,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "[v0.8.14] 성장형 방치 효율 도입, 펫 탐사 골드 20% 상향, 스테이지 마일스톤 골드 가속 시스템 추가"
+  "changelog": "[v0.8.24] 무투회(토너먼트) 시스템 고도화: 라운드별 난이도 스케일링(최대 2.2배), NPC 특수 능력(처형, 흡혈, 반사) 및 결승전 챔피언 보스전 도입"
 }

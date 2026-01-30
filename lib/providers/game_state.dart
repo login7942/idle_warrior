@@ -12,6 +12,7 @@ import '../models/hunting_zone.dart';
 import '../models/pet.dart';
 import '../models/achievement.dart';
 import '../models/quest.dart';
+import '../models/npc.dart';
 import '../services/auth_service.dart';
 
 import '../services/cloud_save_service.dart';
@@ -60,9 +61,15 @@ class GameState extends ChangeNotifier {
   set playerCurrentHp(int val) {
     if (_playerCurrentHp == val) return;
     _playerCurrentHp = val;
-    // 💡 최적화: 전투 중 소량 변화는 Ticker가 처리하므로, 
-    // 유의미한 상태 변화가 있을 때만 명시적으로 알리거나 
-    // 외부에서 알림 주기를 제어하도록 유도
+    notifyListeners();
+  }
+
+  int _playerShield = 0; // [v2.0] 보호막 시스템 추가
+  int get playerShield => _playerShield;
+  set playerShield(int val) {
+    if (_playerShield == val) return;
+    _playerShield = val;
+    notifyListeners();
   }
 
   Monster? currentMonster;
@@ -71,6 +78,7 @@ class GameState extends ChangeNotifier {
   set monsterCurrentHp(int val) {
     if (_monsterCurrentHp == val) return;
     _monsterCurrentHp = val;
+    notifyListeners();
   }
   
   // --- 진행 데이터 ---
@@ -87,10 +95,16 @@ class GameState extends ChangeNotifier {
     bool isChanged = _currentZone.id != val.id;
     _currentZone = val;
     
-    // [세트 효과] 사막의 약탈자 (T2) 4세트: 사냥터 이동 시 30초간 ATK +30%
-    if (isChanged && player.isSetEffectActive('desert', 4)) {
-      player.desertBuffEndTime = DateTime.now().add(const Duration(seconds: 30));
-      addLog('⚔️ [세트효과] 사막의 기운으로 공격력이 일시적으로 상승합니다!', LogType.event);
+    // [v2.0] 지역 이동 시 공격력/방어력 버프 발동
+    if (isChanged) {
+      if (player.zoneAtkBonus > 0) {
+        player.zoneAtkBuffEndTime = DateTime.now().add(const Duration(seconds: 30));
+        addLog('⚔️ 지역 효과: 공격력이 일시적으로 상승합니다!', LogType.event);
+      }
+      if (player.zoneDefBonus > 0) {
+        player.zoneDefBuffEndTime = DateTime.now().add(const Duration(seconds: 30));
+        addLog('🛡️ 지역 효과: 방어력이 일시적으로 상승합니다!', LogType.event);
+      }
     }
     
     notifyListeners();
@@ -125,6 +139,13 @@ class GameState extends ChangeNotifier {
   bool isProcessingVictory = false;
   bool isCloudSynced = false;
   DateTime? lastCloudSaveTime;
+  
+  // --- 무투회(토너먼트) 상태 (v2.2) ---
+  List<TournamentNPC> tournamentNPCs = [];
+  int tournamentRound = 0; // 0: 대기, 1: 16강, 2: 8강, 3: 4강, 4: 결승, 5: 종료
+  TournamentNPC? currentOpponent;
+  bool isArenaMode = false; 
+  List<bool> tournamentResults = []; // 승패 기록
   DateTime? lastMonsterSpawnTime;
   int _skillRoundRobinIndex = 0;
   int _normalAttackCombo = 0; // 🆕 일반 공격 콤보 단계 (0~3)
@@ -141,8 +162,22 @@ class GameState extends ChangeNotifier {
   int _victoryCountSinceSave = 0;
   Timer? _autoSaveTimer;
   Timer? _specialDungeonTimer; // 🆕 특별 던전 타이머
-  int _specialDungeonTimeLeft = 0; // 🆕 남은 시간 (초)
-  int get specialDungeonTimeLeft => _specialDungeonTimeLeft;
+  double _specialDungeonTimeLeft = 0; // 🆕 남은 시간 (초)
+  double _skillDmgReductionTimeLeft = 0; // 🆕 [v2.0] 스킬 사용 후 피해 감소 남은 시간 (초)
+
+  // [v2.0] 신규 버프 타이머 변수들
+  double _killAtkBuffTimeLeft = 0.0;
+  double _killDefBuffTimeLeft = 0.0;
+  double _zoneAtkBuffTimeLeft = 0.0;
+  double _zoneDefBuffTimeLeft = 0.0;
+
+  // [v2.0] 개별 버프가 활성화되어 있는지 확인하는 게터들
+  bool get isKillAtkBuffActive => _killAtkBuffTimeLeft > 0;
+  bool get isKillDefBuffActive => _killDefBuffTimeLeft > 0;
+  bool get isZoneAtkBuffActive => _zoneAtkBuffTimeLeft > 0;
+  bool get isZoneDefBuffActive => _zoneDefBuffTimeLeft > 0;
+  
+  double get specialDungeonTimeLeft => _specialDungeonTimeLeft;
   bool get isInSpecialDungeon => _specialDungeonTimeLeft > 0;
   
   // --- UI 통신용 콜백 ---
@@ -405,11 +440,15 @@ class GameState extends ChangeNotifier {
 
   // --- 전투 로직 ---
   void spawnMonster() {
+    // 🆕 무투회 여부와 상관없이 이전 전투의 대기 상태 및 예약을 해제하여 루프가 멈추지 않도록 함
+    isProcessingVictory = false;
+    pendingMonsterSpawn = false; 
+
+    if (isArenaMode) return; // 무투회 중에는 일반 몬스터 스폰 금지
     bool isFinal = (stageKills >= targetKills - 1);
     currentMonster = Monster.generate(currentZone, currentStage, isFinal: isFinal);
     monsterCurrentHp = currentMonster!.hp;
     lastMonsterSpawnTime = DateTime.now();
-    isProcessingVictory = false;
     onMonsterSpawned?.call();
     notifyListeners();
   }
@@ -417,7 +456,9 @@ class GameState extends ChangeNotifier {
   void processCombatTurn() {
     if (currentMonster == null || isProcessingVictory) return;
 
-    final activeSkills = player.skills.where((s) => s.type == SkillType.active && s.isUnlocked).toList();
+    // [v2.0] 스킬 가용성 체크 시 공용 쿨감 + 특정 스킬 전용 쿨감 합산 적용
+    final allActiveSkills = player.skills.where((s) => s.type == SkillType.active).toList();
+    final activeSkills = allActiveSkills.where((s) => s.isUnlocked).toList();
     Skill? selectedSkill;
 
     if (activeSkills.isNotEmpty) {
@@ -425,7 +466,12 @@ class GameState extends ChangeNotifier {
       for (int i = 0; i < activeSkills.length; i++) {
         int checkIdx = (startIndex + i) % activeSkills.length;
         final s = activeSkills[checkIdx];
-        if (s.isReady(player.cdr)) {
+        
+        // 해당 스킬의 고유 번호 찾기 (1~6)
+        int skillSlotIdx = allActiveSkills.indexOf(s) + 1;
+        double totalCdrForSkill = player.cdr + player.getSpecificSkillCdr(skillSlotIdx);
+
+        if (s.isReady(totalCdrForSkill)) {
           selectedSkill = s;
           _skillRoundRobinIndex = (checkIdx + 1) % activeSkills.length;
           break;
@@ -478,37 +524,63 @@ class GameState extends ChangeNotifier {
                        comboMultiplier;
     int baseDmg = max(rawDamage.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
 
+    // [v2.0] 2연타(Double Hit) 발동 여부 체크
+    bool isDoubleHit = false;
+    if (player.doubleHitChance > 0) {
+      if (Random().nextDouble() * 100 < player.doubleHitChance) {
+        isDoubleHit = true;
+      }
+    }
     
-    damageMonster(baseDmg, false, false, combo: _normalAttackCombo);
-    // notifyListeners(); // 💡 최적화: Ticker가 이미 UI를 60FPS로 갱신 중임
+    // 통합된 데미지 처리 (2연타 여부 전달)
+    damageMonster(baseDmg, false, false, combo: _normalAttackCombo, isDoubleHit: isDoubleHit);
   }
 
   void _useSkill(Skill skill) {
     if (currentMonster == null) return;
     skill.lastUsed = DateTime.now();
     player.totalSkillsUsed++;
+
+    // [v2.0] 스킬 사용 시 피해 감소 발동 (3초간 지속)
+    if (player.dmgReductionOnSkill > 0) {
+      _skillDmgReductionTimeLeft = 3.0;
+    }
     
     // 🆕 스킬 사용 시 일반 공격 콤보 초기화
     _normalAttackCombo = 0;
 
-    // 스킬별 타격 횟수 정의
-    int hits = 1;
-    if (skill.id == 'act_1') hits = 3; // 바람 베기는 3연타
-    if (skill.id == 'act_1_5') hits = 2; // 🆕 쌍룡참은 2연타
+    // [v2.2] 스킬 잔향(Skill Echo) 발동 체크
+    bool isEchoed = false;
+    if (player.skillEchoChance > 0) {
+      if (Random().nextDouble() * 100 < player.skillEchoChance) {
+        isEchoed = true;
+      }
+    }
+
+    // 스킬별 기본 타격 횟수 정의
+    int baseHits = 1;
+    if (skill.id == 'act_1') baseHits = 3; // 바람 베기는 3연타
+    if (skill.id == 'act_1_5') baseHits = 2; // 🆕 쌍룡참은 2연타
+
+    // 잔향 발동 시 타격 횟수 2배
+    int totalHits = isEchoed ? baseHits * 2 : baseHits;
+    if (isEchoed) {
+      addLog('✨ 스킬 잔향: ${skill.name}이(가) 한 번 더 발동됩니다!', LogType.event);
+    }
 
     // 몬스터 방어력에 배율 적용 (관리자 설정)
     double effectiveDefense = currentMonster!.defense * monsterDefenseMultiplier;
     double defenseRating = 100 / (100 + effectiveDefense);
     
     // 연타 스킬의 경우, 각 타격의 UI 위치를 미리 계산
-    List<Offset> offsets = List.generate(hits, (index) => Offset(
-      hits > 1 ? (Random().nextDouble() * 60 - 30) : 0,
-      hits > 1 ? (Random().nextDouble() * 40 - 20) : 0,
+    List<Offset> offsets = List.generate(totalHits, (index) => Offset(
+      totalHits > 1 ? (Random().nextDouble() * 60 - 30) : 0,
+      totalHits > 1 ? (Random().nextDouble() * 40 - 20) : 0,
     ));
 
     // 🆕 Ticker 기반 처리: 각 타격을 큐에 추가
     final now = DateTime.now();
-    for (int i = 0; i < hits; i++) {
+    for (int i = 0; i < totalHits; i++) {
       double variance = 0.9 + (Random().nextDouble() * 0.2);
       double powerMult = skill.currentValue;
       
@@ -518,7 +590,8 @@ class GameState extends ChangeNotifier {
       int baseDmg = max(rawDmg.toInt(), (player.attack * 0.1 * variance).toInt()).clamp(1, 999999999);
 
       
-      // 타격 시간 예약 (0ms, 150ms, 300ms)
+      // 타격 시간 예약 (연타 간격 150ms 유지)
+      // 잔향 타격들은 기본 타격들이 끝난 뒤 순차적으로 발생
       final scheduledTime = now.add(Duration(milliseconds: i * 150));
       
       pendingHits.add(PendingHit(
@@ -527,7 +600,7 @@ class GameState extends ChangeNotifier {
         offsetX: offsets[i].dx,
         offsetY: offsets[i].dy,
         scheduledTime: scheduledTime,
-        shouldAnimate: i == 0,
+        shouldAnimate: i == 0 || i == baseHits, // 잔향 시작 시에도 애니메이션 트리거
         skillIcon: skill.iconEmoji, // 🆕 스킬 아이콘 전달
         combo: 0, // 스킬 사용 시 콤보 초기화
       ));
@@ -535,21 +608,62 @@ class GameState extends ChangeNotifier {
   }
 
   // 🆕 데미지 처리 통합 헬퍼 (최적화) - GameLoop에서도 접근 가능하도록 public
-  void damageMonster(int baseDmg, bool isMonsterAtk, bool isSkill, {double ox = 0, double oy = 0, bool shouldAnimate = true, String? skillIcon, int? combo}) {
+  void damageMonster(int baseDmg, bool isMonsterAtk, bool isSkill, {double ox = 0, double oy = 0, bool shouldAnimate = true, String? skillIcon, int? combo, bool isDoubleHit = false}) {
     if (currentMonster == null || currentMonster!.isDead) return;
 
     // 치명타 적용
     bool isCrit = Random().nextDouble() * 100 < player.critChance;
+    
+    // [v2.2] 처형 확률 체크 (치명타 시 & 몬스터 HP 20% 이하)
+    bool isExec = false;
+    double hpPerc = (currentMonster!.hp / currentMonster!.maxHp) * 100;
+    if (isCrit && player.executeChance > 0 && hpPerc <= 20) {
+      if (Random().nextDouble() * 100 < player.executeChance) {
+        isExec = true;
+      }
+    }
+
     int finalDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
+    if (isExec) {
+      finalDmg = currentMonster!.hp; // 즉사
+    }
+
+    // [v2.0] 2연타 시 표시용 데미지와 실데미지 분리
+    int displayDmg = finalDmg;
+    if (isDoubleHit) {
+      finalDmg *= 2; 
+    }
+
+    // [v2.0] 치명타 시 스킬 쿨감 (50% 확률)
+    if (isCrit && player.critCdrAmount > 0) {
+      if (Random().nextDouble() < 0.5) {
+        _reduceAllSkillCooldowns(player.critCdrAmount);
+      }
+    }
 
     // 실제 HP 차감
     currentMonster!.hp -= finalDmg;
-    _monsterCurrentHp = currentMonster!.hp; // 직접 변수 수정 (notifyListeners 억제)
+    _monsterCurrentHp = currentMonster!.hp;
 
     // UI 알림 (Floating Text)
-    String text = finalDmg.toString(); // 🆕 레이블 제거, 숫자만 전달
-    
+    String text = isExec ? '💀EXECUTE' : (isDoubleHit ? '${displayDmg} X2' : displayDmg.toString());
     onDamageDealt?.call(text, finalDmg, isCrit, isSkill, ox: ox, oy: oy, shouldAnimate: shouldAnimate, skillIcon: skillIcon, combo: combo);
+
+    // [v2.0] 추가 타격(Extra Attack) 발동 체크
+    if (!isMonsterAtk && player.extraAttackChance > 0) {
+      if (Random().nextDouble() * 100 < player.extraAttackChance) {
+        int extraDmg = (player.attack * 0.3).toInt(); // 공격력의 30% 고정 피해
+        if (extraDmg > 0) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (currentMonster != null && !currentMonster!.isDead) {
+              currentMonster!.hp -= extraDmg;
+              _monsterCurrentHp = currentMonster!.hp;
+              onDamageDealt?.call('+$extraDmg', extraDmg, false, false, ox: -20, oy: -15, skillIcon: '💥');
+            }
+          });
+        }
+      }
+    }
 
     // 흡혈 처리
     if (!isMonsterAtk && player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
@@ -574,6 +688,19 @@ class GameState extends ChangeNotifier {
 
     // 사망 체크
     _checkMonsterDeath();
+
+    // 🆕 무투회 NPC 특수 능력: 데미지 반사 (Reflect)
+    if (isArenaMode && currentOpponent != null && !isMonsterAtk && currentOpponent!.reflectPerc > 0) {
+      int reflectDmg = (finalDmg * currentOpponent!.reflectPerc / 100).toInt();
+      if (reflectDmg > 0) {
+        playerCurrentHp = (playerCurrentHp - reflectDmg).clamp(0, player.maxHp);
+        onPlayerDamageTaken?.call(reflectDmg);
+        // 반사 데미지 로그 (너무 자주 나오면 지저분하므로 확률적 또는 조건부 노출)
+        if (Random().nextDouble() < 0.2) {
+          addLog('⚡ NPC 반사 효과: ${reflectDmg}의 데미지를 돌려받았습니다!', LogType.damage);
+        }
+      }
+    }
   }
 
   void _checkMonsterDeath() {
@@ -589,6 +716,10 @@ class GameState extends ChangeNotifier {
   }
 
   void handleVictory(Duration? killDuration) {
+    if (isArenaMode) {
+      _resolveArenaVictory();
+      return;
+    }
     int finalGold = (currentMonster!.goldReward * player.goldBonus / 100).toInt();
     
     // [v0.3.6] 적정 강화 구간 보너스: 골드 +30%
@@ -602,6 +733,25 @@ class GameState extends ChangeNotifier {
     player.gold += finalGold;
     player.totalKills++;
     player.totalGoldEarned += finalGold;
+
+
+    // [v2.0] 처치 시 보호막(Shield) 생성 발동 체크
+    if (player.gainShieldChance > 0) {
+      if (Random().nextDouble() * 100 < player.gainShieldChance) {
+        int shieldAmt = (player.maxHp * 0.2).toInt(); // 최대 체력의 20% 보호막
+        playerShield = (playerShield + shieldAmt).clamp(0, player.maxHp);
+        onHeal?.call(shieldAmt); // 보호막 획득 연출을 위해 힐 콜백 재활용
+        addLog('🛡️ 처치 효과: 보호막 생성!', LogType.event);
+      }
+    }
+
+    // [v2.0] 처치 시 공격력/방어력 버프 발동
+    if (player.killAtkBonus > 0) {
+      player.killAtkBuffEndTime = DateTime.now().add(const Duration(seconds: 30));
+    }
+    if (player.killDefBonus > 0) {
+      player.killDefBuffEndTime = DateTime.now().add(const Duration(seconds: 30));
+    }
 
     // [v0.8.14] 스테이지 마일스톤 가속 보너스용 최고 스테이지 갱신
     if (currentStage > player.maxStageReached) {
@@ -814,8 +964,13 @@ class GameState extends ChangeNotifier {
 
   void applyRegen() {
     if (playerCurrentHp <= 0 || playerCurrentHp >= player.maxHp) return;
+    
+    // [v2.0] 회복 상한선 적용 (기본 5% + 옵션 보너스)
+    double maxRegen = player.maxHp * (player.hpRegenCap / 100);
     double regenAmount = player.maxHp * (player.hpRegen / 100);
-    int finalRegen = regenAmount.toInt();
+    
+    int finalRegen = min(regenAmount, maxRegen).toInt();
+
     if (finalRegen > 0) {
       playerCurrentHp = (playerCurrentHp + finalRegen).clamp(0, player.maxHp);
       onHeal?.call(finalRegen);
@@ -829,12 +984,64 @@ class GameState extends ChangeNotifier {
     double mVariance = 0.9 + (Random().nextDouble() * 0.2);
     double pDefenseRating = 100 / (100 + player.defense);
     double rawMDmg = (currentMonster!.attack * pDefenseRating) * mVariance;
+    
+    // [v2.0] 스킬 사용 후 피해 감소 적용
+    if (_skillDmgReductionTimeLeft > 0) {
+      rawMDmg *= (1.0 - player.dmgReductionOnSkill / 100);
+    }
+
     // 🆕 [v0.8.18] 최소 데미지 하한선 조정 (20% -> 10%: 방어 효율 상향)
     int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.1 * mVariance).toInt()).clamp(1, 999999999);
 
-    playerCurrentHp -= mDmg;
-    onPlayerDamageTaken?.call(mDmg);
+    // [v2.0] 보호막(Shield) 우선 소모 로직
+    int damageToHp = mDmg;
+    if (playerShield > 0) {
+      if (playerShield >= mDmg) {
+        playerShield -= mDmg;
+        damageToHp = 0;
+      } else {
+        damageToHp -= playerShield;
+        playerShield = 0;
+      }
+    }
+
+    if (damageToHp > 0) {
+      playerCurrentHp -= damageToHp;
+      onPlayerDamageTaken?.call(damageToHp);
+    }
     
+    // 🆕 무투회 NPC 특수 능력: 흡혈 (Lifesteal)
+    if (isArenaMode && currentOpponent != null && mDmg > 0 && currentOpponent!.lifestealPerc > 0) {
+      int npcHeal = (mDmg * currentOpponent!.lifestealPerc / 100).toInt();
+      if (npcHeal > 0) {
+        currentMonster!.hp = (currentMonster!.hp + npcHeal).clamp(0, currentMonster!.maxHp);
+        _monsterCurrentHp = currentMonster!.hp;
+        // NPC 힐 연출을 위해 플레이어 힐 이펙트 재활용 (UI에서 몬스터 위치로 표시되진 않지만 로직은 동작)
+        // onHeal (monster용)은 없으므로 일단 로그로 대체
+        if (Random().nextDouble() < 0.3) {
+          addLog('🩸 NPC 흡혈 효과: 체력을 ${npcHeal} 회복했습니다!', LogType.damage);
+        }
+      }
+    }
+
+    // 🆕 무투회 NPC 특수 능력: 처형 (Execute)
+    if (isArenaMode && currentOpponent != null && playerCurrentHp > 0 && currentOpponent!.executeChance > 0) {
+      double pHealthPerc = (playerCurrentHp / player.maxHp) * 100;
+      if (pHealthPerc <= 20 && Random().nextDouble() * 100 < currentOpponent!.executeChance) {
+        playerCurrentHp = 0;
+        addLog('💀 NPC 처형 기술! 치명적인 일격을 허용했습니다.', LogType.event);
+      }
+    }
+
+    // [v2.0] 피격 데미지 비례 즉시 회복
+    if (player.recoverOnDamagedPerc > 0) {
+      int healAmt = (mDmg * player.recoverOnDamagedPerc / 100).toInt();
+      if (healAmt > 0) {
+        _playerCurrentHp = (_playerCurrentHp + healAmt).clamp(0, player.maxHp);
+        onHeal?.call(healAmt);
+      }
+    }
+
     // [세트 효과] 광산의 수호자 (T3) 4세트: 피격 시 10% 확률로 HP 5% 회복
     if (player.isSetEffectActive('mine', 4) && Random().nextDouble() < 0.1) {
       int healAmt = (player.maxHp * 0.05).toInt();
@@ -848,10 +1055,13 @@ class GameState extends ChangeNotifier {
       handlePlayerDeath();
     }
     notifyListeners();
-
   }
 
   void handlePlayerDeath() {
+    if (isArenaMode) {
+      _resolveArenaLoss();
+      return;
+    }
     bool isTower = currentZone.id == ZoneId.tower;
     
     if (isTower) {
@@ -977,6 +1187,9 @@ class GameState extends ChangeNotifier {
     // 🆕 승급 성공 연출 호출
     onItemPromotionSuccess?.call(item, oldTier, oldStat1, oldStat2);
     
+    // 🆕 [v0.8.22] 퀘스트 체크: 아이템 승급
+    checkQuestProgress(QuestType.itemPromotion, 1);
+
     saveGameData();
     notifyListeners();
 
@@ -1497,6 +1710,8 @@ class GameState extends ChangeNotifier {
     if (type == 'gold') {
       player.goldDungeonTicket++;
       addLog('🎫 황금의 방 입장권을 제작했습니다.', LogType.item);
+      // 🆕 [v0.8.21] 퀘스트 체크: 입장권 제작
+      checkQuestProgress(QuestType.craftTicket, 1);
     } else {
       player.trialDungeonTicket++;
       addLog('🎫 시련의 방 입장권을 제작했습니다.', LogType.item);
@@ -1598,22 +1813,8 @@ class GameState extends ChangeNotifier {
 
   void startSpecialDungeon(ZoneId zoneId) {
     _specialDungeonTimer?.cancel();
-    _specialDungeonTimeLeft = 60; // 60초 제한
+    _specialDungeonTimeLeft = 60.0; // 60초 제한
     
-    _specialDungeonTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_specialDungeonTimeLeft > 0) {
-        _specialDungeonTimeLeft--;
-        if (_specialDungeonTimeLeft == 0) {
-          timer.cancel();
-          onSpecialDungeonEnd?.call();
-        }
-        notifyListeners();
-      } else {
-        timer.cancel();
-        _specialDungeonTimeLeft = 0;
-      }
-    });
-
     addLog('[던전 진입] ${currentZone.name}에 진입했습니다! (제한시간 60초)', LogType.event);
     notifyListeners();
   }
@@ -1754,5 +1955,166 @@ class GameState extends ChangeNotifier {
       'stone': stone,
       'minutes': minutes,
     };
+  }
+
+  // [v2.0] 각종 타이머 업데이트 (GameLoop에서 호출)
+  void updateTimers(double dt) {
+    if (_skillDmgReductionTimeLeft > 0) {
+      _skillDmgReductionTimeLeft = max(0.0, _skillDmgReductionTimeLeft - dt);
+    }
+    if (_killAtkBuffTimeLeft > 0) {
+      _killAtkBuffTimeLeft = max(0.0, _killAtkBuffTimeLeft - dt);
+    }
+    if (_killDefBuffTimeLeft > 0) {
+      _killDefBuffTimeLeft = max(0.0, _killDefBuffTimeLeft - dt);
+    }
+    if (_zoneAtkBuffTimeLeft > 0) {
+      _zoneAtkBuffTimeLeft = max(0.0, _zoneAtkBuffTimeLeft - dt);
+    }
+    if (_zoneDefBuffTimeLeft > 0) {
+      _zoneDefBuffTimeLeft = max(0.0, _zoneDefBuffTimeLeft - dt);
+    }
+    if (_specialDungeonTimeLeft > 0) {
+      double oldVal = _specialDungeonTimeLeft;
+      _specialDungeonTimeLeft = max(0.0, _specialDungeonTimeLeft - dt);
+      if (oldVal > 0 && _specialDungeonTimeLeft <= 0) {
+        onSpecialDungeonEnd?.call();
+      }
+    }
+  }
+
+  // [v2.0] 모든 액티브 스킬의 쿨타임을 초 단위(seconds)로 감축
+  void _reduceAllSkillCooldowns(double seconds) {
+    if (seconds <= 0) return;
+    for (var s in player.skills) {
+      if (s.type == SkillType.active && s.lastUsed != null) {
+        // lastUsed를 과거로 밀어내어 쿨타임이 더 빨리 차게 함
+        s.lastUsed = s.lastUsed!.subtract(Duration(milliseconds: (seconds * 1000).toInt()));
+      }
+    }
+  }
+  // --- [무투회 로직] ---
+  Map<String, dynamic> getPlayerSnapshot() {
+    return {
+      'attack': player.attack,
+      'maxHp': player.maxHp,
+      'defense': player.defense,
+      'critChance': player.critChance,
+      'critDamage': player.critDamage,
+      'skillEchoChance': player.skillEchoChance,
+      'cdr': player.cdr,
+      'shieldChance': player.gainShieldChance,
+    };
+  }
+
+  void generateTournament() {
+    final snapshot = getPlayerSnapshot();
+    final rand = Random();
+    tournamentNPCs = [];
+    
+    // 15명의 가상 NPC 생성 (나머지 1명은 플레이어)
+    List<String> npcNames = [
+      '그림자 자객', '강철의 기사', '번개 마법사', '성스러운 치유사', 
+      '무자비한 도끼', '바람의 궁수', '대지의 수호자', '심연의 포식자',
+      '황금 용병', '불타는 영혼', '서리 거인', '고독한 검객',
+      '신비한 약술사', '강철의 의지', '어둠의 집행자'
+    ];
+    npcNames.shuffle();
+
+    for (int i = 0; i < 15; i++) {
+      // 0.8 ~ 1.3 사이의 배율
+      double scale = 0.8 + (rand.nextDouble() * 0.5);
+      tournamentNPCs.add(TournamentNPC.generate(npcNames[i], snapshot, scale));
+    }
+    
+    tournamentRound = 1; // 16강 시작
+    tournamentResults = [];
+    notifyListeners();
+  }
+
+  void startArenaMatch(int npcIndex) {
+    if (tournamentNPCs.isEmpty || npcIndex >= tournamentNPCs.length) return;
+    
+    isArenaMode = true;
+    isProcessingVictory = false; // 🆕 필수: 이전 사냥터 전투의 종료 대기 상태 해제
+    pendingMonsterSpawn = false; // 🆕 필수: 예약된 일반 몬스터 스폰 취소
+    
+    currentOpponent = tournamentNPCs[npcIndex];
+    
+    // 🆕 [v2.3] 라운드별 난이도 스케일링 적용
+    double roundMult = 1.0;
+    bool isFinal = (tournamentRound >= 4);
+    
+    switch (tournamentRound) {
+      case 1: roundMult = 1.0; break; // 16강 (NPC생성 시 배율 유지)
+      case 2: roundMult = 1.2; break; // 8강 (20% 강화)
+      case 3: roundMult = 1.5; break; // 4강 (50% 강화)
+      case 4: roundMult = 2.2; break; // 결승 (120% 강화 + 챔피언 보정 별도)
+    }
+
+    // NPC 정보를 기반으로 가상 몬스터 생성 (전투 엔진 재활용)
+    currentMonster = Monster(
+      name: isFinal ? '👑 챔피언 ${currentOpponent!.name}' : '👹 ${currentOpponent!.name}',
+      level: player.level,
+      hp: (currentOpponent!.maxHp * roundMult).toInt(),
+      maxHp: (currentOpponent!.maxHp * roundMult).toInt(),
+      attack: (currentOpponent!.attack * roundMult).toInt(),
+      defense: (currentOpponent!.defense * roundMult).toInt(),
+      expReward: 0, 
+      goldReward: 0, 
+      imagePath: isFinal ? 'assets/images/monsters/chaos_knight.png' : 'assets/images/warrior.png',
+    );
+    monsterCurrentHp = currentMonster!.hp;
+    playerCurrentHp = player.maxHp;
+    playerShield = 0;
+    
+    String msg = isFinal 
+      ? '🐲 [최종 결전] 오늘의 최강자 ${currentOpponent!.name}와의 결승전이 시작됩니다!'
+      : '🏟️ [결투 시작] ${currentOpponent!.name}(${currentOpponent!.category.name})와 대결합니다!';
+    addLog(msg, LogType.event);
+    notifyListeners();
+  }
+
+  void _resolveArenaVictory() {
+    isArenaMode = false;
+    tournamentResults.add(true);
+    addLog('🏆 [결투 승리] ${currentOpponent!.name}을(를) 꺾고 다음 라운드에 진출합니다!', LogType.event);
+    
+    // 🆕 현재 상대 물리침: 리스트에서 제거 (index 0)
+    if (tournamentNPCs.isNotEmpty) {
+      tournamentNPCs.removeAt(0); 
+    }
+
+    // 🆕 나머지 NPC들의 승패 시뮬레이션: 절반을 제거하여 다음 라운드 대진 구성
+    int playersToEliminate = (tournamentNPCs.length / 2).floor();
+    for (int i = 0; i < playersToEliminate; i++) {
+        if (tournamentNPCs.isNotEmpty) {
+            tournamentNPCs.removeAt(Random().nextInt(tournamentNPCs.length));
+        }
+    }
+    
+    tournamentRound++;
+    if (tournamentRound > 4) {
+      // 최종 우승 보상
+      player.soulStone += 100;
+      addLog('✨✨ [대회 우승] 무투회 최종 우승자로 등극했습니다! 영혼석 100개 획득!', LogType.event);
+      tournamentRound = 5; // 종료 상태
+    }
+
+    currentMonster = null;
+    spawnMonster(); // 일반 사냥터로 복귀 준비
+    notifyListeners();
+  }
+
+  void _resolveArenaLoss() {
+    isArenaMode = false;
+    tournamentResults.add(false);
+    addLog('❌ [결투 패배] ${currentOpponent!.name}에게 패배하여 무투회에서 탈락했습니다.', LogType.event);
+    
+    tournamentRound = 5; // 종료 상태
+    playerCurrentHp = player.maxHp;
+    currentMonster = null;
+    spawnMonster(); // 일반 사냥터로 복귀
+    notifyListeners();
   }
 }

@@ -57,22 +57,25 @@ class SkillQuickbar extends StatelessWidget {
                                 child: AnimatedBuilder(
                                   animation: uiTicker,
                                   builder: (context, child) {
-                                    final progress = skill.getCooldownProgress(gameState.player.cdr);
+                                    final totalCdr = gameState.player.cdr + gameState.player.getSpecificSkillCdr(i + 1);
+                                    final progress = skill.getCooldownProgress(totalCdr);
                                     return FractionallySizedBox(
                                       alignment: Alignment.bottomCenter,
-                                      heightFactor: skill.isReady(gameState.player.cdr) ? 0.0 : (1.0 - progress),
+                                      heightFactor: skill.isReady(totalCdr) ? 0.0 : (1.0 - progress),
                                       child: Container(color: Colors.black54),
                                     );
                                   },
                                 ),
                               ),
-                            if (skill.isUnlocked && !skill.isReady(gameState.player.cdr))
+                            if (skill.isUnlocked)
                               Center(
                                 child: AnimatedBuilder(
                                   animation: uiTicker,
                                   builder: (context, child) {
+                                    final totalCdr = gameState.player.cdr + gameState.player.getSpecificSkillCdr(i + 1);
+                                    if (skill.isReady(totalCdr)) return const SizedBox.shrink();
                                     return Text(
-                                      '${skill.getRemainingSeconds(gameState.player.cdr).toStringAsFixed(1)}s',
+                                      '${skill.getRemainingSeconds(totalCdr).toStringAsFixed(1)}s',
                                       style: const TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,

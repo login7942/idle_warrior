@@ -26,6 +26,7 @@ import 'widgets/character_panel.dart';
 import 'widgets/common_widgets.dart';
 import 'widgets/quest_overlay.dart';
 import 'widgets/quick_menu_panel.dart'; // 🆕 신규 통합 메뉴 도입
+import 'widgets/arena_panel.dart'; // 🆕 무투회 결투장 패널 도입
 import 'engine/game_loop.dart';
 
 
@@ -764,6 +765,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       case 7: return _buildMenuPlaceholder('유물 (환생)');
       case 8: return AchievementPanel(onShowToast: _showToast, onShowSuccess: _showSuccess);
       case 9: return _buildSystemTab(); // 실제 시스템/관리자 모드 연결
+      case 10: return const ArenaPanel(); // 🆕 결투장 패널 연결
       default: return _buildCombatTab();
     }
   }
@@ -2347,8 +2349,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildBottomDock() {
-    final List<String> emojis = ['⚔️', '👤', '🗺️', '🎒', '🔨', '⚡', '🐾', '💎', '🏆', '⚙️'];
-    final List<String> labels = ['전투', '캐릭터', '사냥터', '가방', '제작', '스킬', '펫', '환생', '업적', '설정'];
+    final List<String> emojis = ['⚔️', '👤', '🗺️', '🎒', '🔨', '⚡', '🐾', '💎', '🏆', '⚙️', '🏟️'];
+    final List<String> labels = ['전투', '캐릭터', '사냥터', '가방', '제작', '스킬', '펫', '환생', '업적', '설정', '결투장'];
     
     return Container(
       padding: const EdgeInsets.only(bottom: 12, top: 2), // 하단 여백 소폭 조정
@@ -2484,19 +2486,20 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround, 
               children: [
-                // 1. 플레이어 영역 (체력 변화만 감시)
-                Selector<GameState, int>(
-                  selector: (_, gs) => gs.playerCurrentHp,
-                  builder: (context, currentHp, child) => RepaintBoundary(
+                // 1. 플레이어 영역 (체력 및 보호막 변화 감시)
+                Selector<GameState, (int, int)>(
+                  selector: (_, gs) => (gs.playerCurrentHp, gs.playerShield),
+                  builder: (context, data, child) => RepaintBoundary(
                     child: _buildActor(
                       gameState.player.name, 
                       gameState.player.level, 
-                      currentHp, 
+                      data.$1, 
                       gameState.player.maxHp, 
                       'assets/images/warrior.png', 
                       _playerAttackController, 
                       _playerHitController,
-                      true
+                      true,
+                      shield: data.$2,
                     ),
                   ),
                 ),
@@ -2586,8 +2589,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p) {
+  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0}) {
     double hpProgress = (h / mh).clamp(0, 1);
+    double shieldProgress = (shield / mh).clamp(0, 1);
     return AnimatedBuilder(
       animation: Listenable.merge([atk, hit, _heroPulseController, _heroRotateController, _monsterSpawnController, _monsterDeathController]), 
       builder: (ctx, _) {
@@ -2635,25 +2639,52 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: Colors.white10, width: 0.5),
                 ), 
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: hpProgress),
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeOutQuart,
-                  builder: (context, value, _) => FractionallySizedBox(
-                    alignment: Alignment.centerLeft, 
-                    widthFactor: value, 
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: p ? [Colors.greenAccent, Colors.green.shade800] : [Colors.redAccent, Colors.red.shade900]
+                child: Stack(
+                  children: [
+                    // A. 기본 HP 레이어
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: hpProgress),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOutQuart,
+                      builder: (context, value, _) => FractionallySizedBox(
+                        alignment: Alignment.centerLeft, 
+                        widthFactor: value, 
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: p ? [Colors.greenAccent, Colors.green.shade800] : [Colors.redAccent, Colors.red.shade900]
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                )
+                    // B. 보호막 레이어 (하늘색 반투명 오버레이)
+                    if (shield > 0)
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(begin: 0, end: shieldProgress),
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                        builder: (context, sVal, _) => FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: sVal,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(4),
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.lightBlueAccent.withValues(alpha: 0.7), Colors.blue.withValues(alpha: 0.7)]
+                              ),
+                              border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.5), width: 1),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 0), // 🆕 간격을 0으로 설정하여 최대한 밀착
               

@@ -105,53 +105,218 @@ enum ItemGrade {
   }
 }
 
+enum OptionTrigger {
+  static,       // 상시 스탯
+  onHit,        // 공격 적중 시
+  onCrit,       // 치명타 발생 시
+  onKill,       // 적 처치 시
+  onDamaged,    // 피격 시
+  onSkillUse,   // 스킬 사용 시
+}
+enum OptionEffect {
+  // 기초 스탯 (static)
+  addAtk, addAtkPerc,
+  addHp, addHpPerc,
+  addDef, addDefPerc,
+  addAspd, addCritChance, addCritDamage,
+  addRegen, addGoldGain, addExpGain, addItemDrop,
+  addSkillLevel, addFinalDamagePerc, addCdr,
+  
+  // 특수 효과
+  skillEcho,        // 스킬 연속 발동
+  extraAttack,      // 추가 타격
+  gainShield,       // 보호막 생성
+  lifesteal,        // 흡혈
+  doubleHit,        // 2연타 확률
+  
+  // 신규 회복/생존 옵션 (v2.0)
+  addRegenCap,          // 회복 상한선(+)
+  recoverOnDamagedPerc, // 피격 시 데미지 % 회복
+  dmgReductionOnSkill,  // 스킬 사용 시 피해 감소
+  addSpecificSkillCdr,  // 특정 스킬 쿨타임 감소
+  addCritCdr,           // 치명타 시 쿨타임 감소 (50% 확률)
+  execute,             // 치명타 시 즉사 확률
+  atkBuffOnKill,      // 처치 시 공격력 버프
+  defBuffOnKill,      // 처치 시 방어력 버프
+  atkBuffOnZone,      // 지역 이동 시 공격력 버프
+  defBuffOnZone,      // 지역 이동 시 방어력 버프
+}
+
+extension OptionEffectExtension on OptionEffect {
+  String get label {
+    switch (this) {
+      case OptionEffect.addAtk: return '공격력';
+      case OptionEffect.addAtkPerc: return '공격력(%)';
+      case OptionEffect.addHp: return '체력';
+      case OptionEffect.addHpPerc: return '체력(%)';
+      case OptionEffect.addDef: return '방어력';
+      case OptionEffect.addDefPerc: return '방어력(%)';
+      case OptionEffect.addAspd: return '공격 속도';
+      case OptionEffect.addCritChance: return '치명타 확률';
+      case OptionEffect.addCritDamage: return '치명타 피해';
+      case OptionEffect.addRegen: return 'HP 재생';
+      case OptionEffect.addGoldGain: return '골드 획득';
+      case OptionEffect.addExpGain: return '경험치 획득';
+      case OptionEffect.addItemDrop: return '아이템 드롭';
+      case OptionEffect.addSkillLevel: return '모든 스킬 레벨';
+      case OptionEffect.addFinalDamagePerc: return '최종 피해량 증폭';
+      case OptionEffect.addCdr: return '쿨타임 감소';
+      case OptionEffect.skillEcho: return '스킬 잔향';
+      case OptionEffect.extraAttack: return '추가 타격';
+      case OptionEffect.gainShield: return '보호막 생성';
+      case OptionEffect.lifesteal: return '흡혈';
+      case OptionEffect.doubleHit: return '2연타 확률';
+      case OptionEffect.addRegenCap: return '회복 상한치';
+      case OptionEffect.recoverOnDamagedPerc: return '피격 시 회복';
+      case OptionEffect.dmgReductionOnSkill: return '스킬 사용 시 감댐';
+      case OptionEffect.addSpecificSkillCdr: return '특정 스킬 쿨감';
+      case OptionEffect.addCritCdr: return '치명타 시 쿨감';
+      case OptionEffect.execute: return '처형 확률';
+      case OptionEffect.atkBuffOnKill: return '처치 시 공증';
+      case OptionEffect.defBuffOnKill: return '처치 시 방증';
+      case OptionEffect.atkBuffOnZone: return '지역 이동 시 공증';
+      case OptionEffect.defBuffOnZone: return '지역 이동 시 방증';
+    }
+  }
+
+  bool get isPercentage {
+    switch (this) {
+      case OptionEffect.addAtk:
+      case OptionEffect.addHp:
+      case OptionEffect.addDef:
+      case OptionEffect.addAspd:
+      case OptionEffect.addSkillLevel:
+      case OptionEffect.skillEcho:
+      case OptionEffect.addRegenCap:
+      case OptionEffect.addCritCdr: // 쿨감 초 단위
+        return false;
+      default:
+        return true;
+    }
+  }
+}
+
 class ItemOption {
-  final String name;
-  double value;
-  final bool isPercentage;
-  bool isLocked; // 잠금 상태 복구
-  bool isSpecial; // 특별 옵션 (잠재능력 전용) 여부
-  int stars; // 옵션 등급 (1~5)
-  double maxValue; // 해당 티어의 최대값
+  OptionTrigger trigger;
+  OptionEffect effect;
+  List<double> values;
+  bool isLocked;
+  bool isSpecial;
+  int stars;
+  double maxValue;
 
   ItemOption({
-    required this.name, 
-    required this.value, 
-    this.isPercentage = false,
+    required this.trigger,
+    required this.effect,
+    required this.values,
     this.isLocked = false,
     this.isSpecial = false,
     this.stars = 1,
     this.maxValue = 0,
   });
 
+  // 기존 코드와의 호환성을 위한 getter/setter
+  double get value => values.isNotEmpty ? values[0] : 0.0;
+  set value(double val) {
+    if (values.isEmpty) {
+      values = [val];
+    } else {
+      values[0] = val;
+    }
+  }
+
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'value': value,
-        'isPercentage': isPercentage,
+        'trigger': trigger.name,
+        'effect': effect.name,
+        'values': values,
         'isLocked': isLocked,
         'isSpecial': isSpecial,
         'stars': stars,
         'maxValue': maxValue,
       };
 
-  factory ItemOption.fromJson(Map<String, dynamic> json) => ItemOption(
-        name: json['name'],
-        value: json['value'].toDouble(),
-        isPercentage: json['isPercentage'],
+  factory ItemOption.fromJson(Map<String, dynamic> json) {
+    // 🆕 구버전 마이그레이션 로직 (name 필드가 있는 경우)
+    if (json.containsKey('name')) {
+      String name = json['name'];
+      bool isPerc = json['isPercentage'] ?? false;
+      OptionTrigger trigger = OptionTrigger.static;
+      OptionEffect effect = OptionEffect.addAtk;
+
+      switch (name) {
+        case '공격력': effect = isPerc ? OptionEffect.addAtkPerc : OptionEffect.addAtk; break;
+        case '체력': effect = isPerc ? OptionEffect.addHpPerc : OptionEffect.addHp; break;
+        case '방어력': effect = isPerc ? OptionEffect.addDefPerc : OptionEffect.addDef; break;
+        case '치명타 확률': effect = OptionEffect.addCritChance; break;
+        case '치명타 피해': effect = OptionEffect.addCritDamage; break;
+        case '공격 속도': effect = OptionEffect.addAspd; break;
+        case 'HP 재생': effect = OptionEffect.addRegen; break;
+        case '골드 획득': effect = OptionEffect.addGoldGain; break;
+        case '경험치 획득': effect = OptionEffect.addExpGain; break;
+        case '아이템 드롭': effect = OptionEffect.addItemDrop; break;
+        case '모든 스킬 레벨': effect = OptionEffect.addSkillLevel; break;
+        case '최종 피해량 증폭': effect = OptionEffect.addFinalDamagePerc; break;
+        case '쿨타임 감소': effect = OptionEffect.addCdr; break;
+      }
+      
+      return ItemOption(
+        trigger: trigger,
+        effect: effect,
+        values: [json['value'].toDouble()],
         isLocked: json['isLocked'] ?? false,
         isSpecial: json['isSpecial'] ?? false,
         stars: json['stars'] ?? 1,
         maxValue: (json['maxValue'] ?? 0).toDouble(),
       );
+    }
+
+    return ItemOption(
+      trigger: OptionTrigger.values.firstWhere((e) => e.name == json['trigger']),
+      effect: OptionEffect.values.firstWhere((e) => e.name == json['effect']),
+      values: (json['values'] as List).map((v) => (v as num).toDouble()).toList(),
+      isLocked: json['isLocked'] ?? false,
+      isSpecial: json['isSpecial'] ?? false,
+      stars: json['stars'] ?? 1,
+      maxValue: (json['maxValue'] ?? 0).toDouble(),
+    );
+  }
 
   @override
   String toString() {
-    final valStr = isPercentage 
-        ? '${value.toStringAsFixed(1)}%' 
-        : (name == '공격 속도' ? value.toStringAsFixed(1) : value.toInt().toString());
-    
     String prefix = isSpecial ? '[특별] ' : '';
-    return '$prefix$name +$valStr';
+
+    if (effect == OptionEffect.addSpecificSkillCdr && values.length >= 2) {
+      int skillIdx = values[0].toInt();
+      double cdrVal = values[1];
+      return '$prefix$skillIdx번 스킬 쿨타임 -${cdrVal.toStringAsFixed(1)}%';
+    }
+
+    if (effect == OptionEffect.addCritCdr) {
+      return '$prefix${effect.label} -${value.toStringAsFixed(1)}s (50%)';
+    }
+
+    // [v2.0] 버프 및 특수 옵션 상세 설명 처리
+    String suffix = '';
+    if (effect == OptionEffect.atkBuffOnKill || effect == OptionEffect.defBuffOnKill || 
+        effect == OptionEffect.atkBuffOnZone || effect == OptionEffect.defBuffOnZone) {
+      suffix = ' (30초)';
+    } else if (effect == OptionEffect.dmgReductionOnSkill) {
+      suffix = ' (5초)';
+    } else if (effect == OptionEffect.execute) {
+      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (치명타 시 & HP 20% 이하)';
+    } else if (effect == OptionEffect.skillEcho) {
+      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (시전 시)';
+    } else if (effect == OptionEffect.gainShield) {
+      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (처치 시)';
+    } else if (effect == OptionEffect.extraAttack) {
+      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (적중 시)';
+    }
+
+    final valStr = effect.isPercentage 
+        ? '${value.toStringAsFixed(1)}%' 
+        : (effect == OptionEffect.addAspd ? value.toStringAsFixed(2) : value.toInt().toString());
+    
+    return '$prefix${effect.label} +$valStr$suffix';
   }
 }
 
@@ -403,51 +568,41 @@ class Item {
 
     // 3. 보조 옵션 점수
     for (var opt in subOptions) {
-      switch (opt.name) {
-        case '공격력': power += opt.value * 2.0; break;
-        case '체력': power += opt.value * 0.1; break;
-        case '방어력': 
-          if (opt.isPercentage) {
-            power += opt.value * 10;
-          } else {
-            power += opt.value * 1.5;
-          }
-          break;
-        case '치명타 확률': power += opt.value * 50.0; break;
-        case '치명타 피해': power += opt.value * 5.0; break;
-        case '공격 속도': power += opt.value * 500.0; break;
-        case 'HP 재생':
-        case '골드 획득':
-        case '경험치 획득':
-        case '아이템 드롭':
+      switch (opt.effect) {
+        case OptionEffect.addAtk: power += opt.value * 2.0; break;
+        case OptionEffect.addAtkPerc: power += opt.value * 10; break; // 임시 가점
+        case OptionEffect.addHp: power += opt.value * 0.1; break;
+        case OptionEffect.addHpPerc: power += opt.value * 5.0; break; // 임시 가점
+        case OptionEffect.addDef: power += opt.value * 1.5; break;
+        case OptionEffect.addDefPerc: power += opt.value * 10.0; break;
+        case OptionEffect.addCritChance: power += opt.value * 50.0; break;
+        case OptionEffect.addCritDamage: power += opt.value * 5.0; break;
+        case OptionEffect.addAspd: power += opt.value * 500.0; break;
+        case OptionEffect.addRegen:
+        case OptionEffect.addGoldGain:
+        case OptionEffect.addExpGain:
+        case OptionEffect.addItemDrop:
           power += opt.value * 10.0;
           break;
+        default:
+          power += 500; // 특수 효과들 기본 점수
       }
     }
 
     // 4. 잠재능력 점수 합산
     if (potential != null) {
-      switch (potential!.name) {
-        case '모든 스킬 레벨': power += 5000; break;
-        case '최종 피해량 증폭': power += 3000; break;
-        case '쿨타임 감소': power += 2000; break;
+      switch (potential!.effect) {
+        case OptionEffect.addSkillLevel: power += 5000; break;
+        case OptionEffect.addFinalDamagePerc: power += 3000; break;
+        case OptionEffect.addCdr: power += 2000; break;
+        case OptionEffect.addAtk: power += potential!.value * 2.0; break;
+        case OptionEffect.addHp: power += potential!.value * 0.1; break;
+        case OptionEffect.addDef: power += potential!.value * 1.5; break;
+        case OptionEffect.addCritChance: power += potential!.value * 50.0; break;
+        case OptionEffect.addCritDamage: power += potential!.value * 5.0; break;
+        case OptionEffect.addAspd: power += potential!.value * 500.0; break;
         default:
-          // 일반 옵션과 동일 루틴
-          if (potential!.name == '공격력') {
-            power += potential!.value * 2.0;
-          } else if (potential!.name == '체력') {
-            power += potential!.value * 0.1;
-          } else if (potential!.name == '방어력') {
-            power += potential!.value * 1.5;
-          } else if (potential!.name == '치명타 확률') {
-            power += potential!.value * 50.0;
-          } else if (potential!.name == '치명타 피해') {
-            power += potential!.value * 5.0;
-          } else if (potential!.name == '공격 속도') {
-            power += potential!.value * 500.0;
-          } else {
-            power += potential!.value * 10.0;
-          }
+          power += potential!.value * 10.0;
       }
     }
 
@@ -775,22 +930,29 @@ class Item {
 
 
   static ItemOption _generateRandomOption(Random rand, int tier, ItemType type, {ItemGrade? grade}) {
-    List<String> pool = [];
+    List<OptionEffect> pool = [];
     
-    // [v0.5.48] 부위별 옵션 풀 필터링
-    bool isCombatType = (type == ItemType.weapon || type == ItemType.ring || type == ItemType.necklace);
-    bool isSurvivalType = (type == ItemType.helmet || type == ItemType.armor || type == ItemType.boots);
-
-    if (isCombatType) {
-      pool.addAll(['공격력', '치명타 확률', '치명타 피해', '공격 속도']);
-    } else if (isSurvivalType) {
-      pool.addAll(['방어력', '체력', 'HP 재생']);
-    }
+    // 모든 부위에서 공통적으로 모든 특수 옵션이 등장하도록 통합
+    pool.addAll([
+      OptionEffect.addCritChance, 
+      OptionEffect.addCritDamage, 
+      OptionEffect.addCritCdr,
+      OptionEffect.execute,
+      OptionEffect.doubleHit,
+      OptionEffect.extraAttack,
+      OptionEffect.skillEcho,
+      OptionEffect.gainShield,
+      OptionEffect.addRegen,
+      OptionEffect.addRegenCap,
+      OptionEffect.recoverOnDamagedPerc,
+      OptionEffect.dmgReductionOnSkill,
+    ]);
     
     // 공통 유틸리티 풀 추가
-    pool.addAll(['골드 획득', '경험치 획득', '아이템 드롭']);
+    pool.addAll([OptionEffect.addGoldGain, OptionEffect.addExpGain, OptionEffect.addItemDrop]);
     
-    String name = pool[rand.nextInt(pool.length)];
+    OptionEffect effect = pool[rand.nextInt(pool.length)];
+    OptionTrigger trigger = OptionTrigger.static;
     
     // 티어 스케일링: 4.0배 지수 성장 기반 최대치 설정
     double tierMult = pow(4, tier - 1).toDouble();
@@ -803,49 +965,104 @@ class Item {
     double gradeWeight = (grade != null) ? (grade.index * 0.08) : 0.0;
     double roll = (rand.nextDouble() + gradeWeight).clamp(0.0, 1.0);
 
-    switch (name) {
-      case '공격력':
+    switch (effect) {
+      case OptionEffect.addAtk:
         minVal = 4.0 * tierMult;
         maxVal = 10.0 * tierMult;
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case '체력':
+      case OptionEffect.addHp:
         minVal = 30.0 * tierMult;
         maxVal = 80.0 * tierMult;
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case '방어력':
+      case OptionEffect.addDef:
         minVal = 2.0 * tierMult;
         maxVal = 6.0 * tierMult;
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case '치명타 확률':
-        isPerc = true;
+      case OptionEffect.addCritChance:
         minVal = 1.0 + (tier * 0.5);
         maxVal = 3.0 + (tier * 0.5);
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case '치명타 피해':
-        isPerc = true;
+      case OptionEffect.addCritDamage:
         minVal = 5.0 + (tier * 5.0);
         maxVal = 15.0 + (tier * 5.0);
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case '공격 속도':
+      case OptionEffect.addAspd:
         minVal = 0.04 + (tier * 0.06); // 밸런스: 2배 상향 (0.02 → 0.04)
         maxVal = 0.16 + (tier * 0.08); // 밸런스: 2배 상향 (0.08 → 0.16)
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case 'HP 재생':
-        isPerc = true;
+      case OptionEffect.addRegen:
         minVal = 0.3 + (tier * 0.2);
         maxVal = 0.8 + (tier * 0.2);
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case '골드 획득':
-      case '경험치 획득':
-      case '아이템 드롭':
-        isPerc = true;
+      case OptionEffect.addRegenCap:
+        minVal = 0.5 + (tier * 0.5);
+        maxVal = 1.5 + (tier * 0.5);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.recoverOnDamagedPerc:
+        minVal = 1.0 + (tier * 0.5);
+        maxVal = 3.0 + (tier * 0.5);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.dmgReductionOnSkill:
+        minVal = 2.0 + (tier * 1.5);
+        maxVal = 5.0 + (tier * 1.5);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.addSpecificSkillCdr:
+        minVal = 5.0 + (tier * 5.0);
+        maxVal = 15.0 + (tier * 5.0);
+        val = minVal + (maxVal - minVal) * roll;
+        int skillIdx = rand.nextInt(6) + 1;
+        int starsIdx = ((val - minVal) / (maxVal - minVal) * 5).ceil().clamp(1, 5);
+        return ItemOption(trigger: trigger, effect: effect, values: [skillIdx.toDouble(), val], stars: starsIdx, maxValue: maxVal);
+      case OptionEffect.addCritCdr:
+        minVal = 0.1 + (tier * 0.1);
+        maxVal = 0.3 + (tier * 0.1);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.execute:
+        minVal = 1.0 + (tier * 1.0);
+        maxVal = 3.0 + (tier * 1.0);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.skillEcho:
+        minVal = 2.0 + (tier * 1.0);
+        maxVal = 4.0 + (tier * 1.0);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.gainShield:
+        minVal = 2.0 + (tier * 2.0);
+        maxVal = 5.0 + (tier * 2.0);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.extraAttack:
+        minVal = 3.0 + (tier * 2.0);
+        maxVal = 7.0 + (tier * 2.0);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.doubleHit:
+        minVal = 2.0 + (tier * 1.0);
+        maxVal = 4.0 + (tier * 1.0);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      case OptionEffect.atkBuffOnKill:
+      case OptionEffect.defBuffOnKill:
+      case OptionEffect.atkBuffOnZone:
+      case OptionEffect.defBuffOnZone:
+        minVal = 5.0 + (tier * 5.0);
+        maxVal = 15.0 + (tier * 5.0);
+        val = minVal + (maxVal - minVal) * roll;
+        break;
+      default:
+        // 골드, 경험치, 아이템 드랍 등 공통 퍼센트 옵션
         minVal = 2.0 + (tier * 1.5);
         maxVal = 5.0 + (tier * 1.5);
         val = minVal + (maxVal - minVal) * roll;
@@ -854,7 +1071,7 @@ class Item {
     
     int stars = ((val - minVal) / (maxVal - minVal) * 5).ceil().clamp(1, 5);
     
-    return ItemOption(name: name, value: val, isPercentage: isPerc, stars: stars, maxValue: maxVal);
+    return ItemOption(trigger: trigger, effect: effect, values: [val], stars: stars, maxValue: maxVal);
   }
 
   // 옵션 재설정 (리롤)
@@ -878,12 +1095,34 @@ class Item {
   void awakenPotential(Random rand) {
     // 1. 특별 옵션 풀 (저확률 5%)
     if (rand.nextDouble() < 0.05) {
-      List<String> specialPool = ['모든 스킬 레벨', '최종 피해량 증폭', '쿨타임 감소'];
-      String name = specialPool[rand.nextInt(specialPool.length)];
-      double val = (name == '모든 스킬 레벨') ? 1.0 : 5.0; // 스킬 +1, 나머지는 5%
-      bool isPerc = (name != '모든 스킬 레벨');
+      List<OptionEffect> specialPool = [
+        OptionEffect.addSkillLevel, 
+        OptionEffect.addFinalDamagePerc, 
+        OptionEffect.addCdr,
+        OptionEffect.addRegenCap,
+        OptionEffect.dmgReductionOnSkill,
+        OptionEffect.execute, // [v2.0] 처형은 특별 잠재에만 추가 저확률
+      ];
+      OptionEffect effect = specialPool[rand.nextInt(specialPool.length)];
       
-      potential = ItemOption(name: name, value: val, isPercentage: isPerc, isSpecial: true, stars: 5, maxValue: val);
+      // 특별 옵션 수치 설정
+      double val = 1.0;
+      switch (effect) {
+        case OptionEffect.addSkillLevel: val = 1.0; break;
+        case OptionEffect.addRegenCap: val = 3.0; break; // 잠재 특별: 상한 +3%
+        case OptionEffect.dmgReductionOnSkill: val = 15.0; break; // 잠재 특별: 감댐 15%
+        case OptionEffect.execute: val = 1.0; break; // 잠재 특별: 처형 1%
+        default: val = 10.0; // FinalDmg, CDR 등
+      }
+      
+      potential = ItemOption(
+        trigger: OptionTrigger.static, 
+        effect: effect, 
+        values: [val], 
+        isSpecial: true, 
+        stars: 5, 
+        maxValue: val
+      );
     } else {
       // 2. 일반 옵션 풀 (기존 generateRandomOption 활용, 티어 반영)
       potential = _generateRandomOption(rand, tier, type);

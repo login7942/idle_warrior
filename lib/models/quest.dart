@@ -15,6 +15,8 @@ enum QuestType {
   enhanceAttempt,  // 장비 강화 시도 🆕
   reachTowerFloor, // 무한의 탑 층 도달 🆕
   craftItem,      // 아이템 제작 🆕
+  craftTicket,    // 입장권 제작 🆕
+  itemPromotion,  // 아이템 승급 🆕
 }
 
 class QuestReward {
@@ -155,10 +157,10 @@ class GuideQuestData {
     ),
     Quest(
       id: 'q14',
-      title: '새로운 단계: T2 장비 제작',
-      description: '제작 탭에서 T2 장비를 제작하여 더 강력한 힘을 얻으세요.',
-      type: QuestType.craftItem,
-      targetValue: 2, // 티어 2를 의미하는 타겟값으로 활용하거나 별도 로직 처리
+      title: '풍요의 열쇠: 입장권 제작',
+      description: '제작 탭에서 황금의 방 입장권을 1회 제작해 보세요.',
+      type: QuestType.craftTicket,
+      targetValue: 1,
       reward: QuestReward(gold: 4500000, cube: 30),
     ),
     Quest(
@@ -168,6 +170,14 @@ class GuideQuestData {
       type: QuestType.enhanceItem,
       targetValue: 20,
       reward: QuestReward(gold: 5000000, protectionStone: 5),
+    ),
+    Quest(
+      id: 'q16',
+      title: '진화의 정점: 장비 승급',
+      description: '+20강 장비를 재료를 사용하여 다음 티어로 승급시키세요.',
+      type: QuestType.itemPromotion,
+      targetValue: 1,
+      reward: QuestReward(gold: 6000000, cube: 50, protectionStone: 5),
     ),
   ];
 

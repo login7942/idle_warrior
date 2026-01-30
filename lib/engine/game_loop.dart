@@ -50,6 +50,9 @@ class GameLoop {
     double t = _logicAccumulator;
     _logicAccumulator = 0;
 
+    // [v2.0] 타이머 시스템 업데이트 (피해 감소 등)
+    gameState.updateTimers(t);
+
     // 🆕 0. 연타 스킬 타격 처리 (예약된 시간이 된 타격 실행)
     while (gameState.pendingHits.isNotEmpty) {
       final hit = gameState.pendingHits.first;

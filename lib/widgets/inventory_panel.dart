@@ -1142,10 +1142,10 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
   Map<String, double> _getAggregatedStats(Item item) {
     Map<String, double> stats = {};
     for (var opt in item.subOptions) {
-      stats[opt.name] = (stats[opt.name] ?? 0.0) + opt.value;
+      stats[opt.effect.label] = (stats[opt.effect.label] ?? 0.0) + opt.value;
     }
     if (item.potential != null) {
-      stats[item.potential!.name] = (stats[item.potential!.name] ?? 0.0) + item.potential!.value;
+      stats[item.potential!.effect.label] = (stats[item.potential!.effect.label] ?? 0.0) + item.potential!.value;
     }
     return stats;
   }
@@ -1250,9 +1250,9 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
         const SizedBox(height: 8),
         ...item.subOptions.map((opt) {
           // 🆕 [v0.5.16] 최대치 포맷팅
-          String maxValStr = opt.isPercentage 
+          String maxValStr = opt.effect.isPercentage 
               ? '${opt.maxValue.toStringAsFixed(1)}%' 
-              : (opt.name == '공격 속도' ? opt.maxValue.toStringAsFixed(1) : opt.maxValue.toInt().toString());
+              : (opt.effect == OptionEffect.addAspd ? opt.maxValue.toStringAsFixed(2) : opt.maxValue.toInt().toString());
 
           return Container(
             margin: const EdgeInsets.only(bottom: 6),

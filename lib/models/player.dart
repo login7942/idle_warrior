@@ -121,6 +121,12 @@ class Player {
   // 🆕 [v0.7.0] 세트 효과용 기간제 버프
   DateTime? desertBuffEndTime;
 
+  // [v2.0] 신규 기간제 버프 종료 시각들
+  DateTime? killAtkBuffEndTime;
+  DateTime? killDefBuffEndTime;
+  DateTime? zoneAtkBuffEndTime;
+  DateTime? zoneDefBuffEndTime;
+
   
   // 숙련도 경험치 테이블 (레벨당 필요한 경험치 증가)
   int get craftingMasteryNextExp => craftingMasteryLevel * craftingMasteryLevel * 50;
@@ -400,7 +406,7 @@ class Player {
   int get potentialSkillBonus {
     int bonus = 0;
     equipment.values.where((i) => i != null).forEach((item) {
-      if (item!.potential?.name == '모든 스킬 레벨') bonus += item.potential!.value.toInt();
+      if (item!.potential?.effect == OptionEffect.addSkillLevel) bonus += item.potential!.value.toInt();
     });
     return bonus;
   }
@@ -408,7 +414,7 @@ class Player {
   double get potentialFinalDamageMult {
     double mult = 1.0;
     equipment.values.where((i) => i != null).forEach((item) {
-      if (item!.potential?.name == '최종 피해량 증폭') mult += item.potential!.value / 100;
+      if (item!.potential?.effect == OptionEffect.addFinalDamagePerc) mult += item.potential!.value / 100;
     });
     return mult;
   }
@@ -416,7 +422,7 @@ class Player {
   double get potentialCdr {
     double cdr = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
-      if (item!.potential?.name == '쿨타임 감소') cdr += item.potential!.value;
+      if (item!.potential?.effect == OptionEffect.addCdr) cdr += item.potential!.value;
     });
     return cdr;
   }
@@ -473,19 +479,23 @@ class Player {
 
       // 부가 옵션에 체력이 있는 경우
       for (var opt in item.subOptions) {
-        if (opt.name == '체력') {
+        if (opt.effect == OptionEffect.addHp) {
           // [수정] 장신구(반지/목걸이)의 고정 체력 보너스는 강화 계수를 적용 (0번 인덱스 가정)
           if ((item.type == ItemType.ring || item.type == ItemType.necklace) && item.subOptions.indexOf(opt) == 0) {
             flat += (opt.value * item.getEnhanceFactor()).toInt();
           } else {
             flat += opt.value.toInt();
           }
+        } else if (opt.effect == OptionEffect.addHpPerc) {
+          // TODO: 체력 % 옵션 구현 시 여기에 추가
         }
       }
 
       // 잠재능력 체력 반영
-      if (item.potential?.name == '체력') {
+      if (item.potential?.effect == OptionEffect.addHp) {
         flat += item.potential!.value.toInt();
+      } else if (item.potential?.effect == OptionEffect.addHpPerc) {
+        // TODO
       }
     }
 
@@ -520,13 +530,13 @@ class Player {
 
       // 부가 옵션에 공격력이 있는 경우 (강화 영향 안 받음)
       for (var opt in item.subOptions) {
-        if (opt.name == '공격력') {
+        if (opt.effect == OptionEffect.addAtk) {
           flat += opt.value.toInt();
         }
       }
 
       // 잠재능력 공격력 반영
-      if (item.potential?.name == '공격력') {
+      if (item.potential?.effect == OptionEffect.addAtk) {
         flat += item.potential!.value.toInt();
       }
     }
@@ -550,6 +560,15 @@ class Player {
       finalMult += 0.3;
     }
 
+    // [v2.0] 처치 시 공격력 버프 반영
+    if (killAtkBuffEndTime != null && DateTime.now().isBefore(killAtkBuffEndTime!)) {
+      finalMult += (killAtkBonus / 100);
+    }
+    // [v2.0] 지역 이동 시 공격력 버프 반영
+    if (zoneAtkBuffEndTime != null && DateTime.now().isBefore(zoneAtkBuffEndTime!)) {
+      finalMult += (zoneAtkBonus / 100);
+    }
+
 
     return (totalAtk * finalMult).toInt();
 
@@ -570,21 +589,17 @@ class Player {
       }
       
       for (var opt in item.subOptions) {
-        if (opt.name == '방어력') {
-          if (opt.isPercentage) {
-            bonus += opt.value / 100;
-          } else {
-            flat += opt.value.toInt();
-          }
+        if (opt.effect == OptionEffect.addDef) {
+          flat += opt.value.toInt();
+        } else if (opt.effect == OptionEffect.addDefPerc) {
+          bonus += opt.value / 100;
         }
       }
       // 잠재능력 방어력 반영
-      if (item.potential?.name == '방어력') {
-        if (item.potential!.isPercentage) {
-          bonus += item.potential!.value / 100;
-        } else {
-          flat += item.potential!.value.toInt();
-        }
+      if (item.potential?.effect == OptionEffect.addDef) {
+        flat += item.potential!.value.toInt();
+      } else if (item.potential?.effect == OptionEffect.addDefPerc) {
+        bonus += item.potential!.value / 100;
       }
     }
     double finalMult = 1.0;
@@ -595,6 +610,15 @@ class Player {
     // [세트 효과] 태고의 신 (T6) 2세트: 모든 능력치 +20%
     if (isSetEffectActive('ancient', 2)) finalMult += 0.2;
 
+    // [v2.0] 처치 시 방어력 버프 반영
+    if (killDefBuffEndTime != null && DateTime.now().isBefore(killDefBuffEndTime!)) {
+      finalMult += (killDefBonus / 100);
+    }
+    // [v2.0] 지역 이동 시 방어력 버프 반영
+    if (zoneDefBuffEndTime != null && DateTime.now().isBefore(zoneDefBuffEndTime!)) {
+      finalMult += (zoneDefBonus / 100);
+    }
+
     return (((baseDefense * bonus).toInt() + flat) * finalMult).toInt();
 
   }
@@ -603,9 +627,9 @@ class Player {
     double itemBonus = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
       for (var opt in item!.subOptions) {
-        if (opt.name == '공격 속도') itemBonus += opt.value;
+        if (opt.effect == OptionEffect.addAspd) itemBonus += opt.value;
       }
-      if (item.potential?.name == '공격 속도') itemBonus += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.addAspd) itemBonus += item.potential!.value;
     });
     double promotionBonus = (promotionLevel >= 3) ? 0.1 : 0.0; // 3단계 보너스: 공속 +10%
     double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus;
@@ -616,9 +640,9 @@ class Player {
     double itemBonus = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
       for (var opt in item!.subOptions) {
-        if (opt.name == '치명타 확률') itemBonus += opt.value;
+        if (opt.effect == OptionEffect.addCritChance) itemBonus += opt.value;
       }
-      if (item.potential?.name == '치명타 확률') itemBonus += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.addCritChance) itemBonus += item.potential!.value;
     });
     return baseCritChance + getPetCompanionValue('예리한 통찰') + itemBonus;
   }
@@ -627,9 +651,9 @@ class Player {
     double itemBonus = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
       for (var opt in item!.subOptions) {
-        if (opt.name == '치명타 피해') itemBonus += opt.value;
+        if (opt.effect == OptionEffect.addCritDamage) itemBonus += opt.value;
       }
-      if (item.potential?.name == '치명타 피해') itemBonus += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.addCritDamage) itemBonus += item.potential!.value;
     });
     double promotionBonus = (promotionLevel >= 7) ? 15.0 : 0.0; // 7단계 보너스: 크리티컬 데미지 +15%
     return baseCritDamage + getSkillValue('pas_4') + itemBonus + promotionBonus;
@@ -639,20 +663,32 @@ class Player {
     double itemBonus = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
       for (var opt in item!.subOptions) {
-        if (opt.name == 'HP 재생') itemBonus += opt.value;
+        if (opt.effect == OptionEffect.addRegen) itemBonus += opt.value;
       }
-      if (item.potential?.name == 'HP 재생') itemBonus += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.addRegen) itemBonus += item.potential!.value;
     });
     return baseHpRegen + itemBonus;
+  }
+
+  /// 틱당 최대 회복 상한선 (%)
+  double get hpRegenCap {
+    double bonus = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.addRegenCap) bonus += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.addRegenCap) bonus += item.potential!.value;
+    });
+    return 5.0 + bonus; // 기본 5% + 보너스
   }
 
   double get goldBonus {
     double itemBonusPerc = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
       for (var opt in item!.subOptions) {
-        if (opt.name == '골드 획득') itemBonusPerc += opt.value;
+        if (opt.effect == OptionEffect.addGoldGain) itemBonusPerc += opt.value;
       }
-      if (item.potential?.name == '골드 획득') itemBonusPerc += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.addGoldGain) itemBonusPerc += item.potential!.value;
     });
     double promotionBonus = (promotionLevel >= 1) ? 5.0 : 0.0; // 1단계 보너스: 골드 +5%
     
@@ -670,7 +706,30 @@ class Player {
     }
 
     return goldBonusBase + getSkillValue('pas_3') + petGoldBonus + itemBonusPerc + promotionBonus + setBonus + stageMilestoneBonus;
+  }
 
+  /// 피격 시 데미지의 % 만큼 즉시 회복하는 비율
+  double get recoverOnDamagedPerc {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.recoverOnDamagedPerc) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.recoverOnDamagedPerc) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 스킬 사용 시 발동되는 피해 감소 수치 (%)
+  double get dmgReductionOnSkill {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.dmgReductionOnSkill) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.dmgReductionOnSkill) total += item.potential!.value;
+    });
+    return total;
   }
 
   double get goldBonusBase => baseGoldBonus;
@@ -679,9 +738,9 @@ class Player {
     double itemBonusPerc = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
       for (var opt in item!.subOptions) {
-        if (opt.name == '경험치 획득') itemBonusPerc += opt.value;
+        if (opt.effect == OptionEffect.addExpGain) itemBonusPerc += opt.value;
       }
-      if (item.potential?.name == '경험치 획득') itemBonusPerc += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.addExpGain) itemBonusPerc += item.potential!.value;
     });
     double promotionBonus = (promotionLevel >= 2) ? 5.0 : 0.0; // 2단계 보너스: 경험치 +5%
     
@@ -696,9 +755,9 @@ class Player {
     double itemBonusPerc = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
       for (var opt in item!.subOptions) {
-        if (opt.name == '아이템 드롭') itemBonusPerc += opt.value;
+        if (opt.effect == OptionEffect.addItemDrop) itemBonusPerc += opt.value;
       }
-      if (item.potential?.name == '아이템 드롭') itemBonusPerc += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.addItemDrop) itemBonusPerc += item.potential!.value;
     });
     return baseDropBonus + getSkillValue('pas_3') + itemBonusPerc;
   }
@@ -710,6 +769,142 @@ class Player {
     double setBonus = isSetEffectActive('dimension', 4) ? 15.0 : 0.0;
     
     return baseCdr + getSkillValue('pas_6') + potentialCdr + promotionBonus + setBonus;
+  }
+
+  /// 특정 스킬 번호(1~6)에 대한 추가 쿨타임 감소 (%)
+  double getSpecificSkillCdr(int skillIdx) {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.addSpecificSkillCdr && opt.values.length >= 2) {
+          if (opt.values[0].toInt() == skillIdx) total += opt.values[1];
+        }
+      }
+      if (item.potential?.effect == OptionEffect.addSpecificSkillCdr && item.potential!.values.length >= 2) {
+        if (item.potential!.values[0].toInt() == skillIdx) total += item.potential!.values[1];
+      }
+    });
+    return total;
+  }
+
+  /// 치명타 시 즉사(처형) 발동 확률 (%)
+  double get executeChance {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.execute) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.execute) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 치명타 시 (50% 확률로) 감소되는 쿨타임 (초)
+  double get critCdrAmount {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.addCritCdr) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.addCritCdr) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 스킬 사용 시 연속 발동(잔향) 확률 (%)
+  double get skillEchoChance {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.skillEcho) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.skillEcho) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 적 처치 시 보호막 생성 확률 (%)
+  double get gainShieldChance {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.gainShield) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.gainShield) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 공격 적중 시 추가 타격 확률 (%)
+  double get extraAttackChance {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.extraAttack) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.extraAttack) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 공격 시 2연타 발동 확률 (%)
+  double get doubleHitChance {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.doubleHit) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.doubleHit) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 처치 시 공격력 버프 합계 (%)
+  double get killAtkBonus {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.atkBuffOnKill) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.atkBuffOnKill) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 처치 시 방어력 버프 합계 (%)
+  double get killDefBonus {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.defBuffOnKill) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.defBuffOnKill) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 지역 이동 시 공격력 버프 합계 (%)
+  double get zoneAtkBonus {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.atkBuffOnZone) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.atkBuffOnZone) total += item.potential!.value;
+    });
+    return total;
+  }
+
+  /// 지역 이동 시 방어력 버프 합계 (%)
+  double get zoneDefBonus {
+    double total = 0.0;
+    equipment.values.where((i) => i != null).forEach((item) {
+      for (var opt in item!.subOptions) {
+        if (opt.effect == OptionEffect.defBuffOnZone) total += opt.value;
+      }
+      if (item.potential?.effect == OptionEffect.defBuffOnZone) total += item.potential!.value;
+    });
+    return total;
   }
 
   double get lifesteal => getSkillValue('pas_5');
