@@ -2659,16 +2659,25 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               ),
               
               const SizedBox(height: 2),
+              if (p)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (gameState.player.skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillAtkSpdBuffEndTime!))
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: _buildStatusBadge('SPD UP', Colors.yellowAccent),
+                      ),
+                    if (gameState.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillCritBuffEndTime!))
+                      _buildStatusBadge('CRT UP', Colors.orangeAccent),
+                  ],
+                ),
               if (!p && isFrozen)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(4),
-                    boxShadow: [BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.5), blurRadius: 4)],
-                  ),
-                  child: const Text('FROZEN', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                )
+                _buildStatusBadge('FROZEN', Colors.blueAccent)
+              else if (!p && gameState.currentMonster != null && gameState.currentMonster!.isStunned)
+                _buildStatusBadge('STUNNED', Colors.orangeAccent)
+              else if (!p && gameState.currentMonster != null && gameState.currentMonster!.isJudged)
+                _buildStatusBadge('ARMOR BREAK', Colors.purpleAccent)
               else if (!p && gameState.currentMonster != null && gameState.currentMonster!.trait != BossTrait.none)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -2789,6 +2798,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           ),
         );
       },
+    );
+  }
+
+  Widget _buildStatusBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 4)],
+      ),
+      child: Text(
+        text, 
+        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.5)
+      ),
     );
   }
 

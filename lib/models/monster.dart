@@ -24,8 +24,12 @@ class Monster {
   final double eliteMultiplier; // 엘리트 배율 (1.5 ~ 3.0)
   final BossTrait trait; // 🆕 보스 특수 능력
   double frozenTimeLeft = 0; // 🆕 빙결 남은 시간 (초)
+  double stunTimeLeft = 0;   // 🆕 기절 남은 시간 (초)
+  double judgmentTimeLeft = 0; // 🆕 심판(방무) 남은 시간 (초)
 
   bool get isFrozen => frozenTimeLeft > 0;
+  bool get isStunned => stunTimeLeft > 0;
+  bool get isJudged => judgmentTimeLeft > 0;
 
   Monster({
     required this.name,

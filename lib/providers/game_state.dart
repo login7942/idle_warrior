@@ -623,8 +623,25 @@ class GameState extends ChangeNotifier {
       addLog('✨ 스킬 추가 발동: ${skill.name}이(가) 한 번 더 발동됩니다!', LogType.event);
     }
 
+    // [v2.3.0] 스킬별 특수 효과(Proc) 발동 체크 (20% 확률)
+    final rand = Random();
+    if (skill.id == 'act_1' && rand.nextDouble() < 0.2) {
+      player.skillAtkSpdBuffEndTime = DateTime.now().add(const Duration(seconds: 2));
+      addLog('🌪️ 바람베기 효과: 공격 속도 증가! (2초)', LogType.event);
+    } else if (skill.id == 'act_2' && rand.nextDouble() < 0.2) {
+      currentMonster!.stunTimeLeft = 2.0;
+      addLog('🔨 강격 효과: 몬스터 기절! (2초)', LogType.event);
+    } else if (skill.id == 'act_1_5' && rand.nextDouble() < 0.2) {
+      player.skillCritBuffEndTime = DateTime.now().add(const Duration(seconds: 2));
+      addLog('⚔️ 쌍룡참 효과: 치명타 확률 증가! (2초)', LogType.event);
+    } else if (skill.id == 'act_5' && rand.nextDouble() < 0.2) {
+      currentMonster!.judgmentTimeLeft = 2.0;
+      addLog('🌠 메테오 효과: 심판! 방어력 무력화! (2초)', LogType.event);
+    }
+
     // 몬스터 방어력에 배율 적용 (관리자 설정)
-    double effectiveDefense = currentMonster!.defense * monsterDefenseMultiplier;
+    // 🆕 [v2.3.0] 심판 상태인 경우 방어력 0 적용
+    double effectiveDefense = currentMonster!.isJudged ? 0 : (currentMonster!.defense * monsterDefenseMultiplier);
     double defenseRating = 100 / (100 + effectiveDefense);
     
     // 연타 스킬의 경우, 각 타격의 UI 위치를 미리 계산
@@ -1053,9 +1070,8 @@ class GameState extends ChangeNotifier {
   void monsterPerformAttack() {
     if (currentMonster == null || isProcessingVictory) return;
     
-    // 🆕 빙결 상태 체크: 빙결 중이면 공격 스킵
-    if (currentMonster!.isFrozen) {
-      // addLog('❄️ ${currentMonster!.name}이(가) 얼어붙어 공격하지 못합니다.', LogType.event);
+    // 🆕 빙결/기절 상태 체크: 행동 불가 시 공격 스킵
+    if (currentMonster!.isFrozen || currentMonster!.isStunned) {
       return;
     }
     double mVariance = 0.9 + (Random().nextDouble() * 0.2);
@@ -2162,12 +2178,22 @@ class GameState extends ChangeNotifier {
       }
     }
     
-    // 🆕 몬스터 빙결 타이머 업데이트
-    if (currentMonster != null && currentMonster!.frozenTimeLeft > 0) {
-      currentMonster!.frozenTimeLeft = max(0.0, currentMonster!.frozenTimeLeft - dt);
-      if (currentMonster!.frozenTimeLeft <= 0) {
-        notifyListeners(); // 빙결 해제 알림
+    // 🆕 몬스터 상태 이상 타이머 업데이트 (빙결/기절/심판)
+    if (currentMonster != null) {
+      bool changed = false;
+      if (currentMonster!.frozenTimeLeft > 0) {
+        currentMonster!.frozenTimeLeft = max(0.0, currentMonster!.frozenTimeLeft - dt);
+        if (currentMonster!.frozenTimeLeft <= 0) changed = true;
       }
+      if (currentMonster!.stunTimeLeft > 0) {
+        currentMonster!.stunTimeLeft = max(0.0, currentMonster!.stunTimeLeft - dt);
+        if (currentMonster!.stunTimeLeft <= 0) changed = true;
+      }
+      if (currentMonster!.judgmentTimeLeft > 0) {
+        currentMonster!.judgmentTimeLeft = max(0.0, currentMonster!.judgmentTimeLeft - dt);
+        if (currentMonster!.judgmentTimeLeft <= 0) changed = true;
+      }
+      if (changed) notifyListeners();
     }
 
     // 🆕 지면 연소 타이머 및 DOT 처리

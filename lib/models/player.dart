@@ -129,6 +129,10 @@ class Player {
   DateTime? killDefBuffEndTime;
   DateTime? zoneAtkBuffEndTime;
   DateTime? zoneDefBuffEndTime;
+  
+  // 🆕 [v2.3.0] 스킬 특수 효과(Proc) 버프 종료 시각
+  DateTime? skillAtkSpdBuffEndTime; // 바람베기 공속 버프
+  DateTime? skillCritBuffEndTime;   // 쌍룡참 치명타 버프
 
   
   // 숙련도 경험치 테이블 (레벨당 필요한 경험치 증가)
@@ -635,8 +639,9 @@ class Player {
       if (item.potential?.effect == OptionEffect.addAspd) itemBonus += item.potential!.value;
     });
     double promotionBonus = (promotionLevel >= 3) ? 0.1 : 0.0; // 3단계 보너스: 공속 +10%
-    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus;
-    return total.clamp(0.1, 6.0); // 최대 공격 속도 6.0 (하드캡 상향: 4.0 → 6.0)
+    double skillBonus = (skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(skillAtkSpdBuffEndTime!)) ? 0.3 : 0.0; // 🆕 20% 확률 발동 공속 +30%
+    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus + skillBonus;
+    return total.clamp(0.1, 8.0); // 🆕 최대 공속 상향 (6.0 -> 8.0)
   }
 
   double get critChance {
@@ -647,7 +652,8 @@ class Player {
       }
       if (item.potential?.effect == OptionEffect.addCritChance) itemBonus += item.potential!.value;
     });
-    return baseCritChance + getPetCompanionValue('예리한 통찰') + itemBonus;
+    double skillBonus = (skillCritBuffEndTime != null && DateTime.now().isBefore(skillCritBuffEndTime!)) ? 50.0 : 0.0; // 🆕 20% 확률 발동 치명타 +50%
+    return baseCritChance + getPetCompanionValue('예리한 통찰') + itemBonus + skillBonus;
   }
 
   double get critDamage {
