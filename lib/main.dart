@@ -2738,7 +2738,34 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               Stack(
                 alignment: Alignment.bottomCenter,
                 children: [
-                   // 🆕 [v2.2.7] 지면 연소 효과 (몬스터 발밑 고정 - 화면 비례 대응)
+                   // 🆕 높이를 150->125로 압축하여 상단 공백 제거
+                   IgnorePointer(
+                     child: CustomPaint(
+                       size: const Size(150, 125),
+                       painter: HeroEffectPainter(
+                         promotionLevel: p ? gameState.player.promotionLevel : 0,
+                         isPlayer: p,
+                         pulse: _heroPulseController.value,
+                         rotation: _heroRotateController.value,
+                       ),
+                     ),
+                   ),
+
+                   // 🆕 [v0.5.39] 실루엣 중복 레이어 제거 (선명도 최우선)
+                   Transform.translate(
+                     offset: p ? Offset(0, -6.0 * _heroPulseController.value) : Offset(0, -3.0 * _heroPulseController.value),
+                     child: SizedBox(
+                       width: 110, height: 110, 
+                       child: ColorFiltered(
+                         colorFilter: isFrozen 
+                           ? const ColorFilter.mode(Colors.lightBlueAccent, BlendMode.modulate) 
+                           : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+                         child: Image.asset(img, fit: BoxFit.contain),
+                       ),
+                     ),
+                   ),
+
+                   // 🆕 [v2.2.8] 지면 연소 효과 (몬스터 위에 표시되도록 최상단 레이어로 이동)
                    if (!p)
                      Selector<GameState, bool>(
                        selector: (_, gs) => gs.isScorchedGroundActive,
@@ -2753,33 +2780,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                          );
                        },
                      ),
-                   // 🆕 높이를 150->125로 압축하여 상단 공백 제거
-                   IgnorePointer(
-                     child: CustomPaint(
-                       size: const Size(150, 125), // 🆕 150->125로 높이 축소
-                       painter: HeroEffectPainter(
-                         promotionLevel: p ? gameState.player.promotionLevel : 0,
-                         isPlayer: p,
-                         pulse: _heroPulseController.value,
-                         rotation: _heroRotateController.value,
-                       ),
-                     ),
-                   ),
-
-                  // 🆕 [v0.5.39] 실루엣 중복 레이어 제거 (선명도 최우선)
-                  Transform.translate(
-                    offset: p ? Offset(0, -6.0 * _heroPulseController.value) : Offset(0, -3.0 * _heroPulseController.value),
-                    child: SizedBox(
-                      width: 110, height: 110, 
-                      child: ColorFiltered(
-                        colorFilter: isFrozen 
-                          ? const ColorFilter.mode(Colors.lightBlueAccent, BlendMode.modulate) 
-                          : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
-                        child: Image.asset(img, fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
-                ],
+                 ],
               ),
             ],
                 ),
