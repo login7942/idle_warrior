@@ -1743,7 +1743,7 @@ class _FeatureBtn extends StatelessWidget {
     return PressableScale(
       onTap: enabled ? onTap : null,
       child: Container(
-        height: 76, // 🆕 고정 높이 부여로 크기 통일
+        height: 80, // 🆕 고정 높이 상향 (76 -> 80)으로 하단 overflow 해결
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         width: isFull ? double.infinity : null,
         decoration: BoxDecoration(
