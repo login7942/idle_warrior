@@ -210,6 +210,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _shimmerController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
     
     _monsterSpawnController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    // 🆕 [v2.2.1] 등장 애니메이션 종료 시점에 전투 시작 허용
+    _monsterSpawnController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        // 무한의 탑이나 무투회는 이미 spawnMonster에서 잠금을 해제했을 수 있으나, 
+        // 일반 사냥터의 리듬을 위해 애니메이션 종료 후 확실히 해제함
+        if (gameState.currentZone.id != ZoneId.tower && !gameState.isArenaMode) {
+          gameState.completeMonsterSpawn();
+        }
+      }
+    });
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     _heroPulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
     _heroRotateController = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
@@ -2584,15 +2594,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 ),
               ),
 
-            // 🆕 [v0.8.39] 지면 연소 효과 오버레이
+            // 🆕 [v0.8.39] 지면 연소 효과 오버레이 (몬스터 발밑 고정)
             Selector<GameState, bool>(
               selector: (_, gs) => gs.isScorchedGroundActive,
               builder: (context, isActive, _) {
                 if (!isActive) return const SizedBox.shrink();
                 return Positioned(
-                  bottom: 100, // 몬스터/플레이어 발밑 위치
-                  left: 50, right: 50,
-                  height: 60,
+                  bottom: 75, // 몬스터 이미지 바닥쪽
+                  right: 35,  // 몬스터 영역(우측) 조준
+                  width: 140, // 3개 불꽃이 들어갈 정도의 너비
+                  height: 80,
                   child: IgnorePointer(
                     child: _buildScorchedGroundEffect(),
                   ),
@@ -3808,7 +3819,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       case ZoneId.dungeon: zoneTier = 4; break;
       case ZoneId.volcano: zoneTier = 5; break;
       case ZoneId.snowfield: zoneTier = 6; break;
-      case ZoneId.abyss: zoneTier = 6; break;
+      case ZoneId.abyss: zoneTier = 7; break;
       default: zoneTier = 1;
     }
 
@@ -4444,17 +4455,20 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       decoration: BoxDecoration(
         gradient: RadialGradient(
           colors: [
-            Colors.orangeAccent.withValues(alpha: 0.4),
+            Colors.orangeAccent.withValues(alpha: 0.5),
             Colors.redAccent.withValues(alpha: 0.2),
             Colors.transparent
           ],
-          stops: const [0.2, 0.6, 1.0],
+          stops: const [0.3, 0.7, 1.0],
         ),
       ),
       child: Center(
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(5, (i) => _buildFlickeringFlame(i)),
+          mainAxisAlignment: MainAxisAlignment.center, // 중앙으로 밀집
+          children: List.generate(3, (i) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: _buildFlickeringFlame(i),
+          )),
         ),
       ),
     );

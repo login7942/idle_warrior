@@ -868,9 +868,9 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
     bool hasPrev = currentIndex > 0;
     bool hasNext = currentIndex >= 0 && currentIndex < widget.contextList.length - 1;
 
-    // 슬롯 강화 배율 (장착 중인 경우에만 적용)
+    // 🆕 [v2.2.3] 슬롯 강화 배율 공식 공용화 (1/10 압축 반영)
     double slotMultiplier = isEquipped 
-        ? 1.0 + (player.slotEnhanceLevels[currentItem.type] ?? 0) * 0.02 
+        ? player.getSlotMultiplier(currentItem.type)
         : 1.0;
 
     return Dialog(
@@ -1235,7 +1235,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                   children: [
                     Text(NumberFormat('#,###').format(s2), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
                     if (hasBonus)
-                      Text('(슬롯 보너스 +${((slotMultiplier - 1) * 100).toInt()}%)', style: const TextStyle(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                      Text('(슬롯 보너스 +${((slotMultiplier - 1) * 100).round()}%)', style: const TextStyle(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],

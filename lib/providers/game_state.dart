@@ -478,9 +478,22 @@ class GameState extends ChangeNotifier {
   }
 
   // --- 전투 로직 ---
+  // 🆕 [v2.2.1] 애니메이션 종료 후 전투 시작 허용
+  void completeMonsterSpawn() {
+    if (isProcessingVictory) {
+      isProcessingVictory = false;
+      notifyListeners();
+    }
+  }
+
   void spawnMonster() {
-    // 🆕 무투회 여부와 상관없이 이전 전투의 대기 상태 및 예약을 해제하여 루프가 멈추지 않도록 함
-    isProcessingVictory = false;
+    // 🆕 [v2.2.1] 일반 사냥터인 경우 애니메이션 종료 콜백을 기다림
+    // 무한의 탑이나 무투회는 기존처럼 즉시 전투 가능 상태로 변경
+    if (currentZone.id == ZoneId.tower || isArenaMode) {
+      isProcessingVictory = false;
+    } else {
+      isProcessingVictory = true; // 등장 애니메이션 동안 잠금
+    }
     pendingMonsterSpawn = false; 
 
     if (isArenaMode) return; // 무투회 중에는 일반 몬스터 스폰 금지
@@ -1317,32 +1330,26 @@ class GameState extends ChangeNotifier {
     bool costMilestone = player.slotEnhanceLevels.values.any((v) => v >= 120);
     if (costMilestone) goldCost = (goldCost * 0.9).toInt();
 
-    // 2. 압축된 확률 테이블 (0~300 레벨 범위)
+    // 2. 압축된 확률 테이블 (0~300 레벨 범위) - [v2.2.2] 성장 체감 개선을 위해 상향
     double baseChance = 1.0;
-    if (currentLevel < 5) {
+    if (currentLevel < 10) {
       baseChance = 1.0;
-    } else if (currentLevel < 10) {
-      baseChance = 0.8;
     } else if (currentLevel < 20) {
-      baseChance = 0.5;
+      baseChance = 0.8;
     } else if (currentLevel < 30) {
-      baseChance = 0.3;
-    } else if (currentLevel < 40) {
-      baseChance = 0.2;
-    } else if (currentLevel < 60) {
-      baseChance = 0.15;
+      baseChance = 0.6;
+    } else if (currentLevel < 50) {
+      baseChance = 0.4;
     } else if (currentLevel < 80) {
-      baseChance = 0.12;
+      baseChance = 0.25;
     } else if (currentLevel < 100) {
-      baseChance = 0.10;
+      baseChance = 0.15;
     } else if (currentLevel < 150) {
-      baseChance = 0.08;
+      baseChance = 0.10;
     } else if (currentLevel < 200) {
-      baseChance = 0.06;
-    } else if (currentLevel < 250) {
-      baseChance = 0.04;
+      baseChance = 0.08;
     } else {
-      baseChance = 0.03;
+      baseChance = 0.05;
     }
 
     // 3. 보너스 확률 및 천장(Pity) 적용

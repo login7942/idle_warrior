@@ -84,11 +84,11 @@ class Monster {
     multiplier *= zone.difficultyMultiplier;
 
     // 2. 몬스터 유형 결정
-    bool isBoss = (stage % 50 == 0) && isFinal;
     bool isTower = zone.id == ZoneId.tower;
     bool isGolden = zone.id == ZoneId.goldenRoom;
     bool isTrial = zone.id == ZoneId.trialRoom;
     bool isSpecialTimeDungeon = isGolden || isTrial;
+    bool isBoss = (stage % 50 == 0) && isFinal && !isSpecialTimeDungeon;
     bool isElite = !isBoss && (isTower || isSpecialTimeDungeon || rand.nextDouble() < 0.10);
 
     // 3. 베이스 스탯 결정
@@ -138,8 +138,8 @@ class Monster {
     double atkScaling = 1.0 + (s / 200);
     int mAtk = (baseAtk * multiplier * atkScaling).toInt();
     
-    // 🆕 [v0.8.36] 방어력 스케일링 강화: 스테이지당 1.5%씩 추가 복리 적용
-    double defScaling = pow(1.015, s).toDouble();
+    // 🆕 [v0.8.36] 방어력 스케일링 완화: 스테이지당 1.0%씩 추가 복리 적용
+    double defScaling = pow(1.01, s).toDouble();
     int mDef = (baseDef * multiplier * defScaling).toInt();
     
     double rewardMultiplier = multiplier * (1 + s / 500);

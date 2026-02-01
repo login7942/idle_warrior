@@ -444,9 +444,9 @@ class Player {
   }
 
   // --- [슬롯 강화 계수 계산] ---
-  // 기본: 레벨당 2%씩 주 능력치 증폭
-  // 마일스톤 보너스: 1000 도달 시 강화 효과 +20%, 1500 도달 시 모든 슬롯 강화 효율 +15%
-  double _getSlotMultiplier(ItemType type) {
+  // 기본: 레벨당 20%씩 주 능력치 증폭 (1/10 압축 반영)
+  // 마일스톤 보너스: 100 도달 시 강화 효과 +20%, 150 도달 시 모든 슬롯 강화 효율 +15%
+  double getSlotMultiplier(ItemType type) {
     int level = slotEnhanceLevels[type] ?? 0;
     double efficiency = 0.2; // 🆕 0.02 -> 0.2 (10배 압축)
 
@@ -472,7 +472,7 @@ class Player {
       }
       
       // 장비 주 능력치 체크
-      double slotMult = _getSlotMultiplier(item.type);
+      double slotMult = getSlotMultiplier(item.type);
       if (item.mainStatName1 == '체력') {
         flat += (item.effectiveMainStat1 * slotMult).toInt();
       }
@@ -523,7 +523,7 @@ class Player {
       }
 
       // 장비 주 능력치 체크
-      double slotMult = _getSlotMultiplier(item.type);
+      double slotMult = getSlotMultiplier(item.type);
       if (item.mainStatName1 == '공격력') {
         flat += (item.effectiveMainStat1 * slotMult).toInt();
       }
@@ -583,7 +583,7 @@ class Player {
     for (var item in equipment.values) {
       if (item == null) continue;
       
-      double slotMult = _getSlotMultiplier(item.type);
+      double slotMult = getSlotMultiplier(item.type);
       if (item.mainStatName1 == '방어력') {
         flat += (item.effectiveMainStat1 * slotMult).toInt();
       }

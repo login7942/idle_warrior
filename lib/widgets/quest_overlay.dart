@@ -118,7 +118,8 @@ class QuestOverlay extends StatelessWidget {
                               currentVal = player.pets.length;
                               break;
                             case QuestType.dismantle:
-                              currentVal = player.totalItemsFound > 0 ? 1 : 0; // 분해 퀘스트는 단발성이므로 더 정교한 트래킹이 필요할 수 있음
+                              // 분해를 수행하기 전까지는 0으로 표시
+                              currentVal = 0;
                               break;
                             case QuestType.encyclopedia:
                               currentVal = 0; // 수동 수령 전까지 0
@@ -136,7 +137,8 @@ class QuestOverlay extends StatelessWidget {
                               currentVal = 0;
                               break;
                             case QuestType.equip:
-                              currentVal = player.equipment.values.any((i) => i != null) ? 1 : 0;
+                              // 장착을 수행하기 전까지는 0으로 표시 (기존 장착 아이템 무시)
+                              currentVal = 0;
                               break;
                             default: currentVal = 0;
                           }

@@ -44,7 +44,7 @@ class HuntingZoneData {
       type: ZoneType.general,
       difficultyMultiplier: 1.0,
       minEnhance: 0,
-      maxEnhance: 360,
+      maxEnhance: 60,
     ),
     HuntingZone(
       id: ZoneId.forest,
@@ -55,9 +55,9 @@ class HuntingZoneData {
       monsterNames: ['고블린', '늑대', '식인식물', '숲의요정', '거대거미'],
       keyDrops: ['강화석', '마법 가루', '초원의 파편'],
       type: ZoneType.general,
-      difficultyMultiplier: 2.0,
-      minEnhance: 360,
-      maxEnhance: 900,
+      difficultyMultiplier: 15.0, // 초원 100층 수준
+      minEnhance: 60,
+      maxEnhance: 150,
     ),
     HuntingZone(
       id: ZoneId.mine,
@@ -68,9 +68,9 @@ class HuntingZoneData {
       monsterNames: ['골렘', '박쥐', '미믹', '코볼트', '광산두더지'],
       keyDrops: ['재설정석', '강화석', '사막의 파편'],
       type: ZoneType.general,
-      difficultyMultiplier: 4.0,
-      minEnhance: 900,
-      maxEnhance: 1800,
+      difficultyMultiplier: 225.0, // 숲 100층 수준
+      minEnhance: 150,
+      maxEnhance: 300,
     ),
     HuntingZone(
       id: ZoneId.dungeon,
@@ -81,9 +81,9 @@ class HuntingZoneData {
       monsterNames: ['스켈레톤', '유령', '해골궁수', '좀비', '가고일'],
       keyDrops: ['마법 가루', '재설정석', '사막의 파편'],
       type: ZoneType.general,
-      difficultyMultiplier: 8.0,
-      minEnhance: 1800,
-      maxEnhance: 3600,
+      difficultyMultiplier: 3400.0, // 광산 100층 수준
+      minEnhance: 300,
+      maxEnhance: 600,
     ),
     HuntingZone(
       id: ZoneId.volcano,
@@ -94,9 +94,9 @@ class HuntingZoneData {
       monsterNames: ['파이어드레이크', '라바스피릿', '불타는 골렘', '화염도마뱀', '지옥견'],
       keyDrops: ['잠재의 큐브', '빛나는 강화석', '설원의 파편'],
       type: ZoneType.general,
-      difficultyMultiplier: 16.0,
-      minEnhance: 3600,
-      maxEnhance: 7200,
+      difficultyMultiplier: 50000.0, // 던전 100층 수준
+      minEnhance: 600,
+      maxEnhance: 1000,
     ),
     HuntingZone(
       id: ZoneId.snowfield,
@@ -107,9 +107,9 @@ class HuntingZoneData {
       monsterNames: ['아이스자이언트', '설인', '서리늑대', '눈보라정령', '얼음펭귄'],
       keyDrops: ['빛나는 강화석', '잠재의 큐브', '설원의 파편'],
       type: ZoneType.general,
-      difficultyMultiplier: 32.0,
-      minEnhance: 7200,
-      maxEnhance: 15000,
+      difficultyMultiplier: 750000.0, // 화산 100층 수준
+      minEnhance: 1000,
+      maxEnhance: 1500,
     ),
     HuntingZone(
       id: ZoneId.abyss,
@@ -120,9 +120,9 @@ class HuntingZoneData {
       monsterNames: ['그림자 군단', '어둠의 화신', '공허의 수호자', '심연의 눈', '카오스 기사'],
       keyDrops: ['신화의 정수', '빛나는 강화석', '심연의 파편'],
       type: ZoneType.general,
-      difficultyMultiplier: 64.0,
-      minEnhance: 15000,
-      maxEnhance: 99999,
+      difficultyMultiplier: 10000000.0, // 설원 100층 수준
+      minEnhance: 1500,
+      maxEnhance: 1800,
     ),
     // --- 특별 사냥터 ---
     HuntingZone(
