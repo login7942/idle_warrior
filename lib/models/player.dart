@@ -100,6 +100,9 @@ class Player {
   // 🆕 [v0.5.26] 승급 시스템 (Promotion Level 0~10)
   int promotionLevel = 0;
   
+  // 🆕 [v0.8.41] 슬롯 압축 여부 플래그
+  bool isSlotCompressed = false;
+  
   // 🆕 [v0.8.14] 최고 도달 스테이지 (골드 가속 보너스용)
   int maxStageReached = 0;
 
@@ -194,16 +197,16 @@ class Player {
   // 🆕 [v0.5.57] 승급 정보 헬퍼 (조건 완화 적용)
   static const List<Map<String, dynamic>> promotionSteps = [
     {'lv': 0, 'req': 0, 'name': '수련생', 'bonus': '보너스 없음'},
-    {'lv': 1, 'req': 300, 'name': '모험가', 'bonus': '골드 획득량 +5%'},
-    {'lv': 2, 'req': 600, 'name': '신출내기', 'bonus': '경험치 획득량 +5%'},
-    {'lv': 3, 'req': 1200, 'name': '용병', 'bonus': '공격 속도 +10%'},
-    {'lv': 4, 'req': 2400, 'name': '정예 기사', 'bonus': '콤보 1,2타 피해 +10%'},
-    {'lv': 5, 'req': 3600, 'name': '기사단장', 'bonus': '콤보 3타 피해 +10%'},
-    {'lv': 6, 'req': 4800, 'name': '영웅', 'bonus': '콤보 최종타 피해 +10%'},
-    {'lv': 7, 'req': 6000, 'name': '전설', 'bonus': '크리티컬 데미지 +15%'},
-    {'lv': 8, 'req': 7800, 'name': '신화', 'bonus': '최종 피해량 +10%'},
-    {'lv': 9, 'req': 10200, 'name': '초월자', 'bonus': '스킬 재사용 대기시간 -10%'},
-    {'lv': 10, 'req': 13200, 'name': '무한의 경지', 'bonus': '모든 능력치 +10%'},
+    {'lv': 1, 'req': 30, 'name': '모험가', 'bonus': '골드 획득량 +5%'},
+    {'lv': 2, 'req': 60, 'name': '신출내기', 'bonus': '경험치 획득량 +5%'},
+    {'lv': 3, 'req': 120, 'name': '용병', 'bonus': '공격 속도 +10%'},
+    {'lv': 4, 'req': 240, 'name': '정예 기사', 'bonus': '콤보 1,2타 피해 +10%'},
+    {'lv': 5, 'req': 360, 'name': '기사단장', 'bonus': '콤보 3타 피해 +10%'},
+    {'lv': 6, 'req': 480, 'name': '영웅', 'bonus': '콤보 최종타 피해 +10%'},
+    {'lv': 7, 'req': 600, 'name': '전설', 'bonus': '크리티컬 데미지 +15%'},
+    {'lv': 8, 'req': 780, 'name': '신화', 'bonus': '최종 피해량 +10%'},
+    {'lv': 9, 'req': 1020, 'name': '초월자', 'bonus': '스킬 재사용 대기시간 -10%'},
+    {'lv': 10, 'req': 1320, 'name': '무한의 경지', 'bonus': '모든 능력치 +10%'},
   ];
 
   String get promotionName => promotionLevel < promotionSteps.length 
@@ -445,16 +448,16 @@ class Player {
   // 마일스톤 보너스: 1000 도달 시 강화 효과 +20%, 1500 도달 시 모든 슬롯 강화 효율 +15%
   double _getSlotMultiplier(ItemType type) {
     int level = slotEnhanceLevels[type] ?? 0;
-    double efficiency = 0.02;
+    double efficiency = 0.2; // 🆕 0.02 -> 0.2 (10배 압축)
 
-    // [마일스톤] 1500 도달 시 모든 슬롯 강화 효율 +15%
-    bool globalBonus = slotEnhanceLevels.values.any((v) => v >= 1500);
+    // [마일스톤] 150 도달 시 모든 슬롯 강화 효율 +15%
+    bool globalBonus = slotEnhanceLevels.values.any((v) => v >= 150);
     if (globalBonus) efficiency *= 1.15;
 
     double baseMulti = 1.0 + (level * efficiency);
 
-    // [마일스톤] 1000 도달 시 해당 슬롯 강화 효과 +0.2 (20%) 추가
-    if (level >= 1000) baseMulti += 0.2;
+    // [마일스톤] 100 도달 시 해당 슬롯 강화 효과 +0.2 (20%) 추가
+    if (level >= 100) baseMulti += 0.2;
 
     return baseMulti;
   }
@@ -720,7 +723,7 @@ class Player {
     return total;
   }
 
-  /// 스킬 사용 시 발동되는 피해 감소 수치 (%)
+  /// 스킬 사용 시 발동되는 피해 감소 확률 (%)
   double get dmgReductionOnSkill {
     double total = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
@@ -823,7 +826,7 @@ class Player {
     return total;
   }
 
-  /// 적 처치 시 보호막 생성 확률 (%)
+  /// 공격 시 보호막 생성 확률 (%)
   double get gainShieldChance {
     double total = 0.0;
     equipment.values.where((i) => i != null).forEach((item) {
@@ -831,18 +834,6 @@ class Player {
         if (opt.effect == OptionEffect.gainShield) total += opt.value;
       }
       if (item.potential?.effect == OptionEffect.gainShield) total += item.potential!.value;
-    });
-    return total;
-  }
-
-  /// 공격 적중 시 추가 타격 확률 (%)
-  double get extraAttackChance {
-    double total = 0.0;
-    equipment.values.where((i) => i != null).forEach((item) {
-      for (var opt in item!.subOptions) {
-        if (opt.effect == OptionEffect.extraAttack) total += opt.value;
-      }
-      if (item.potential?.effect == OptionEffect.extraAttack) total += item.potential!.value;
     });
     return total;
   }
@@ -1081,6 +1072,7 @@ class Player {
     'craftingMasteryLevel': craftingMasteryLevel,
     'craftingMasteryExp': craftingMasteryExp,
     'desertBuffEndTime': desertBuffEndTime?.toIso8601String(),
+    'isSlotCompressed': isSlotCompressed,
   };
 
 
@@ -1110,6 +1102,37 @@ class Player {
 
     // 🆕 [v0.8.16] 심연의 가루 통합 마이그레이션
     int legacyPowder = json['powder'] ?? 0;
+
+    // 🆕 [v0.8.41] 슬롯 수치 압축 마이그레이션 (1/10)
+    p.isSlotCompressed = json['isSlotCompressed'] ?? false;
+    if (!p.isSlotCompressed) {
+      if (json['slotEnhanceLevels'] != null) {
+        Map<String, dynamic> lvMap = json['slotEnhanceLevels'];
+        lvMap.forEach((key, val) {
+          ItemType? type = ItemType.values.firstWhere((e) => e.name == key);
+          if (type != null) {
+            int oldLv = val as int;
+            // 1/10으로 압축 (올림 처리하여 손해 방지)
+            p.slotEnhanceLevels[type] = (oldLv / 10).ceil();
+          }
+        });
+      }
+      p.isSlotCompressed = true;
+    }
+
+    // 🆕 notifiedMilestones 마이그레이션 (50->5, 300->30, 1000->100)
+    if (p.notifiedMilestones.contains(50)) {
+      p.notifiedMilestones.remove(50);
+      if (!p.notifiedMilestones.contains(5)) p.notifiedMilestones.add(5);
+    }
+    if (p.notifiedMilestones.contains(300)) {
+      p.notifiedMilestones.remove(300);
+      if (!p.notifiedMilestones.contains(30)) p.notifiedMilestones.add(30);
+    }
+    if (p.notifiedMilestones.contains(1000)) {
+      p.notifiedMilestones.remove(1000);
+      if (!p.notifiedMilestones.contains(100)) p.notifiedMilestones.add(100);
+    }
     int currentAbyssalPowder = json['abyssalPowder'] ?? 0;
     int coreSum = 0;
     if (json['tierCores'] != null) {

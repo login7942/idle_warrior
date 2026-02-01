@@ -90,16 +90,16 @@ class GameLoop {
       _attackAccumulator = 0;
     }
 
-    // 2. 몬스터 공격 주기 처리 (1.5초)
+    // 2. 몬스터 공격 주기 처리 (기본 1.5초, 보스 광폭화 시 1.0초 등 가변 적용)
     _monsterAttackAccumulator += t;
-    if (_monsterAttackAccumulator >= 1.5) {
+    if (_monsterAttackAccumulator >= gameState.monsterAttackInterval) {
       gameState.monsterPerformAttack();
       _monsterAttackAccumulator = 0;
     }
 
-    // 3. 체력 재생 처리 (1초)
+    // 3. 체력 재생 처리 (1틱 = 3초)
     _regenAccumulator += t;
-    if (_regenAccumulator >= 1.0) {
+    if (_regenAccumulator >= 3.0) {
       gameState.applyRegen();
       _regenAccumulator = 0;
     }

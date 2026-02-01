@@ -1,6 +1,11 @@
 {
-  "version": "0.8.24",
-  "buildNumber": 95,
+  "version": "v0.8.42",
+  "buildNumber": 109,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "changelog": "[v0.8.24] 무투회(토너먼트) 시스템 고도화: 라운드별 난이도 스케일링(최대 2.2배), NPC 특수 능력(처형, 흡혈, 반사) 및 결승전 챔피언 보스전 도입"
+  "updated_at": "2026-02-01",
+  "changelog": [
+    "전 지역 몬스터 이미지 추가 및 명칭 매핑 완료",
+    "슬롯 강화 UI 수치 및 가이드 가독성 개선",
+    "가이드 퀘스트 난이도 하향 (성장의 토대)"
+  ]
 }

@@ -1,6 +1,13 @@
 import 'dart:math';
 import 'hunting_zone.dart';
 
+enum BossTrait {
+  none,
+  crush,   // 파쇄: 피해감소/보호막 50% 무시
+  corrupt, // 오염: 회복량 50% 감소
+  erode    // 침식: 피격 시 스킬 쿨타임 증가
+}
+
 class Monster {
   final String name;
   final int level;
@@ -13,7 +20,12 @@ class Monster {
   final String imagePath;
   final double itemDropChance; // 아이템 드롭 확률 (0.0 ~ 1.0)
   final bool isElite; // 엘리트 몬스터 여부
+  final bool isBoss;  // 🆕 보스 몬스터 여부
   final double eliteMultiplier; // 엘리트 배율 (1.5 ~ 3.0)
+  final BossTrait trait; // 🆕 보스 특수 능력
+  double frozenTimeLeft = 0; // 🆕 빙결 남은 시간 (초)
+
+  bool get isFrozen => frozenTimeLeft > 0;
 
   Monster({
     required this.name,
@@ -27,7 +39,9 @@ class Monster {
     this.imagePath = 'assets/images/slime.png',
     this.itemDropChance = 0.2, // 기본 20%
     this.isElite = false,
+    this.isBoss = false,
     this.eliteMultiplier = 1.0,
+    this.trait = BossTrait.none,
   });
 
   // 🆕 [v0.5.55] 이미지 매칭 맵을 클래스 상수로 통합하여 메모리 낭비 제거
@@ -50,7 +64,7 @@ class Monster {
     '탑의 수호자': 'tower_guardian.png', '심판자': 'judge.png', '고대 병기': 'ancient_weapon.png', '차원 감시자': 'dimension_watcher.png', '타락한 신관': 'fallen_priest.png',
     // 🆕 황금의 방 / 시련의 방
     '황금 슬라임': 'slime.png', '보물 상자': 'mimic.png', '황금 박쥐': 'bat.png', '골드 미믹': 'mimic.png', '황금 골렘': 'golem.png',
-    '시련의 정령': 'blizzard_spirit.png', '마력 결정체': 'lavs_spirit.png', '푸른 번개': 'blizzard_spirit.png', '결빙된 영혼': 'ghost.png', '시련의 수호자': 'gargoyle.png',
+    '시련의 정령': 'blizzard_spirit.png', '마력 결정체': 'lava_spirit.png', '푸른 번개': 'blizzard_spirit.png', '결빙된 영혼': 'ghost.png', '시련의 수호자': 'gargoyle.png',
   };
 
   // 사냥터와 스테이지에 따른 몬스터 생성기
@@ -83,13 +97,13 @@ class Monster {
 
     if (isBoss) {
       baseHp = 2500; 
-      baseAtk = 45; // 🆕 보스 베이스 공격력 조정 (80 -> 45: 티키타카 유도)
-      baseDef = 15; baseGold = 500; baseExp = 500;
+      baseAtk = 70; // 🆕 보스 공격력 상향 (45 -> 70)
+      baseDef = 25; // 🆕 보스 방어력 상향 (15 -> 25)
+      baseGold = 500; baseExp = 500;
     } else {
       baseHp = 60 + rand.nextInt(41).toDouble();
-      // 🆕 베이스 공격력 미세 상향 (8~14 -> 10~16)
-      baseAtk = 10 + rand.nextInt(7).toDouble();
-      baseDef = 3 + rand.nextInt(4).toDouble();
+      baseAtk = 15 + rand.nextInt(10).toDouble(); // 🆕 일반 몬스터 공격력 상향 (10~16 -> 15~24)
+      baseDef = 5 + rand.nextInt(5).toDouble(); // 🆕 일반 몬스터 방어력 상향 (3~7 -> 5~10)
       baseGold = 20 + rand.nextInt(16).toDouble();
       baseExp = 15 + rand.nextInt(11).toDouble();
     }
@@ -104,11 +118,11 @@ class Monster {
       baseHp *= 1.2; baseAtk *= 0.1; baseDef *= 0.8;
       
       if (isGolden) {
-        baseGold *= 20.0; // 골드 20배
-        baseExp *= 0.5;
+        baseGold *= 30.0; // 골드 효율 상향 (20배 -> 30배)
+        baseExp = 0;      // 황금의 방은 경험치 없음 🆕
       } else if (isTrial) {
-        baseGold *= 0.5;
-        baseExp *= 2.0;
+        baseGold = 0;     // 시련의 방은 골드 없음 🆕
+        baseExp = 0;      // 시련의 방은 경험치 없음 🆕
       }
     } else if (isElite) {
       baseHp *= 1.5; baseAtk *= 1.3; baseDef *= 1.2;
@@ -120,14 +134,28 @@ class Monster {
     int mHp = (baseHp * multiplier).toInt();
     
     // 🆕 [v0.5.56] 공격력 전용 스테이지 가속 (Atk Scaling) 도입
-    // 스테이지가 올라갈수록 공격력이 체력보다 더 가파르게 상승 (500층당 +100%)
-    double atkScaling = 1.0 + (s / 500);
+    // 스테이지가 올라갈수록 공격력이 체력보다 더 가파르게 상승 (200층당 +100%)
+    double atkScaling = 1.0 + (s / 200);
     int mAtk = (baseAtk * multiplier * atkScaling).toInt();
     
-    int mDef = (baseDef * multiplier).toInt();
+    // 🆕 [v0.8.36] 방어력 스케일링 강화: 스테이지당 1.5%씩 추가 복리 적용
+    double defScaling = pow(1.015, s).toDouble();
+    int mDef = (baseDef * multiplier * defScaling).toInt();
+    
     double rewardMultiplier = multiplier * (1 + s / 500);
     int mGold = (baseGold * rewardMultiplier).toInt();
     int mExp = (baseExp * rewardMultiplier).toInt();
+
+    // 🆕 보스 특수 능력 결정 (50층 단위 순차 적용)
+    BossTrait trait = BossTrait.none;
+    if (isBoss) {
+      int bossIndex = (stage ~/ 50 - 1) % 3;
+      switch (bossIndex) {
+        case 0: trait = BossTrait.crush; break;
+        case 1: trait = BossTrait.corrupt; break;
+        case 2: trait = BossTrait.erode; break;
+      }
+    }
 
     // 6. 이름 및 비주얼 설정
     String prefix = '';
@@ -158,8 +186,10 @@ class Monster {
       goldReward: mGold,
       imagePath: imagePath,
       itemDropChance: isBoss ? 1.0 : (isElite ? 0.5 : 0.2),
-      isElite: isElite || isBoss,
+      isElite: isElite,
+      isBoss: isBoss,
       eliteMultiplier: isElite ? eliteMult : 1.0,
+      trait: trait,
     );
   }
 

@@ -158,6 +158,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   bool _showOptimalZoneHint = false;
   Timer? _optimalZoneHintTimer;
 
+  // --- [신규 v0.8.32] 버프 상세 정보 힌트 상태 ---
+  String? _activeBuffHint;
+  Timer? _buffHintTimer;
+
   // --- [신규 v0.0.61] 자동 분해 시스템 ---
 
   // --- [신규 v0.1.x] 라운드 로빈 전투 시스템 ---
@@ -226,6 +230,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     gameState.onDamageDealt = (text, damage, isCrit, isSkill, {ox, oy, shouldAnimate = true, skillIcon, combo}) {
       if (!mounted) return;
 
+      // 🆕 데미지 효율 기록 추가
+      _recentGains.add(GainRecord(DateTime.now(), damage: damage));
+
       // 🆕 최대 데미지 기록 갱신 (단일 타격 기준)
       if (damage > _sessionMaxDamage) {
         setState(() {
@@ -248,14 +255,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _addFloatingText('+$healAmount', false, isHeal: true);
     };
 
-    gameState.onPlayerDamageTaken = (damage) {
+    gameState.onPlayerDamageTaken = (damage, {isShield = false}) {
       if (!mounted) return;
       // 플레이어 피격 (뒤로 밀림)
       _playerHitController.forward(from: 0);
       // 몬스터 공격 (앞으로 튀어나감)
       _monsterAttackController.forward(from: 0);
-      // 데미지 텍스트
-      _addFloatingText(damage.toString(), false);
+      
+      // 🆕 [v0.8.29] 보호막 피격 여부에 따른 텍스트 연출
+      _addFloatingText('-$damage', false, isShield: isShield);
     };
 
     gameState.onMonsterSpawned = () {
@@ -343,8 +351,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _monsterSpawnController.forward(from: 0);
     }
     
-    // 🆕 분당 효율 계산 타이머 (5초마다 갱신) - 변수에 저장하여 dispose 가능하게 함
-    _efficiencyTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    // 🆕 분당 효율 계산 타이머 (2초마다 갱신으로 상향)
+    _efficiencyTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -390,9 +398,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _recentGains.removeWhere((g) => g.time.isBefore(cutoff));
     
     if (_recentGains.isEmpty) {
-      gameState.goldPerMin = 0;
-      gameState.expPerMin = 0;
-      gameState.killsPerMin = 0;
+      gameState.resetEfficiency(); // Call resetEfficiency
       return;
     }
     
@@ -400,11 +406,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     int totalGold = 0;
     int totalExp = 0;
     int totalKills = 0;
+    int totalDmg = 0;
     
     for (var record in _recentGains) {
       totalGold += record.gold;
       totalExp += record.exp;
       totalKills += record.kills;
+      totalDmg += record.damage;
     }
     
     // 실제 경과 시간 계산 (초 단위)
@@ -413,9 +421,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     
     if (elapsedSeconds > 0) {
       // 분당 환산 (초당 * 60)
-      gameState.goldPerMin = (totalGold / elapsedSeconds * 60);
-      gameState.expPerMin = (totalExp / elapsedSeconds * 60);
-      gameState.killsPerMin = (totalKills / elapsedSeconds * 60);
+      gameState.updateEfficiency(
+        totalGold / elapsedSeconds * 60,
+        totalExp / elapsedSeconds * 60,
+        totalKills / elapsedSeconds * 60,
+        totalDmg / elapsedSeconds * 60,
+      );
     }
   }
 
@@ -554,6 +565,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     bool isHeal = false, 
     bool isGold = false, 
     bool isExp = false, 
+    bool isShield = false, // 🆕 보호막 전용 필드
     double? offsetX, 
     double? offsetY,
     String? skillIcon, // 🆕 스킬 아이콘 추가
@@ -566,6 +578,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     if (isHeal) { type = DamageType.heal; }
     else if (isSkill) { type = DamageType.skill; }
     else if (isCrit) { type = DamageType.critical; }
+    else if (isShield) { type = DamageType.shield; } // 🆕 보호막 우선순위 반영
     else if (isGold) { type = DamageType.gold; }
     else if (isExp) { type = DamageType.exp; }
 
@@ -907,6 +920,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           ),
           child: InkWell(
             onTap: () {
+              // 🆕 [v2.2] 사냥터 입장 조건 체크 (최소 슬롯 강화 수치)
+              if (player.totalSlotEnhanceLevel < zone.minEnhance) {
+                _showToast('${zone.name} 지역 입장 불가: 슬롯 총합 ${zone.minEnhance}강 이상 필요!', isError: true);
+                return;
+              }
 
               if (zone.id == ZoneId.tower) {
                 _enterTower(zone);
@@ -998,64 +1016,44 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildTierDropInfo(GameState gs, HuntingZone zone) {
-    if (zone.id == ZoneId.tower) return const SizedBox.shrink();
+    if (zone.id == ZoneId.tower || zone.id == ZoneId.goldenRoom || zone.id == ZoneId.trialRoom) return const SizedBox.shrink();
 
-    List<int> possibleTiers = [];
+    String tierRange = "";
     switch (zone.id) {
-      case ZoneId.forest: possibleTiers = [2]; break;
-      case ZoneId.mine: possibleTiers = [2, 3]; break;
-      case ZoneId.dungeon: possibleTiers = [3, 4]; break;
-      case ZoneId.volcano: possibleTiers = [4, 5]; break;
-      case ZoneId.snowfield: possibleTiers = [5, 6]; break;
-      case ZoneId.abyss: possibleTiers = [6]; break;
+      case ZoneId.grassland: tierRange = "T1"; break;
+      case ZoneId.forest: tierRange = "T1~T2"; break;
+      case ZoneId.mine: tierRange = "T1~T3"; break;
+      case ZoneId.dungeon: tierRange = "T1~T4"; break;
+      case ZoneId.volcano: tierRange = "T1~T5"; break;
+      case ZoneId.snowfield:
+      case ZoneId.abyss: tierRange = "T1~T6"; break;
       default: break;
     }
+    
+    if (tierRange.isEmpty) return const SizedBox.shrink();
 
-    if (possibleTiers.isEmpty) return const SizedBox.shrink();
-
-    final totalLv = gs.player.totalSlotEnhanceLevel;
-    Map<int, int> unlockLevels = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
-
-    return Row(
-      children: possibleTiers.map((tier) {
-        int unlockLv = unlockLevels[tier] ?? 0;
-        bool isUnlocked = totalLv >= unlockLv;
-        
-        return Container(
-          margin: const EdgeInsets.only(right: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(
-            color: isUnlocked ? Colors.purpleAccent.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isUnlocked ? Colors.purpleAccent.withValues(alpha: 0.4) : Colors.white24
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.purpleAccent.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.auto_awesome, size: 10, color: Colors.purpleAccent),
+          const SizedBox(width: 4),
+          Text(
+            tierRange,
+            style: const TextStyle(
+              fontSize: 10, 
+              fontWeight: FontWeight.bold,
+              color: Colors.purpleAccent,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isUnlocked ? Icons.auto_awesome : Icons.lock, 
-                size: 8, 
-                color: isUnlocked ? Colors.purpleAccent : Colors.white38
-              ),
-              const SizedBox(width: 4),
-              Text(
-                isUnlocked ? 'T$tier' : 'T$tier:$unlockLv',
-                style: TextStyle(
-                  fontSize: 9, 
-                  fontWeight: FontWeight.bold,
-                  color: isUnlocked ? Colors.purpleAccent : Colors.white,
-                  shadows: [
-                    Shadow(offset: const Offset(1, 1), blurRadius: 2, color: Colors.black.withValues(alpha: 0.8))
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-
-      }).toList(),
+        ],
+      ),
     );
   }
 
@@ -1349,36 +1347,41 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // 🔨 [신규 v0.0.60] 제작 탭 (Forge UI)
   Widget _buildCraftTab() {
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-        _buildCraftHeader(),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            children: [
-              _buildCraftCategory(
-                0, '⚔️ 장비 제작 (리뉴얼 중)', 
-                isLocked: true,
-                child: const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: Text('장비 제작 시스템 고도화를 위해 잠시 중단되었습니다.\n승급 시스템을 이용해 주세요.', 
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white24, fontSize: 12))),
-                )
+    return Consumer<GameState>(
+      builder: (context, gs, child) {
+        return Column(
+          children: [
+            const SizedBox(height: 12),
+            _buildCraftHeader(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                children: [
+                  _buildCraftCategory(
+                    0, '⚔️ 장비 제작 (리뉴얼 중)', 
+                    isLocked: true,
+                    child: const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: Text('장비 제작 시스템 고도화를 위해 잠시 중단되었습니다.\n승급 시스템을 이용해 주세요.', 
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white24, fontSize: 12))),
+                    )
+                  ),
+                  _buildCraftCategory(
+                    1, '🧪 소모품 제작 (입장권)', 
+                    child: _buildConsumableCraftGrid(),
+                  ),
+                  _buildCraftCategory(2, '💎 유물 합성 (준비 중)', isLocked: true),
+                  const SizedBox(height: 100),
+                ],
               ),
-              _buildCraftCategory(
-                1, '🧪 소모품 제작 (입장권)', 
-                child: _buildConsumableCraftGrid(),
-              ),
-              _buildCraftCategory(2, '💎 유물 합성 (준비 중)', isLocked: true),
-              const SizedBox(height: 100),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
+
 
   Widget _buildCraftHeader() {
     int tier = _selectedCraftTier;
@@ -2198,7 +2201,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         ),
         // 2. 콤팩트 통계 카드 (효율 데이터만 감시)
         Selector<GameState, String>(
-          selector: (_, gs) => '${gs.goldPerMin}_${gs.expPerMin}',
+          selector: (_, gs) => '${gs.goldPerMin}_${gs.expPerMin}_${gs.killsPerMin}_${gs.dmgPerMin}',
           builder: (context, _, child) => _buildEfficiencyCard(),
         ),
       ],
@@ -2289,7 +2292,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   const SizedBox(width: 12),
                   Flexible(child: _buildSessionStat('누적EXP', _sessionExp, Colors.blueAccent)),
                   const SizedBox(width: 12),
-                  Flexible(child: _buildSessionStat('최대DMG', _sessionMaxDamage, Colors.redAccent)),
+                  Flexible(child: _buildSessionStat('평균DMG', gameState.dmgPerMin.toInt(), Colors.redAccent)),
                   const SizedBox(width: 4),
                   const Spacer(),
 
@@ -2298,13 +2301,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       setState(() {
                         _sessionGold = 0;
                         _sessionExp = 0;
-                        _sessionMaxDamage = 0; // 초기화 시 최대 데미지도 리셋
+                        _sessionMaxDamage = 0; 
                         _recentGains.clear();
-                        
-                        // GameState의 효율 데이터도 초기화
-                        gameState.goldPerMin = 0;
-                        gameState.expPerMin = 0;
-                        gameState.killsPerMin = 0;
+                        gameState.resetEfficiency();
                       });
 
                       _showToast('통계가 초기화되었습니다.');
@@ -2507,9 +2506,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 // 2. 몬스터 영역 (몬스터 존재 여부 및 체력 변화 감시)
                 Center(
                   key: _monsterKey,
-                  child: Selector<GameState, int>(
-                    selector: (_, gs) => gs.monsterCurrentHp,
-                    builder: (context, mHp, child) {
+                  child: Selector<GameState, (int, double)>(
+                    selector: (_, gs) => (gs.monsterCurrentHp, gs.currentMonster?.frozenTimeLeft ?? 0.0),
+                    builder: (context, data, child) {
                       final m = gameState.currentMonster;
                       if (m == null) return const SizedBox(width: 100, height: 150);
                       
@@ -2525,12 +2524,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                 child: _buildActor(
                                   m.name, 
                                   m.level, 
-                                  mHp, 
+                                  data.$1, 
                                   m.maxHp, 
                                   m.imagePath, 
                                   _monsterAttackController, 
                                   _monsterHitController,
-                                  false
+                                  false,
+                                  isFrozen: data.$2 > 0,
                                 ),
                               ),
                             ),
@@ -2583,13 +2583,29 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ),
                 ),
               ),
+
+            // 🆕 [v0.8.39] 지면 연소 효과 오버레이
+            Selector<GameState, bool>(
+              selector: (_, gs) => gs.isScorchedGroundActive,
+              builder: (context, isActive, _) {
+                if (!isActive) return const SizedBox.shrink();
+                return Positioned(
+                  bottom: 100, // 몬스터/플레이어 발밑 위치
+                  left: 50, right: 50,
+                  height: 60,
+                  child: IgnorePointer(
+                    child: _buildScorchedGroundEffect(),
+                  ),
+                );
+              },
+            ),
           ],
         );
       },
     );
   }
 
-  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0}) {
+  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0, bool isFrozen = false}) {
     double hpProgress = (h / mh).clamp(0, 1);
     double shieldProgress = (shield / mh).clamp(0, 1);
     return AnimatedBuilder(
@@ -2628,7 +2644,43 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             mainAxisAlignment: MainAxisAlignment.center, 
             children: [
               // 1. 이름 및 등급 뱃지
-              ShadowText(n, fontSize: 13, fontWeight: FontWeight.w900, color: p ? Colors.white : Colors.redAccent),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ShadowText(n, fontSize: 13, fontWeight: FontWeight.w900, color: p ? Colors.white : Colors.redAccent),
+                  if (!p && gameState.currentMonster != null && gameState.currentMonster!.isBoss) ...[
+                    const SizedBox(width: 4),
+                    if ((h / mh) < 0.5)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [BoxShadow(color: Colors.red.withValues(alpha: 0.5), blurRadius: 4)],
+                        ),
+                        child: const Text('RAGE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ],
+              ),
+              
+              const SizedBox(height: 2),
+              if (!p && isFrozen)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: [BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.5), blurRadius: 4)],
+                  ),
+                  child: const Text('FROZEN', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                )
+              else if (!p && gameState.currentMonster != null && gameState.currentMonster!.trait != BossTrait.none)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: _buildTraitBadge(gameState.currentMonster!.trait),
+                ),
+
               const SizedBox(height: 5),
               
               // 2. 프리미엄 컴팩트 HP 바
@@ -2710,7 +2762,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     offset: p ? Offset(0, -6.0 * _heroPulseController.value) : Offset(0, -3.0 * _heroPulseController.value),
                     child: SizedBox(
                       width: 110, height: 110, 
-                      child: Image.asset(img, fit: BoxFit.contain)
+                      child: ColorFiltered(
+                        colorFilter: isFrozen 
+                          ? const ColorFilter.mode(Colors.lightBlueAccent, BlendMode.modulate) 
+                          : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+                        child: Image.asset(img, fit: BoxFit.contain),
+                      ),
                     ),
                   ),
                 ],
@@ -2727,12 +2784,61 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // OLD _buildCombatParticle REMOVED (Integrated into HeroEffectPainter)
 
+  Widget _buildTraitBadge(BossTrait trait) {
+    String label = '';
+    Color color = Colors.grey;
+    IconData icon = Icons.help_outline;
+
+    switch (trait) {
+      case BossTrait.crush:
+        label = '파쇄';
+        color = Colors.orangeAccent;
+        icon = Icons.g_mobiledata_sharp;
+        break;
+      case BossTrait.corrupt:
+        label = '오염';
+        color = Colors.greenAccent;
+        icon = Icons.bloodtype;
+        break;
+      case BossTrait.erode:
+        label = '침식';
+        color = Colors.purpleAccent;
+        icon = Icons.timer_off;
+        break;
+      case BossTrait.none:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBattleStatusArea(GameState gameState) {
     final pet = gameState.player.activePet;
     final bool isOptimalZone = gameState.isOptimalZone;
+    final bool hasBuffs = gameState.isSkillDmgReductionActive || 
+                        gameState.isKillAtkBuffActive || gameState.isZoneAtkBuffActive ||
+                        gameState.isKillDefBuffActive || gameState.isZoneDefBuffActive;
     
     // 표시할 내용이 전혀 없으면 그리지 않음
-    if (pet == null && !isOptimalZone && !gameState.isInSpecialDungeon) return const SizedBox.shrink();
+    if (pet == null && !isOptimalZone && !gameState.isInSpecialDungeon && !hasBuffs) return const SizedBox.shrink();
 
     return AnimatedBuilder(
       animation: _uiTickerController,
@@ -2745,9 +2851,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           alignment: const Alignment(-0.9, -0.85), // 좌측 상단 부유
           child: Transform.translate(
             offset: Offset(floatingX, floatingY),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // 1. 활성화된 펫 표시
                 if (pet != null)
@@ -2766,16 +2873,59 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       style: const TextStyle(fontSize: 28),
                     ),
                   ),
-                
-                if (pet != null && (isOptimalZone || gameState.isInSpecialDungeon)) const SizedBox(width: 10),
 
-                // 2. 던전 타이머 (특별 던전 시)
+                // 2. 버프 아이콘들 (스킬 감댐, 공중, 방중 등)
+                if (gameState.isSkillDmgReductionActive)
+                  _buildBuffIcon(
+                    Icons.shield_rounded, 
+                    Colors.blueAccent, 
+                    '피해감소 -${player.dmgReductionOnSkill.toStringAsFixed(1)}%', 
+                    gameState.skillDmgReductionTimeLeft
+                  ),
+                
+                if (gameState.isKillAtkBuffActive || gameState.isZoneAtkBuffActive)
+                  _buildBuffIcon(
+                    Icons.bolt_rounded, 
+                    Colors.redAccent, 
+                    '공격력 +${(player.killAtkBonus + player.zoneAtkBonus).toStringAsFixed(1)}%', 
+                    max(gameState.killAtkBuffTimeLeft, gameState.zoneAtkBuffTimeLeft)
+                  ),
+
+                if (gameState.isKillDefBuffActive || gameState.isZoneDefBuffActive)
+                  _buildBuffIcon(
+                    Icons.security, 
+                    Colors.greenAccent, 
+                    '방어력 +${(player.killDefBonus + player.zoneDefBonus).toStringAsFixed(1)}%', 
+                    max(gameState.killDefBuffTimeLeft, gameState.zoneDefBuffTimeLeft)
+                  ),
+
+                // 🆕 버프 상세 정보 힌트 (배치 순서 고정)
+                if (_activeBuffHint != null)
+                  AnimatedOpacity(
+                    opacity: 1.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white24),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black54, blurRadius: 10),
+                        ],
+                      ),
+                      child: Text(
+                        _activeBuffHint!,
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+
+                // 3. 던전 타이머 (특별 던전 시)
                 if (gameState.isInSpecialDungeon)
                   _buildSpecialDungeonTimer(gameState),
 
-                if (gameState.isInSpecialDungeon && isOptimalZone) const SizedBox(width: 10),
-
-                // 3. 적정 사냥터 보너스 표시 (펫 유무 상관없이 노출)
+                // 4. 적정 사냥터 보너스 표시 (펫 유무 상관없이 노출)
                 if (isOptimalZone)
                   GestureDetector(
                     onTap: () {
@@ -2843,6 +2993,32 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
+  Widget _buildBuffIcon(IconData icon, Color color, String fullInfo, double timeLeft) {
+    return GestureDetector(
+      onTap: () {
+        _buffHintTimer?.cancel();
+        setState(() {
+          _activeBuffHint = '$fullInfo (${timeLeft.toStringAsFixed(1)}s)';
+        });
+        _buffHintTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _activeBuffHint = null);
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.6),
+          shape: BoxShape.circle,
+          border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 8, spreadRadius: 1),
+          ],
+        ),
+        child: Icon(icon, color: color, size: 18),
+      ),
+    );
+  }
+
   Widget _buildSpecialDungeonTimer(GameState gameState) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -2870,7 +3046,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           ),
           const SizedBox(width: 6),
           ShadowText(
-            '${gameState.specialDungeonTimeLeft}s',
+            '${gameState.specialDungeonTimeLeft.toStringAsFixed(0)}s',
             fontSize: 16,
             fontWeight: FontWeight.w900,
             color: gameState.specialDungeonTimeLeft <= 10 ? Colors.redAccent : Colors.white,
@@ -3715,6 +3891,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             onPressed: () {
               context.read<GameState>().player.applyOfflineRewards(rewards);
               _saveGameData();
+              context.read<GameState>().refresh();
               Navigator.pop(context);
               _showToast('방치 보상을 획득했습니다!');
             },
@@ -4260,6 +4437,45 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
+
+  // 🆕 [v0.8.39] 지면 연소 효과 오버레이
+  Widget _buildScorchedGroundEffect() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          colors: [
+            Colors.orangeAccent.withValues(alpha: 0.4),
+            Colors.redAccent.withValues(alpha: 0.2),
+            Colors.transparent
+          ],
+          stops: const [0.2, 0.6, 1.0],
+        ),
+      ),
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(5, (i) => _buildFlickeringFlame(i)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFlickeringFlame(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.8, end: 1.2),
+      duration: Duration(milliseconds: 400 + (index * 100)),
+      curve: Curves.easeInOut,
+      builder: (context, scale, child) {
+        return Transform.scale(
+          scale: scale,
+          child: Text('🔥', style: TextStyle(fontSize: 16 + (index % 2 * 4).toDouble(), shadows: [
+            Shadow(color: Colors.orange.withValues(alpha: 0.8), blurRadius: 10)
+          ])),
+        );
+      },
+    );
+  }
+
   String _formatNumber(num n) {
     return BigNumberFormatter.format(n);
   }
@@ -4267,7 +4483,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
 
 enum LootType { gold, exp }
-enum DamageType { normal, critical, skill, heal, gold, exp }
+enum DamageType { normal, critical, skill, heal, gold, exp, shield }
 
 /// 🆕 [v0.5.6] 지능형 전리품 알림 모델
 class LootNotification {
@@ -4369,6 +4585,11 @@ class DamageEntry {
           color = const Color(0xFF60A5FA); 
           fontSize = 17.0; 
           break;
+        case DamageType.shield: // 🆕 보호막 데미지 (하늘색)
+          color = const Color(0xFF22D3EE); 
+          fontSize = 16.0;
+          fontWeight = FontWeight.w600;
+          break;
         default: 
           color = Colors.white; 
           fontSize = 14.0;
@@ -4403,6 +4624,7 @@ class DamageEntry {
       case DamageType.heal: return const Color(0xFF4ADE80);
       case DamageType.gold: return const Color(0xFFFFD700);
       case DamageType.exp: return const Color(0xFF60A5FA);
+      case DamageType.shield: return const Color(0xFF22D3EE);
       default: return Colors.white;
     }
   }
@@ -4493,7 +4715,8 @@ class GainRecord {
   final int gold;
   final int exp;
   final int kills;
-  GainRecord(this.time, {this.gold = 0, this.exp = 0, this.kills = 0});
+  final int damage;
+  GainRecord(this.time, {this.gold = 0, this.exp = 0, this.kills = 0, this.damage = 0});
 }
 
 class GameNotification {

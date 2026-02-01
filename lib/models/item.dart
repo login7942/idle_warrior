@@ -123,8 +123,7 @@ enum OptionEffect {
   addSkillLevel, addFinalDamagePerc, addCdr,
   
   // 특수 효과
-  skillEcho,        // 스킬 연속 발동
-  extraAttack,      // 추가 타격
+  skillEcho,        // 스킬 추가 발동
   gainShield,       // 보호막 생성
   lifesteal,        // 흡혈
   doubleHit,        // 2연타 확률
@@ -161,14 +160,13 @@ extension OptionEffectExtension on OptionEffect {
       case OptionEffect.addSkillLevel: return '모든 스킬 레벨';
       case OptionEffect.addFinalDamagePerc: return '최종 피해량 증폭';
       case OptionEffect.addCdr: return '쿨타임 감소';
-      case OptionEffect.skillEcho: return '스킬 잔향';
-      case OptionEffect.extraAttack: return '추가 타격';
-      case OptionEffect.gainShield: return '보호막 생성';
+      case OptionEffect.skillEcho: return '스킬 추가 발동';
+      case OptionEffect.gainShield: return '공격 시 보호막 생성';
       case OptionEffect.lifesteal: return '흡혈';
       case OptionEffect.doubleHit: return '2연타 확률';
       case OptionEffect.addRegenCap: return '회복 상한치';
       case OptionEffect.recoverOnDamagedPerc: return '피격 시 회복';
-      case OptionEffect.dmgReductionOnSkill: return '스킬 사용 시 감댐';
+      case OptionEffect.dmgReductionOnSkill: return '스킬 사용시 피해감소 확률';
       case OptionEffect.addSpecificSkillCdr: return '특정 스킬 쿨감';
       case OptionEffect.addCritCdr: return '치명타 시 쿨감';
       case OptionEffect.execute: return '처형 확률';
@@ -186,8 +184,6 @@ extension OptionEffectExtension on OptionEffect {
       case OptionEffect.addDef:
       case OptionEffect.addAspd:
       case OptionEffect.addSkillLevel:
-      case OptionEffect.skillEcho:
-      case OptionEffect.addRegenCap:
       case OptionEffect.addCritCdr: // 쿨감 초 단위
         return false;
       default:
@@ -301,15 +297,13 @@ class ItemOption {
         effect == OptionEffect.atkBuffOnZone || effect == OptionEffect.defBuffOnZone) {
       suffix = ' (30초)';
     } else if (effect == OptionEffect.dmgReductionOnSkill) {
-      suffix = ' (5초)';
+      suffix = ' (3초)';
     } else if (effect == OptionEffect.execute) {
       return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (치명타 시 & HP 20% 이하)';
     } else if (effect == OptionEffect.skillEcho) {
       return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (시전 시)';
     } else if (effect == OptionEffect.gainShield) {
       return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (처치 시)';
-    } else if (effect == OptionEffect.extraAttack) {
-      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (적중 시)';
     }
 
     final valStr = effect.isPercentage 
@@ -939,7 +933,6 @@ class Item {
       OptionEffect.addCritCdr,
       OptionEffect.execute,
       OptionEffect.doubleHit,
-      OptionEffect.extraAttack,
       OptionEffect.skillEcho,
       OptionEffect.gainShield,
       OptionEffect.addRegen,
@@ -1012,67 +1005,62 @@ class Item {
         val = minVal + (maxVal - minVal) * roll;
         break;
       case OptionEffect.dmgReductionOnSkill:
-        minVal = 2.0 + (tier * 1.5);
-        maxVal = 5.0 + (tier * 1.5);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
-      case OptionEffect.addSpecificSkillCdr:
-        minVal = 5.0 + (tier * 5.0);
-        maxVal = 15.0 + (tier * 5.0);
-        val = minVal + (maxVal - minVal) * roll;
-        int skillIdx = rand.nextInt(6) + 1;
-        int starsIdx = ((val - minVal) / (maxVal - minVal) * 5).ceil().clamp(1, 5);
-        return ItemOption(trigger: trigger, effect: effect, values: [skillIdx.toDouble(), val], stars: starsIdx, maxValue: maxVal);
-      case OptionEffect.addCritCdr:
-        minVal = 0.1 + (tier * 0.1);
-        maxVal = 0.3 + (tier * 0.1);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
-      case OptionEffect.execute:
-        minVal = 1.0 + (tier * 1.0);
-        maxVal = 3.0 + (tier * 1.0);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
-      case OptionEffect.skillEcho:
-        minVal = 2.0 + (tier * 1.0);
-        maxVal = 4.0 + (tier * 1.0);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
+      minVal = 1.0 + (tier * 0.75);
+      maxVal = 2.5 + (tier * 0.75);
+      val = minVal + (maxVal - minVal) * roll;
+      break;
+    case OptionEffect.addSpecificSkillCdr:
+      minVal = 5.0 + (tier * 5.0);
+      maxVal = 15.0 + (tier * 5.0);
+      val = minVal + (maxVal - minVal) * roll;
+      int skillIdx = rand.nextInt(6) + 1;
+      int starsIdx = ((val - minVal) / (maxVal - minVal) * 5).ceil().clamp(1, 5);
+      return ItemOption(trigger: trigger, effect: effect, values: [skillIdx.toDouble(), val], stars: starsIdx, maxValue: maxVal);
+    case OptionEffect.addCritCdr:
+      minVal = 0.1 + (tier * 0.1);
+      maxVal = 0.3 + (tier * 0.1);
+      val = minVal + (maxVal - minVal) * roll;
+      break;
+    case OptionEffect.execute:
+      minVal = 1.0 + (tier * 1.0);
+      maxVal = 3.0 + (tier * 1.0);
+      val = minVal + (maxVal - minVal) * roll;
+      break;
+    case OptionEffect.skillEcho:
+      minVal = 2.0 + (tier * 1.0);
+      maxVal = 4.0 + (tier * 1.0);
+      val = minVal + (maxVal - minVal) * roll;
+      break;
       case OptionEffect.gainShield:
-        minVal = 2.0 + (tier * 2.0);
-        maxVal = 5.0 + (tier * 2.0);
+        minVal = 1.0 + (tier * 1.0); // 🆕 확률 절반 하향 (2.0+2.0T -> 1.0+1.0T)
+        maxVal = 2.5 + (tier * 1.0); // 🆕 확률 절반 하향 (5.0+2.0T -> 2.5+1.0T)
         val = minVal + (maxVal - minVal) * roll;
         break;
-      case OptionEffect.extraAttack:
-        minVal = 3.0 + (tier * 2.0);
-        maxVal = 7.0 + (tier * 2.0);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
-      case OptionEffect.doubleHit:
-        minVal = 2.0 + (tier * 1.0);
-        maxVal = 4.0 + (tier * 1.0);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
-      case OptionEffect.atkBuffOnKill:
-      case OptionEffect.defBuffOnKill:
-      case OptionEffect.atkBuffOnZone:
-      case OptionEffect.defBuffOnZone:
-        minVal = 5.0 + (tier * 5.0);
-        maxVal = 15.0 + (tier * 5.0);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
-      default:
-        // 골드, 경험치, 아이템 드랍 등 공통 퍼센트 옵션
-        minVal = 2.0 + (tier * 1.5);
-        maxVal = 5.0 + (tier * 1.5);
-        val = minVal + (maxVal - minVal) * roll;
-        break;
-    }
-    
-    int stars = ((val - minVal) / (maxVal - minVal) * 5).ceil().clamp(1, 5);
-    
-    return ItemOption(trigger: trigger, effect: effect, values: [val], stars: stars, maxValue: maxVal);
+    case OptionEffect.doubleHit:
+      minVal = 2.0 + (tier * 1.0);
+      maxVal = 4.0 + (tier * 1.0);
+      val = minVal + (maxVal - minVal) * roll;
+      break;
+    case OptionEffect.atkBuffOnKill:
+    case OptionEffect.defBuffOnKill:
+    case OptionEffect.atkBuffOnZone:
+    case OptionEffect.defBuffOnZone:
+      minVal = 5.0 + (tier * 5.0);
+      maxVal = 15.0 + (tier * 5.0);
+      val = minVal + (maxVal - minVal) * roll;
+      break;
+    default:
+      // 골드, 경험치, 아이템 드랍 등 공통 퍼센트 옵션
+      minVal = 2.0 + (tier * 1.5);
+      maxVal = 5.0 + (tier * 1.5);
+      val = minVal + (maxVal - minVal) * roll;
+      break;
   }
+  
+  int stars = ((val - minVal) / (maxVal - minVal) * 5).ceil().clamp(1, 5);
+  
+  return ItemOption(trigger: trigger, effect: effect, values: [val], stars: stars, maxValue: maxVal);
+}
 
   // 옵션 재설정 (리롤)
   void rerollSubOptions(Random rand) {
@@ -1110,7 +1098,7 @@ class Item {
       switch (effect) {
         case OptionEffect.addSkillLevel: val = 1.0; break;
         case OptionEffect.addRegenCap: val = 3.0; break; // 잠재 특별: 상한 +3%
-        case OptionEffect.dmgReductionOnSkill: val = 15.0; break; // 잠재 특별: 감댐 15%
+        case OptionEffect.dmgReductionOnSkill: val = 7.5; break; // 잠재 특별: 감댐 15% -> 7.5%로 하향
         case OptionEffect.execute: val = 1.0; break; // 잠재 특별: 처형 1%
         default: val = 10.0; // FinalDmg, CDR 등
       }

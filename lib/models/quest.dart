@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 enum QuestType {
   equip,          // 아이템 장착
   learnSkill,     // 스킬 습득/레벨업
+  learnActiveSkill, // 액티브 스킬 습득 🆕
+  learnPassiveSkill, // 패시브 스킬 습득 🆕
   enhanceItem,    // 아이템 개별 강화 도달
   enhanceSlot,    // 슬롯 강화 (개별/누적)
   totalSlotEnhance, // 슬롯 강화 레벨 총합 🆕
@@ -15,7 +17,10 @@ enum QuestType {
   enhanceAttempt,  // 장비 강화 시도 🆕
   reachTowerFloor, // 무한의 탑 층 도달 🆕
   craftItem,      // 아이템 제작 🆕
-  craftTicket,    // 입장권 제작 🆕
+  craftGoldTicket, // 황금의 방 입장권 제작 🆕
+  craftTrialTicket, // 시련의 방 입장권 제작 🆕
+  enterGoldDungeon, // 황금의 방 입장 🆕
+  enterTrialDungeon, // 시련의 방 입장 🆕
   itemPromotion,  // 아이템 승급 🆕
 }
 
@@ -69,19 +74,11 @@ class GuideQuestData {
     ),
     Quest(
       id: 'q3',
-      title: '기술 습득: 스킬 배우기',
-      description: '스킬 탭의 첫 번째 스킬을 배우세요.',
-      type: QuestType.learnSkill,
+      title: '기술 습득: 액티브 스킬',
+      description: '스킬 탭에서 액티브 스킬을 1회 배우거나 강화하세요.',
+      type: QuestType.learnActiveSkill,
       targetValue: 1,
       reward: QuestReward(gold: 50000, stone: 100),
-    ),
-    Quest(
-      id: 'q2',
-      title: '영역 확장: 스테이지 20',
-      description: '스테이지 20을 돌파하여 기지를 넓히세요.',
-      type: QuestType.reachStage,
-      targetValue: 20,
-      reward: QuestReward(gold: 100000, shards: 500),
     ),
     Quest(
       id: 'q11',
@@ -92,11 +89,27 @@ class GuideQuestData {
       reward: QuestReward(gold: 200000, abyssalPowder: 3000),
     ),
     Quest(
+      id: 'q2',
+      title: '영역 확장: 스테이지 10',
+      description: '스테이지 10을 돌파하여 기지를 넓히세요.',
+      type: QuestType.reachStage,
+      targetValue: 10,
+      reward: QuestReward(gold: 100000, shards: 500),
+    ),
+    Quest(
+      id: 'q17',
+      title: '기술 심화: 패시브 스킬',
+      description: '스킬 탭에서 패시브 스킬을 1회 배우거나 강화하세요.',
+      type: QuestType.learnPassiveSkill,
+      targetValue: 1,
+      reward: QuestReward(gold: 300000, stone: 500),
+    ),
+    Quest(
       id: 'q5',
-      title: '성장의 토대: 슬롯 50강',
-      description: '슬롯 강화 총합 50강을 달성하세요.',
+      title: '성장의 토대: 슬롯 10강',
+      description: '슬롯 강화 총합 10강을 달성하세요.',
       type: QuestType.totalSlotEnhance,
-      targetValue: 50,
+      targetValue: 10,
       reward: QuestReward(gold: 500000, shards: 1000),
     ),
     Quest(
@@ -118,9 +131,9 @@ class GuideQuestData {
     Quest(
       id: 'q12',
       title: '장비 연마의 길: 강화 시도',
-      description: '장비 강화를 50회 시도하여 숙련도를 높이세요.',
+      description: '장비 강화를 30회 시도하여 숙련도를 높이세요.',
       type: QuestType.enhanceAttempt,
-      targetValue: 50,
+      targetValue: 30,
       reward: QuestReward(gold: 2000000, stone: 1000),
     ),
     Quest(
@@ -157,11 +170,35 @@ class GuideQuestData {
     ),
     Quest(
       id: 'q14',
-      title: '풍요의 열쇠: 입장권 제작',
+      title: '풍요의 열쇠: 황금 입장권',
       description: '제작 탭에서 황금의 방 입장권을 1회 제작해 보세요.',
-      type: QuestType.craftTicket,
+      type: QuestType.craftGoldTicket,
       targetValue: 1,
       reward: QuestReward(gold: 4500000, cube: 30),
+    ),
+    Quest(
+      id: 'q18',
+      title: '황금의 유혹: 황금의 방',
+      description: '제작한 입장권을 사용하여 황금의 방에 들어가보세요.',
+      type: QuestType.enterGoldDungeon,
+      targetValue: 1,
+      reward: QuestReward(gold: 500000, stone: 500),
+    ),
+    Quest(
+      id: 'q19',
+      title: '시련의 준비: 시련 입장권',
+      description: '제작 탭에서 시련의 방 입장권을 1회 제작해 보세요.',
+      type: QuestType.craftTrialTicket,
+      targetValue: 1,
+      reward: QuestReward(gold: 5000000, cube: 40),
+    ),
+    Quest(
+      id: 'q20',
+      title: '시련의 돌파: 시련의 방',
+      description: '시련의 방에 입장하여 장비 강화 재료를 수급하세요.',
+      type: QuestType.enterTrialDungeon,
+      targetValue: 1,
+      reward: QuestReward(gold: 600000, stone: 1000),
     ),
     Quest(
       id: 'q15',
@@ -169,7 +206,7 @@ class GuideQuestData {
       description: '장비 강화를 통해 아이템 레벨을 +20까지 끌어올리세요.',
       type: QuestType.enhanceItem,
       targetValue: 20,
-      reward: QuestReward(gold: 5000000, protectionStone: 5),
+      reward: QuestReward(gold: 5500000, protectionStone: 5),
     ),
     Quest(
       id: 'q16',

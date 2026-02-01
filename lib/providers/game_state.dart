@@ -125,6 +125,24 @@ class GameState extends ChangeNotifier {
   double goldPerMin = 0;
   double expPerMin = 0;
   double killsPerMin = 0;
+  double dmgPerMin = 0;
+
+  void updateEfficiency(double gold, double exp, double kills, double dmg) {
+    goldPerMin = gold;
+    expPerMin = exp;
+    killsPerMin = kills;
+    dmgPerMin = dmg;
+    notifyListeners();
+  }
+
+  void resetEfficiency() {
+    goldPerMin = 0;
+    expPerMin = 0;
+    killsPerMin = 0;
+    dmgPerMin = 0;
+    notifyListeners();
+  }
+
   int autoDismantleGrade = -1; // -1: 사용안함, 0: 일반, 1: 고급, 2: 희귀, 3: 영웅, 4: 고유, 5: 전설
   int autoDismantleTier = -1;  // -1: 사용안함, 1: T1, 2: T2, 3: T3, 4: T4, 5: T5, 6: T6
   
@@ -164,6 +182,9 @@ class GameState extends ChangeNotifier {
   Timer? _specialDungeonTimer; // 🆕 특별 던전 타이머
   double _specialDungeonTimeLeft = 0; // 🆕 남은 시간 (초)
   double _skillDmgReductionTimeLeft = 0; // 🆕 [v2.0] 스킬 사용 후 피해 감소 남은 시간 (초)
+  double _scorchedGroundTimeLeft = 0; // 🆕 화염구 지면 연소 남은 시간 (초)
+  int _burnDmgPerTick = 0; // 연소 틱당 데미지
+  double _burnAccumulator = 0; // 연소 틱 주기용 누적기
 
   // [v2.0] 신규 버프 타이머 변수들
   double _killAtkBuffTimeLeft = 0.0;
@@ -172,17 +193,26 @@ class GameState extends ChangeNotifier {
   double _zoneDefBuffTimeLeft = 0.0;
 
   // [v2.0] 개별 버프가 활성화되어 있는지 확인하는 게터들
+  bool get isSkillDmgReductionActive => _skillDmgReductionTimeLeft > 0;
   bool get isKillAtkBuffActive => _killAtkBuffTimeLeft > 0;
   bool get isKillDefBuffActive => _killDefBuffTimeLeft > 0;
   bool get isZoneAtkBuffActive => _zoneAtkBuffTimeLeft > 0;
   bool get isZoneDefBuffActive => _zoneDefBuffTimeLeft > 0;
   
+  double get skillDmgReductionTimeLeft => _skillDmgReductionTimeLeft;
+  double get killAtkBuffTimeLeft => _killAtkBuffTimeLeft;
+  double get killDefBuffTimeLeft => _killDefBuffTimeLeft;
+  double get zoneAtkBuffTimeLeft => _zoneAtkBuffTimeLeft;
+  double get zoneDefBuffTimeLeft => _zoneDefBuffTimeLeft;
+
   double get specialDungeonTimeLeft => _specialDungeonTimeLeft;
   bool get isInSpecialDungeon => _specialDungeonTimeLeft > 0;
+  bool get isScorchedGroundActive => _scorchedGroundTimeLeft > 0;
+  double get scorchedGroundTimeLeft => _scorchedGroundTimeLeft;
   
   // --- UI 통신용 콜백 ---
   Function(String text, int damage, bool isCrit, bool isSkill, {double? ox, double? oy, bool shouldAnimate, String? skillIcon, int? combo})? onDamageDealt;
-  Function(int damage)? onPlayerDamageTaken;
+  Function(int damage, {bool isShield})? onPlayerDamageTaken;
   VoidCallback? onMonsterSpawned;
   Function(int gold, int exp)? onVictory;
   Function(int healAmount)? onHeal;
@@ -238,6 +268,15 @@ class GameState extends ChangeNotifier {
       player.gold >= s.upgradeCost && 
       s.level < s.maxLevel
     );
+  }
+
+  // 🆕 [v0.8.36] 보스 광폭화 등에 따른 공격 주기 가변 적용
+  double get monsterAttackInterval {
+    if (currentMonster != null && currentMonster!.isBoss) {
+      double hpPerc = (currentMonster!.hp / currentMonster!.maxHp);
+      if (hpPerc < 0.5) return 1.0; // 보스 체력 50% 미만 시 1.0초로 단축
+    }
+    return 1.5;
   }
 
   // --- 초기화 ---
@@ -541,9 +580,12 @@ class GameState extends ChangeNotifier {
     skill.lastUsed = DateTime.now();
     player.totalSkillsUsed++;
 
-    // [v2.0] 스킬 사용 시 피해 감소 발동 (3초간 지속)
+    // [v2.0] 스킬 사용 시 피해 감소 발동 체크 (수치는 확률(%)로 작동, 고정 20% 감소, 3초 지속)
     if (player.dmgReductionOnSkill > 0) {
-      _skillDmgReductionTimeLeft = 3.0;
+      if (Random().nextDouble() * 100 < player.dmgReductionOnSkill) {
+        _skillDmgReductionTimeLeft = 3.0;
+        addLog('🛡️ 스킬 효과: 피해 감소 버프 활성화! (3초)', LogType.event);
+      }
     }
     
     // 🆕 스킬 사용 시 일반 공격 콤보 초기화
@@ -565,7 +607,7 @@ class GameState extends ChangeNotifier {
     // 잔향 발동 시 타격 횟수 2배
     int totalHits = isEchoed ? baseHits * 2 : baseHits;
     if (isEchoed) {
-      addLog('✨ 스킬 잔향: ${skill.name}이(가) 한 번 더 발동됩니다!', LogType.event);
+      addLog('✨ 스킬 추가 발동: ${skill.name}이(가) 한 번 더 발동됩니다!', LogType.event);
     }
 
     // 몬스터 방어력에 배율 적용 (관리자 설정)
@@ -604,6 +646,23 @@ class GameState extends ChangeNotifier {
         skillIcon: skill.iconEmoji, // 🆕 스킬 아이콘 전달
         combo: 0, // 스킬 사용 시 콤보 초기화
       ));
+    }
+
+    // 🆕 [얼음 화살] 빙결 효과 부여
+    if (skill.id == 'act_3' && currentMonster != null) {
+      currentMonster!.frozenTimeLeft = 3.0; // 3초간 빙결
+      addLog('❄️ 빙결! ${currentMonster!.name}의 행동이 3초간 정지됩니다.', LogType.event);
+      notifyListeners();
+    }
+
+    // 🆕 [화염구] 지면 연소 효과 부여
+    if (skill.id == 'act_4' && currentMonster != null) {
+      _scorchedGroundTimeLeft = 5.0; // 5초간 연소
+      // 초당 데미지: 플레이어 공격력의 약 50% (0.5초당 25%)
+      _burnDmgPerTick = (player.attack * 0.25).toInt();
+      _burnAccumulator = 0;
+      addLog('🔥 지면 연소! 5초간 주변 몬스터에게 화상 피해를 입힙니다.', LogType.event);
+      notifyListeners();
     }
   }
 
@@ -646,24 +705,8 @@ class GameState extends ChangeNotifier {
     _monsterCurrentHp = currentMonster!.hp;
 
     // UI 알림 (Floating Text)
-    String text = isExec ? '💀EXECUTE' : (isDoubleHit ? '${displayDmg} X2' : displayDmg.toString());
+    String text = isExec ? '💀EXECUTE' : (isDoubleHit ? '-${displayDmg} X2' : '-$displayDmg');
     onDamageDealt?.call(text, finalDmg, isCrit, isSkill, ox: ox, oy: oy, shouldAnimate: shouldAnimate, skillIcon: skillIcon, combo: combo);
-
-    // [v2.0] 추가 타격(Extra Attack) 발동 체크
-    if (!isMonsterAtk && player.extraAttackChance > 0) {
-      if (Random().nextDouble() * 100 < player.extraAttackChance) {
-        int extraDmg = (player.attack * 0.3).toInt(); // 공격력의 30% 고정 피해
-        if (extraDmg > 0) {
-          Future.delayed(const Duration(milliseconds: 150), () {
-            if (currentMonster != null && !currentMonster!.isDead) {
-              currentMonster!.hp -= extraDmg;
-              _monsterCurrentHp = currentMonster!.hp;
-              onDamageDealt?.call('+$extraDmg', extraDmg, false, false, ox: -20, oy: -15, skillIcon: '💥');
-            }
-          });
-        }
-      }
-    }
 
     // 흡혈 처리
     if (!isMonsterAtk && player.lifesteal > 0 && playerCurrentHp < player.maxHp) {
@@ -674,6 +717,15 @@ class GameState extends ChangeNotifier {
       }
     }
 
+    // 🆕 [v2.2] 공격 시 보호막 생성 발동 체크
+    if (!isMonsterAtk && player.gainShieldChance > 0) {
+      if (Random().nextDouble() * 100 < player.gainShieldChance) {
+        int shieldAmt = (player.maxHp * 0.05).toInt(); // 🆕 최대 체력의 5% 보호막 생성
+        playerShield = (playerShield + shieldAmt).clamp(0, player.maxHp);
+        onHeal?.call(shieldAmt); 
+      }
+    }
+
     // [세트 효과] 태고의 신 (T6) 4세트: 공격 시 5% 확률 광역 번개 (무한 루프 방지를 위해 스킬/몬스터 공격 아닐때만 발동)
     if (!isMonsterAtk && !isSkill && player.isSetEffectActive('ancient', 4)) {
       if (Random().nextDouble() < 0.05) {
@@ -681,7 +733,10 @@ class GameState extends ChangeNotifier {
         // 번개 데미지는 재귀를 피하기 위해 직접 처리
         currentMonster!.hp -= lightningDmg;
         _monsterCurrentHp = currentMonster!.hp;
-        onDamageDealt?.call('⚡$lightningDmg', lightningDmg, true, true, skillIcon: '⚡');
+        onDamageDealt?.call('⚡-$lightningDmg', lightningDmg, true, true, skillIcon: '⚡');
+        
+        // 🆕 번개 데미지로 사망할 수 있으므로 체크 추가
+        _checkMonsterDeath();
       }
     }
 
@@ -735,17 +790,7 @@ class GameState extends ChangeNotifier {
     player.totalGoldEarned += finalGold;
 
 
-    // [v2.0] 처치 시 보호막(Shield) 생성 발동 체크
-    if (player.gainShieldChance > 0) {
-      if (Random().nextDouble() * 100 < player.gainShieldChance) {
-        int shieldAmt = (player.maxHp * 0.2).toInt(); // 최대 체력의 20% 보호막
-        playerShield = (playerShield + shieldAmt).clamp(0, player.maxHp);
-        onHeal?.call(shieldAmt); // 보호막 획득 연출을 위해 힐 콜백 재활용
-        addLog('🛡️ 처치 효과: 보호막 생성!', LogType.event);
-      }
-    }
-
-    // [v2.0] 처치 시 공격력/방어력 버프 발동
+    // [v2.0] 처치 시 공격력/방어력 버프 발동 (보호막 로직 제거됨)
     if (player.killAtkBonus > 0) {
       player.killAtkBuffEndTime = DateTime.now().add(const Duration(seconds: 30));
     }
@@ -785,7 +830,7 @@ class GameState extends ChangeNotifier {
         saveGameData(forceCloud: true);
       }
 
-      // 🆕 [v0.5.58] 퀘스트 체크: 스테이지 도달
+      // 🆕 [v0.5.58] 퀘스트 체크: 스테이지 도달 (중복 체크 제거: 처치 수 증가는 아래에서 처리)
       checkQuestProgress(QuestType.reachStage, currentStage);
 
 
@@ -823,18 +868,70 @@ class GameState extends ChangeNotifier {
     // 🆕 [v0.5.40] 재료 획득 후 자동 제작 프로세스 실행
     _processAutoCraft();
 
-    // 🆕 [v0.5.58] 퀘스트 체크: 처치 수 또는 스테이지 도달
-    checkQuestProgress(QuestType.reachStage, currentStage);
+    // 🆕 [v0.8.27] 퀘스트 체크: 처치 수 또는 스테이지 도달 (이미 위에서 체크되었을 가능성이 커서 한 번만 수행되도록 최적화)
+    // checkQuestProgress(QuestType.reachStage, currentStage); // 중복 제거
   }
 
 
   void _dropItem() {
+    // 🆕 [v0.8.37] 특별 던전(황금/시련)에서는 장비가 드랍되지 않음
+    if (currentZone.id == ZoneId.goldenRoom || currentZone.id == ZoneId.trialRoom) return;
+    
     final rand = Random();
     double dropChance = currentMonster!.itemDropChance * (player.dropBonus / 100);
     
     if (rand.nextDouble() < dropChance) {
-      // 🆕 [v0.5.37] 장비 드랍 티어 고정 (상위 티어는 승급을 통해 획득)
-      final newItem = Item.generate(player.level, tier: 1); 
+      // 🆕 [v2.2] 사냥터별 다중 티어 드롭 시스템 (가중치 방식)
+      int dropTier = 1;
+      double tierRand = rand.nextDouble() * 100;
+
+      switch (currentZone.id) {
+        case ZoneId.grassland:
+          dropTier = 1; // T1 (100%)
+          break;
+        case ZoneId.forest:
+          if (tierRand < 1.5) dropTier = 2; // T2 (1.5%)
+          else dropTier = 1;
+          break;
+        case ZoneId.mine:
+          if (tierRand < 1.0) dropTier = 3;      // T3 (1.0%)
+          else if (tierRand < 11.0) dropTier = 2; // T2 (10.0%)
+          else dropTier = 1;
+          break;
+        case ZoneId.dungeon:
+          if (tierRand < 0.5) dropTier = 4;       // T4 (0.5%)
+          else if (tierRand < 10.0) dropTier = 3;  // T3 (9.5%)
+          else if (tierRand < 30.0) dropTier = 2; // T2 (20.0%)
+          else dropTier = 1;
+          break;
+        case ZoneId.volcano:
+          if (tierRand < 0.3) dropTier = 5;       // T5 (0.3%)
+          else if (tierRand < 5.0) dropTier = 4;   // T4 (4.7%)
+          else if (tierRand < 20.0) dropTier = 3;  // T3 (15.0%)
+          else if (tierRand < 50.0) dropTier = 2;  // T2 (30.0%)
+          else dropTier = 1;
+          break;
+        case ZoneId.snowfield:
+          if (tierRand < 0.1) dropTier = 6;        // T6 (0.1%)
+          else if (tierRand < 5.0) dropTier = 5;    // T5 (4.9%)
+          else if (tierRand < 15.0) dropTier = 4;   // T4 (10.0%)
+          else if (tierRand < 35.0) dropTier = 3;   // T3 (20.0%)
+          else if (tierRand < 65.0) dropTier = 2;   // T2 (30.0%)
+          else dropTier = 1;
+          break;
+        case ZoneId.abyss:
+          if (tierRand < 1.0) dropTier = 6;        // T6 (1.0%)
+          else if (tierRand < 15.0) dropTier = 5;   // T5 (14.0%)
+          else if (tierRand < 35.0) dropTier = 4;   // T4 (20.0%)
+          else if (tierRand < 60.0) dropTier = 3;   // T3 (25.0%)
+          else if (tierRand < 80.0) dropTier = 2;   // T2 (20.0%)
+          else dropTier = 1;
+          break;
+        default:
+          dropTier = 1;
+      }
+
+      final newItem = Item.generate(player.level, tier: dropTier); 
       
       // [자동 분해 체크] - 계층적 판별 적용 (사용자 설정 티어 이하 & 등급 이하)
       bool shouldAutoDismantle = autoDismantleGrade != -1 && autoDismantleTier != -1 &&
@@ -865,6 +962,9 @@ class GameState extends ChangeNotifier {
   }
 
   void _dropMaterials(int monsterLevel) {
+    // 🆕 [v0.8.37] 황금의 방에서는 재료가 드랍되지 않음
+    if (currentZone.id == ZoneId.goldenRoom) return;
+
     final rand = Random();
     
     // [v0.3.6] 적정 강화 구간 보너스: 강화 재료 드랍율 +40%
@@ -912,48 +1012,7 @@ class GameState extends ChangeNotifier {
       onLootAcquired?.call('🔮', '잠재력 큐브', ItemGrade.mythic, amount: 1);
     }
 
-    // --- [v0.3.8] 티어 재료 해금 + 지역 연동 드랍 시스템 ---
-    _handleTierMaterialDrop(rand, isOptimalZone);
-  }
-
-  void _handleTierMaterialDrop(Random rand, bool isOptimal) {
-    if (currentMonster == null) return;
-
-    // 1. 현재 지역에서 드랍 가능한 잠정 티어 리스트 정리
-    List<int> possibleTiers = [];
-    switch (currentZone.id) {
-      case ZoneId.forest: possibleTiers = [2]; break;
-      case ZoneId.mine: possibleTiers = [2, 3]; break;
-      case ZoneId.dungeon: possibleTiers = [3, 4]; break;
-      case ZoneId.volcano: possibleTiers = [4, 5]; break;
-      case ZoneId.snowfield: possibleTiers = [5, 6]; break;
-      case ZoneId.abyss: possibleTiers = [6]; break;
-      default: break;
-    }
-
-    if (possibleTiers.isEmpty) return;
-
-    // 2. 플레이어의 총 슬롯 강화 레벨 합계에 따른 해금 여부 체크
-    int totalLv = player.totalSlotEnhanceLevel;
-    Map<int, int> unlockLevels = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
-
-    for (int tier in possibleTiers) {
-      int unlockLv = unlockLevels[tier] ?? 999999;
-      if (totalLv < unlockLv) continue; // 해금 안됨
-
-      // 3. 드랍 확률 계산 (일반 2~4%, 보스 15~25%)
-      bool isBoss = currentStage % 50 == 0;
-      double baseProb = isBoss ? (0.15 + rand.nextDouble() * 0.1) : (0.02 + rand.nextDouble() * 0.02);
-      
-      // 적정 강화 구간 보너스 (x1.5배)
-      if (isOptimal) baseProb *= 1.5;
-
-      if (rand.nextDouble() < baseProb) {
-        player.abyssalPowder += 1;
-        addLog('★ [파이널] $tier티어 핵심 재료 [심연의 가루] 획득!', LogType.event);
-        onLootAcquired?.call('✨', '심연의 가루', ItemGrade.unique, amount: 1);
-      }
-    }
+    // --- [v0.3.8] 티어 재료 해금 + 지역 연동 드랍 시스템 --- (드랍 시스템 개편으로 제거)
   }
 
   void addLog(String message, LogType type) {
@@ -981,33 +1040,67 @@ class GameState extends ChangeNotifier {
   void monsterPerformAttack() {
     if (currentMonster == null || isProcessingVictory) return;
     
+    // 🆕 빙결 상태 체크: 빙결 중이면 공격 스킵
+    if (currentMonster!.isFrozen) {
+      // addLog('❄️ ${currentMonster!.name}이(가) 얼어붙어 공격하지 못합니다.', LogType.event);
+      return;
+    }
     double mVariance = 0.9 + (Random().nextDouble() * 0.2);
     double pDefenseRating = 100 / (100 + player.defense);
     double rawMDmg = (currentMonster!.attack * pDefenseRating) * mVariance;
     
-    // [v2.0] 스킬 사용 후 피해 감소 적용
-    if (_skillDmgReductionTimeLeft > 0) {
-      rawMDmg *= (1.0 - player.dmgReductionOnSkill / 100);
+    // 🆕 보스 광폭화: 공격력 1.2배 증가
+    if (currentMonster!.isBoss && (currentMonster!.hp / currentMonster!.maxHp) < 0.5) {
+      rawMDmg *= 1.2;
     }
 
-    // 🆕 [v0.8.18] 최소 데미지 하한선 조정 (20% -> 10%: 방어 효율 상향)
-    int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.1 * mVariance).toInt()).clamp(1, 999999999);
+    // [v2.0] 스킬 사용 후 피해 감소 적용 (고정 20% 감소)
+    if (_skillDmgReductionTimeLeft > 0) {
+      double drBonus = 20.0; // 고정 20% 감소
+      // 🆕 보스 특수 능력 [파쇄]: 피해 감소 효율 50% 무시
+      if (currentMonster?.trait == BossTrait.crush) {
+        drBonus *= 0.5;
+      }
+      rawMDmg *= (1.0 - drBonus / 100);
+    }
+
+    // 🆕 [v0.8.18] 최소 데미지 하한선 조정 (10% -> 15%: 방어 무적 방지)
+    int mDmg = max(rawMDmg.toInt(), (currentMonster!.attack * 0.15 * mVariance).toInt()).clamp(1, 999999999);
 
     // [v2.0] 보호막(Shield) 우선 소모 로직
     int damageToHp = mDmg;
     if (playerShield > 0) {
-      if (playerShield >= mDmg) {
-        playerShield -= mDmg;
-        damageToHp = 0;
+      // 🆕 보스 특수 능력 [파쇄]: 보호막 50% 관통 (절반의 데미지는 항상 HP로 전달)
+      if (currentMonster?.trait == BossTrait.crush) {
+        int pierceDmg = (mDmg * 0.5).toInt();
+        damageToHp = pierceDmg;
+        int remainingDmg = mDmg - pierceDmg;
+        
+        if (playerShield >= remainingDmg) {
+          playerShield -= remainingDmg;
+        } else {
+          damageToHp += (remainingDmg - playerShield);
+          playerShield = 0;
+        }
       } else {
-        damageToHp -= playerShield;
-        playerShield = 0;
+        if (playerShield >= mDmg) {
+          playerShield -= mDmg;
+          damageToHp = 0;
+        } else {
+          damageToHp -= playerShield;
+          playerShield = 0;
+        }
       }
     }
 
-    if (damageToHp > 0) {
-      playerCurrentHp -= damageToHp;
-      onPlayerDamageTaken?.call(damageToHp);
+    if (mDmg > 0) {
+      if (damageToHp > 0) {
+        playerCurrentHp -= damageToHp;
+        onPlayerDamageTaken?.call(damageToHp, isShield: false);
+      } else {
+        // 🆕 보호막이 모든 피해를 흡수한 경우에도 데미지 표시
+        onPlayerDamageTaken?.call(mDmg, isShield: true);
+      }
     }
     
     // 🆕 무투회 NPC 특수 능력: 흡혈 (Lifesteal)
@@ -1035,10 +1128,23 @@ class GameState extends ChangeNotifier {
 
     // [v2.0] 피격 데미지 비례 즉시 회복
     if (player.recoverOnDamagedPerc > 0) {
-      int healAmt = (mDmg * player.recoverOnDamagedPerc / 100).toInt();
+      double recPerc = player.recoverOnDamagedPerc;
+      // 🆕 보스 특수 능력 [오염]: 피격 회복 효율 50% 감소
+      if (currentMonster?.trait == BossTrait.corrupt) {
+        recPerc *= 0.5;
+      }
+      int healAmt = (mDmg * recPerc / 100).toInt();
       if (healAmt > 0) {
         _playerCurrentHp = (_playerCurrentHp + healAmt).clamp(0, player.maxHp);
         onHeal?.call(healAmt);
+      }
+    }
+
+    // 🆕 보스 특수 능력 [침식]: 피격 시 모든 스킬 쿨타임 0.3초 증가
+    if (currentMonster?.trait == BossTrait.erode && mDmg > 0) {
+      _increaseAllSkillCooldowns(0.3);
+      if (Random().nextDouble() < 0.3) {
+        addLog('⏳ [침식] 보스의 공격으로 스킬 쿨타임이 늘어납니다!', LogType.event);
       }
     }
 
@@ -1203,49 +1309,37 @@ class GameState extends ChangeNotifier {
     int failCount = player.slotEnhanceFailCounts[type] ?? 0;
     int streakCount = player.slotEnhanceStreakCounts[type] ?? 0;
 
-    // 1. 비용 계산 (3000 레벨 대응 곡선: 지수 함수보다 완만한 거듭제곱 사용)
-    int goldCost = (5000 + pow(currentLevel, 1.8) * 50).toInt();
-    int stoneCost = 1 + (currentLevel ~/ 50);
+    // 1. 비용 계산 (1/10 압축 반영: 10단계 분량의 비용 합산 개념)
+    int goldCost = (20000 + pow(currentLevel * 10, 1.9) * 100).toInt();
+    int stoneCost = 5 + (currentLevel ~/ 5);
 
-    // [마일스톤] 1200 도달 시 강화 비용 -10%
-    bool costMilestone = player.slotEnhanceLevels.values.any((v) => v >= 1200);
+    // [마일스톤] 120 도달 시 강화 비용 -10%
+    bool costMilestone = player.slotEnhanceLevels.values.any((v) => v >= 120);
     if (costMilestone) goldCost = (goldCost * 0.9).toInt();
 
-    // 2. 기본 확률 테이블 (사용자 제안 5단계 구조 상세화)
+    // 2. 압축된 확률 테이블 (0~300 레벨 범위)
     double baseChance = 1.0;
-    if (currentLevel < 50) {
+    if (currentLevel < 5) {
       baseChance = 1.0;
-    } else if (currentLevel < 100) {
-      baseChance = 0.9;
-    } else if (currentLevel < 150) {
+    } else if (currentLevel < 10) {
       baseChance = 0.8;
-    } else if (currentLevel < 200) {
-      baseChance = 0.65;
-    } else if (currentLevel < 250) {
-      baseChance = 0.55;
-    } else if (currentLevel < 300) {
-      baseChance = 0.45;
-    } else if (currentLevel < 400) {
-      baseChance = 0.35;
-    } else if (currentLevel < 500) {
-      baseChance = 0.28;
-    } else if (currentLevel < 600) {
-      baseChance = 0.22;
-    } else if (currentLevel < 700) {
-      baseChance = 0.18;
-    } else if (currentLevel < 800) {
+    } else if (currentLevel < 20) {
+      baseChance = 0.5;
+    } else if (currentLevel < 30) {
+      baseChance = 0.3;
+    } else if (currentLevel < 40) {
+      baseChance = 0.2;
+    } else if (currentLevel < 60) {
       baseChance = 0.15;
-    } else if (currentLevel < 1000) {
+    } else if (currentLevel < 80) {
       baseChance = 0.12;
-    } else if (currentLevel < 1200) {
+    } else if (currentLevel < 100) {
       baseChance = 0.10;
-    } else if (currentLevel < 1500) {
+    } else if (currentLevel < 150) {
       baseChance = 0.08;
-    } else if (currentLevel < 1800) {
+    } else if (currentLevel < 200) {
       baseChance = 0.06;
-    } else if (currentLevel < 2200) {
-      baseChance = 0.05;
-    } else if (currentLevel < 2600) {
+    } else if (currentLevel < 250) {
       baseChance = 0.04;
     } else {
       baseChance = 0.03;
@@ -1259,11 +1353,11 @@ class GameState extends ChangeNotifier {
 
     double finalChance = baseChance + bonusChance;
 
-    // [소프트 천장] 실패 20회 누적 시 다음 강화 성공 확률 2배
-    if (failCount >= 20) finalChance *= 2.0;
+    // [소프트 천장] 실패 5회 누적 시 다음 강화 성공 확률 2배
+    if (failCount >= 5) finalChance *= 2.0;
     
-    // [하드 천장] 실패 50회 누적 시 100% 성공
-    bool isGuaranteed = failCount >= 50;
+    // [하드 천장] 실패 10회 누적 시 100% 성공
+    bool isGuaranteed = failCount >= 10;
     if (isGuaranteed) finalChance = 1.0;
 
     return {
@@ -1275,9 +1369,9 @@ class GameState extends ChangeNotifier {
       'bonusChance': bonusChance,
       'failCount': failCount,
       'streakCount': streakCount,
-      'isMax': currentLevel >= 3000,
+      'isMax': currentLevel >= 300,
       'isGuaranteed': isGuaranteed,
-      'hasPity': failCount >= 20,
+      'hasPity': failCount >= 5,
       'hasStreakBonus': streakCount >= 3,
     };
   }
@@ -1352,20 +1446,20 @@ class GameState extends ChangeNotifier {
   void _checkFeatureUnlockMilestones() {
     int totalSlotLv = player.totalSlotEnhanceLevel;
     
-    // 1. 아이템 강화 해금 (50)
-    if (totalSlotLv >= 50 && !player.notifiedMilestones.contains(50)) {
-      player.notifiedMilestones.add(50);
-      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 50 달성! 아이템 강화 기능이 해금되었습니다.');
+    // 1. 아이템 강화 해금 (5)
+    if (totalSlotLv >= 5 && !player.notifiedMilestones.contains(5)) {
+      player.notifiedMilestones.add(5);
+      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 5 달성! 아이템 강화 기능이 해금되었습니다.');
     }
-    // 2. 옵션 재설정 해금 (300)
-    if (totalSlotLv >= 300 && !player.notifiedMilestones.contains(300)) {
-      player.notifiedMilestones.add(300);
-      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 300 달성! 옵션 재설정 기능이 해금되었습니다.');
+    // 2. 옵션 재설정 해금 (30)
+    if (totalSlotLv >= 30 && !player.notifiedMilestones.contains(30)) {
+      player.notifiedMilestones.add(30);
+      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 30 달성! 옵션 재설정 기능이 해금되었습니다.');
     }
-    // 3. 잠재능력 각성 해금 (1000)
-    if (totalSlotLv >= 1000 && !player.notifiedMilestones.contains(1000)) {
-      player.notifiedMilestones.add(1000);
-      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 1000 달성! 잠재능력 각성 기능이 해금되었습니다.');
+    // 3. 잠재능력 각성 해금 (100)
+    if (totalSlotLv >= 100 && !player.notifiedMilestones.contains(100)) {
+      player.notifiedMilestones.add(100);
+      onSpecialEvent?.call('기능 해금!', '슬롯 강화 총합 100 달성! 잠재능력 각성 기능이 해금되었습니다.');
     }
     
     saveGameData();
@@ -1511,18 +1605,18 @@ class GameState extends ChangeNotifier {
       Pet selected;
       int subIdx = Random().nextInt(5);
 
-      if (rand < 0.05) {
-        selected = allPets[25 + subIdx];
-      } else if (rand < 0.5) {
-        selected = allPets[20 + subIdx];
-      } else if (rand < 3.0) {
-        selected = allPets[15 + subIdx];
-      } else if (rand < 10.0) {
-        selected = allPets[10 + subIdx];
-      } else if (rand < 40.0) {
-        selected = allPets[5 + subIdx];
+      if (rand < 0.02) {
+        selected = allPets[25 + subIdx]; // 신화 (0.02%)
+      } else if (rand < 0.2) {
+        selected = allPets[20 + subIdx]; // 전설 (0.18%)
+      } else if (rand < 2.0) {
+        selected = allPets[15 + subIdx]; // 영웅 (1.8%)
+      } else if (rand < 5.0) {
+        selected = allPets[10 + subIdx]; // 희귀 (3.0%)
+      } else if (rand < 20.0) {
+        selected = allPets[5 + subIdx];  // 고급 (15.0%)
       } else {
-        selected = allPets[0 + subIdx];
+        selected = allPets[0 + subIdx];  // 일반 (80.0%)
       }
 
       if (!player.pets.any((p) => p.id == selected.id)) {
@@ -1548,8 +1642,13 @@ class GameState extends ChangeNotifier {
     skill.level++;
     addLog('[스킬] ${skill.name} ${skill.level}레벨 달성!', LogType.event);
 
-    // 🆕 [v0.5.58] 퀘스트 체크: 스킬 레벨업
+    // 🆕 [v0.8.37] 퀘스트 체크: 스킬 레벨업 (타입별 분기)
     checkQuestProgress(QuestType.learnSkill, skill.level);
+    if (skill.type == SkillType.active) {
+      checkQuestProgress(QuestType.learnActiveSkill, skill.level);
+    } else {
+      checkQuestProgress(QuestType.learnPassiveSkill, skill.level);
+    }
 
     saveGameData(); // 스킬 업글 후 저장
     notifyListeners();
@@ -1659,9 +1758,9 @@ class GameState extends ChangeNotifier {
       leveledUp = true;
     }
     if (leveledUp) {
-      addLog('⚒️ 제작 숙련도가 상승했습니다! (현재 Lv.${player.craftingMasteryLevel})', LogType.event);
       onSpecialEvent?.call('제작 숙련도 상승', 'Lv.${player.craftingMasteryLevel} 달성!');
     }
+    notifyListeners();
   }
 
   // 🆕 [v0.7.0] 공통 제작 로직 (수동/자동 공용)
@@ -1694,6 +1793,8 @@ class GameState extends ChangeNotifier {
     // 3. 숙련도 획득 (티어 * 10)
     gainCraftingMasteryExp(tier * 10);
     
+    saveGameData();
+    notifyListeners();
     return newItem;
   }
 
@@ -1710,11 +1811,13 @@ class GameState extends ChangeNotifier {
     if (type == 'gold') {
       player.goldDungeonTicket++;
       addLog('🎫 황금의 방 입장권을 제작했습니다.', LogType.item);
-      // 🆕 [v0.8.21] 퀘스트 체크: 입장권 제작
-      checkQuestProgress(QuestType.craftTicket, 1);
+      // 🆕 [v0.8.37] 퀘스트 체크: 황금의 방 입장권 제작
+      checkQuestProgress(QuestType.craftGoldTicket, 1);
     } else {
       player.trialDungeonTicket++;
       addLog('🎫 시련의 방 입장권을 제작했습니다.', LogType.item);
+      // 🆕 [v0.8.37] 퀘스트 체크: 시련의 방 입장권 제작
+      checkQuestProgress(QuestType.craftTrialTicket, 1);
     }
     
     gainCraftingMasteryExp(50);
@@ -1816,6 +1919,14 @@ class GameState extends ChangeNotifier {
     _specialDungeonTimeLeft = 60.0; // 60초 제한
     
     addLog('[던전 진입] ${currentZone.name}에 진입했습니다! (제한시간 60초)', LogType.event);
+    
+    // 🆕 [v0.8.37] 퀘스트 체크: 특별 던전 입장 (황금/시련 구분)
+    if (zoneId == ZoneId.goldenRoom) {
+      checkQuestProgress(QuestType.enterGoldDungeon, 1);
+    } else if (zoneId == ZoneId.trialRoom) {
+      checkQuestProgress(QuestType.enterTrialDungeon, 1);
+    }
+    
     notifyListeners();
   }
 
@@ -1887,23 +1998,71 @@ class GameState extends ChangeNotifier {
   /// 특정 사냥터의 탐사 보상을 수령합니다.
   Map<String, int> claimExpeditionRewards(ZoneId zoneId) {
     final zoneKey = zoneId.name;
-    final rewards = calculateZoneExpeditionReward(zoneId);
-    if (rewards.isEmpty) return {};
+    final baseRewards = calculateZoneExpeditionReward(zoneId);
+    if (baseRewards.isEmpty) return {};
+
+    final rand = Random();
+    Map<String, int> actualRewards = Map.from(baseRewards);
+    int minutes = baseRewards['minutes'] ?? 0;
+    
+    // 1. 대성공 체크 (Great Success)
+    double greatSuccessChance = 5.0; // 기본 5%
+    final petIds = player.zoneExpeditions[zoneKey] ?? [];
+    for (var pid in petIds) {
+      if (pid == null) continue;
+      try {
+        final pet = player.pets.firstWhere((p) => p.id == pid);
+        if (pet.grade == ItemGrade.unique) greatSuccessChance += 2.0;
+        if (pet.grade == ItemGrade.legendary) greatSuccessChance += 5.0;
+        if (pet.grade == ItemGrade.mythic) greatSuccessChance += 10.0;
+      } catch (_) {}
+    }
+
+    bool islandGreatSuccess = rand.nextDouble() * 100 < greatSuccessChance;
+    if (islandGreatSuccess) {
+      actualRewards['gold'] = (actualRewards['gold']! * 2.0).toInt();
+      actualRewards['shards'] = (actualRewards['shards']! * 2.0).toInt();
+      actualRewards['abyssalPowder'] = (actualRewards['abyssalPowder']! * 2.0).toInt();
+      actualRewards['stone'] = (actualRewards['stone']! * 2.0).toInt();
+    }
+
+    // 2. 희귀 전리품 발견 (Rare Finds - 60분당 1회 주사위)
+    int rolls = (minutes / 60).floor();
+    double rareChanceMult = (zoneId == ZoneId.snowfield || zoneId == ZoneId.abyss) ? 2.0 : 1.0;
+    
+    int rerollGained = 0;
+    int protectionGained = 0;
+    int cubeGained = 0;
+
+    for (int i = 0; i < rolls; i++) {
+      double r = rand.nextDouble() * 100;
+      if (r < 2.0 * rareChanceMult) rerollGained++;
+      if (r < 0.5 * rareChanceMult) protectionGained++;
+      if (r < 0.1 * rareChanceMult) cubeGained++;
+    }
 
     // 보상 적용
-    player.gold += rewards['gold'] ?? 0;
-    player.shards += rewards['shards'] ?? 0;
-    player.abyssalPowder += rewards['abyssalPowder'] ?? 0;
-    player.enhancementStone += rewards['stone'] ?? 0;
+    player.gold += actualRewards['gold'] ?? 0;
+    player.shards += actualRewards['shards'] ?? 0;
+    player.abyssalPowder += actualRewards['abyssalPowder'] ?? 0;
+    player.enhancementStone += actualRewards['stone'] ?? 0;
+    player.rerollStone += rerollGained;
+    player.protectionStone += protectionGained;
+    player.cube += cubeGained;
 
     // 마지막 수령 시간 갱신
     player.zoneLastClaimedAt[zoneKey] = DateTime.now().toIso8601String();
 
-    addLog('[탐사] ${HuntingZoneData.list.firstWhere((z) => z.id == zoneId).name} 정찰 보상을 수령했습니다.', LogType.event);
+    String successTxt = islandGreatSuccess ? ' [★대성공★]' : '';
+    addLog('[탐사]$successTxt ${HuntingZoneData.list.firstWhere((z) => z.id == zoneId).name} 보상 수령!', LogType.event);
+    
+    if (rerollGained > 0 || protectionGained > 0 || cubeGained > 0) {
+      addLog('✨ 희귀 전리품 발견! (재설정석:$rerollGained, 보호석:$protectionGained, 큐브:$cubeGained)', LogType.item);
+    }
     
     saveGameData();
     notifyListeners();
-    return rewards;
+    return actualRewards;
   }
 
   /// UI 표시 및 정산용 보상 계산 로직
@@ -1936,14 +2095,28 @@ class GameState extends ChangeNotifier {
 
     if (totalEfficiency <= 0) return {};
 
-    // 보상식: (시간 * 티어 계수 * 효율 총합)
-  // 밸런스: 티어 1 기준 1분당 약 120골드 (v0.8.14 20% 상향) * 효율
-  double baseGoldPerMin = 120.0 * tier;
-    double baseShardPerMin = 0.5 * tier;
+    double goldMult = 1.0;
+    double shardMult = 1.0;
+    double powderMult = 1.0;
+    double stoneMult = 1.0;
+
+    switch (zone.id) {
+      case ZoneId.grassland:
+      case ZoneId.forest: goldMult = 1.5; break;
+      case ZoneId.mine: stoneMult = 1.5; break;
+      case ZoneId.dungeon: powderMult = 1.5; break;
+      case ZoneId.volcano: shardMult = 1.5; break;
+      default: break;
+    }
+
+    double baseGoldPerMin = 120.0 * tier * goldMult;
+    double baseShardPerMin = 0.5 * tier * shardMult;
+    double basePowderPerMin = 0.2 * tier * powderMult;
+    double baseStonePerMin = 0.05 * tier * stoneMult;
     
     int gold = (minutes * baseGoldPerMin * totalEfficiency).toInt();
     int shards = (minutes * baseShardPerMin * totalEfficiency).toInt();
-    int powderReward = (minutes * 0.2 * tier * totalEfficiency).toInt();
+    int powderReward = (minutes * basePowderPerMin * totalEfficiency).toInt();
     int coreReward = (killsPerMin > 0 && tier >= 2) ? (minutes * 0.1 * totalEfficiency).toInt() : 0;
     int stone = (minutes * 0.05 * tier * totalEfficiency).toInt();
 
@@ -1981,6 +2154,36 @@ class GameState extends ChangeNotifier {
         onSpecialDungeonEnd?.call();
       }
     }
+    
+    // 🆕 몬스터 빙결 타이머 업데이트
+    if (currentMonster != null && currentMonster!.frozenTimeLeft > 0) {
+      currentMonster!.frozenTimeLeft = max(0.0, currentMonster!.frozenTimeLeft - dt);
+      if (currentMonster!.frozenTimeLeft <= 0) {
+        notifyListeners(); // 빙결 해제 알림
+      }
+    }
+
+    // 🆕 지면 연소 타이머 및 DOT 처리
+    if (_scorchedGroundTimeLeft > 0) {
+      _scorchedGroundTimeLeft = max(0.0, _scorchedGroundTimeLeft - dt);
+      _burnAccumulator += dt;
+      if (_burnAccumulator >= 0.5) { // 0.5초마다 틱 발생
+        _burnAccumulator = 0;
+        if (currentMonster != null && !currentMonster!.isDead) {
+          // 연소 데미지는 방어력을 무시할 수도 있지만, 우선은 고정 데미지로 처리
+          int dmg = _burnDmgPerTick;
+          currentMonster!.hp -= dmg;
+          _monsterCurrentHp = currentMonster!.hp;
+          onDamageDealt?.call('🔥$dmg', dmg, false, true, oy: -15, shouldAnimate: true);
+          if (currentMonster!.hp <= 0) {
+            handleVictory(null);
+          }
+        }
+      }
+      if (_scorchedGroundTimeLeft <= 0) {
+        notifyListeners(); // 연소 종료 알림
+      }
+    }
   }
 
   // [v2.0] 모든 액티브 스킬의 쿨타임을 초 단위(seconds)로 감축
@@ -1990,6 +2193,16 @@ class GameState extends ChangeNotifier {
       if (s.type == SkillType.active && s.lastUsed != null) {
         // lastUsed를 과거로 밀어내어 쿨타임이 더 빨리 차게 함
         s.lastUsed = s.lastUsed!.subtract(Duration(milliseconds: (seconds * 1000).toInt()));
+      }
+    }
+  }
+
+  void _increaseAllSkillCooldowns(double seconds) {
+    if (seconds <= 0) return;
+    for (var s in player.skills) {
+      if (s.type == SkillType.active && s.lastUsed != null) {
+        // lastUsed를 미래로 밀어내어 쿨타임 소모를 지연시킴
+        s.lastUsed = s.lastUsed!.add(Duration(milliseconds: (seconds * 1000).toInt()));
       }
     }
   }

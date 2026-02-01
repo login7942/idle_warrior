@@ -58,27 +58,33 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
               Row(
                 children: [
                   Expanded(child: _buildStatCard('공격', Icons.flash_on, Colors.redAccent, [
-                    _buildStatRow('ATK', player.attack.toString()),
-                    _buildStatRow('SPD', player.attackSpeed.toStringAsFixed(2)),
-                    _buildStatRow('CRIT', '${player.critChance.toStringAsFixed(1)}%'),
-                    _buildStatRow('C.DMG', '${player.critDamage.toInt()}%'),
+                    _buildStatRow('공격력', player.attack.toString()),
+                    _buildStatRow('공격 속도', player.attackSpeed.toStringAsFixed(2)),
+                    _buildStatRow('치명타 확률', '${player.critChance.toStringAsFixed(1)}%'),
+                    _buildStatRow('치명타 피해', '${player.critDamage.toInt()}%'),
                   ])),
                   const SizedBox(width: 10),
                   Expanded(child: _buildStatCard('생존', Icons.shield, Colors.blueAccent, [
-                    _buildStatRow('HP', player.maxHp.toString()),
-                    _buildStatRow('DEF', player.defense.toString()),
-                    _buildStatRow('REGEN', '${player.hpRegen.toStringAsFixed(1)}%'),
+                    _buildStatRow('최대 체력', player.maxHp.toString()),
+                    _buildStatRow('방어력', player.defense.toString()),
+                    _buildStatRow('초당 회복', '${player.hpRegen.toStringAsFixed(1)}%'),
+                    _buildStatRow('회복 상한', '${player.hpRegenCap.toStringAsFixed(1)}%'),
                   ])),
                   const SizedBox(width: 10),
                   Expanded(child: _buildStatCard('성장', Icons.trending_up, Colors.lightBlueAccent, [
-                    _buildStatRow('GOLD', '${player.goldBonus.toInt()}%'),
-                    _buildStatRow('DROP', '${player.dropBonus.toInt()}%'),
-                    _buildStatRow('OFF', '${player.offEfficiency}x'),
+                    _buildStatRow('골드 획득', '+${(player.goldBonus - 100).toInt()}%'),
+                    _buildStatRow('경험치 획득', '+${(player.expBonus - 100).toInt()}%'),
+                    _buildStatRow('아이템 드롭', '+${(player.dropBonus - 100).toInt()}%'),
+                    _buildStatRow('오프라인 효율', '${player.offEfficiency}x'),
                   ])),
                 ],
               ),
               const SizedBox(height: 20),
               
+              // 🆕 상세 능력치 섹션 (전투/생존 특수 옵션)
+              _buildDetailedStats(player),
+              const SizedBox(height: 20),
+
               // 자산 및 재료 요약
               _buildAssetSummary(player),
               const SizedBox(height: 20),
@@ -86,7 +92,6 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
               // 🆕 세트 효과 요약
               _buildSetEffectSummary(player),
 
-              
               const SizedBox(height: 120), // 하단 독 여백
             ],
           ),
@@ -271,14 +276,92 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('COMBAT READINESS', style: TextStyle(color: Colors.blueAccent.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+              Text('전투 준비 태세', style: TextStyle(color: Colors.blueAccent.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
               const SizedBox(height: 2),
-              const ShadowText('OVERPOWERING', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              const ShadowText('압도적인 무력', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
             ],
           ),
           ShadowText('${player.combatPower}', fontSize: 32, fontWeight: FontWeight.w900, color: Colors.orangeAccent),
         ],
       ),
+    );
+  }
+
+  Widget _buildDetailedStats(Player player) {
+    return GlassContainer(
+      padding: const EdgeInsets.all(20),
+      borderRadius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.analytics_outlined, size: 18, color: Colors.cyanAccent), 
+              const SizedBox(width: 10), 
+              ShadowText('상세 옵션 및 버프 정보', fontSize: 16, fontWeight: FontWeight.bold)
+            ]
+          ),
+          const SizedBox(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. 전투 상세
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSubTitle('⚔️ 전투 특화'),
+                    _buildStatRow('2연타 확률', '${player.doubleHitChance.toStringAsFixed(1)}%'),
+                    _buildStatRow('스킬 추가 발동', '${player.skillEchoChance.toStringAsFixed(1)}%'),
+                    _buildStatRow('처형 확률', '${player.executeChance.toStringAsFixed(1)}%'),
+                    _buildStatRow('쿨타임 감소', '${player.cdr.toStringAsFixed(1)}%'),
+                    _buildStatRow('치명타 시 쿨감', '${player.critCdrAmount.toStringAsFixed(1)}s'),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 20),
+              // 2. 생존 상세
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSubTitle('🛡️ 생존 특화'),
+                    _buildStatRow('피격 시 회복', '${player.recoverOnDamagedPerc.toStringAsFixed(1)}%'),
+                    _buildStatRow('스킬 시 감댐', '${player.dmgReductionOnSkill.toStringAsFixed(1)}%'),
+                    _buildStatRow('보호막 확률', '${player.gainShieldChance.toStringAsFixed(1)}%'),
+                    _buildStatRow('모든 피해 흡혈', '${player.lifesteal.toStringAsFixed(1)}%'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white10),
+          const SizedBox(height: 10),
+          _buildSubTitle('🔥 아이템 옵션 버프 잠재치 (최대 보너스)'),
+          Row(
+            children: [
+              Expanded(child: _buildStatRow('처치 시 공증', '+${player.killAtkBonus.toStringAsFixed(1)}%')),
+              const SizedBox(width: 20),
+              Expanded(child: _buildStatRow('처치 시 방증', '+${player.killDefBonus.toStringAsFixed(1)}%')),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(child: _buildStatRow('지역 이동 공증', '+${player.zoneAtkBonus.toStringAsFixed(1)}%')),
+              const SizedBox(width: 20),
+              Expanded(child: _buildStatRow('지역 이동 방증', '+${player.zoneDefBonus.toStringAsFixed(1)}%')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(title, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 

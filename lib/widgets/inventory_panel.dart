@@ -553,11 +553,11 @@ class _InventoryPanelState extends State<InventoryPanel> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildMilestoneDot(level, 1000, "효과+20%"),
-                      _buildMilestoneLine(level, 1000, 1200),
-                      _buildMilestoneDot(level, 1200, "비용-10%"),
-                      _buildMilestoneLine(level, 1200, 1500),
-                      _buildMilestoneDot(level, 1500, "전체효율+15%"),
+                      _buildMilestoneDot(level, 100, "효과+20%"),
+                      _buildMilestoneLine(level, 100, 120),
+                      _buildMilestoneDot(level, 120, "비용-10%"),
+                      _buildMilestoneLine(level, 120, 150),
+                      _buildMilestoneDot(level, 150, "전체효율+15%"),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -586,9 +586,9 @@ class _InventoryPanelState extends State<InventoryPanel> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text('${(level * 2)}%', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                                  Text('${(level * 20)}%', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                                   const Icon(Icons.arrow_forward_rounded, color: Colors.white24, size: 14),
-                                  Text('${(level + 1) * 2}%', style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                                  Text('${(level + 1) * 20}%', style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ],
@@ -622,16 +622,16 @@ class _InventoryPanelState extends State<InventoryPanel> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('천장 진행도 (Pity)', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                          Text('$failCount/50', style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                          Text('$failCount/10', style: const TextStyle(color: Colors.white38, fontSize: 10)),
                         ],
                       ),
                       const SizedBox(height: 6),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: failCount / 50,
+                          value: failCount / 10,
                           backgroundColor: Colors.white10,
-                          valueColor: AlwaysStoppedAnimation<Color>(failCount >= 20 ? Colors.amberAccent : Colors.blueAccent),
+                          valueColor: AlwaysStoppedAnimation<Color>(failCount >= 5 ? Colors.amberAccent : Colors.blueAccent),
                           minHeight: 6,
                         ),
                       ),
@@ -1151,8 +1151,13 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
   }
 
   bool _isPercentageStat(String name) {
-    const percStats = {'치명타 확률', '치명타 피해', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭', '최종 피해량 증폭', '쿨타임 감소', '방어력%', '공격 속도'};
-    return percStats.contains(name) || name.contains('%');
+    const percStats = {
+      '치명타 확률', '치명타 피해', 'HP 재생', '골드 획득', '경험치 획득', '아이템 드롭', '최종 피해량 증폭', '쿨타임 감소', 
+      '방어력%', '공격력(%)', '체력(%)', '스킬 추가 발동', '공격 시 보호막 생성', '흡혈', '2연타 확률', '회복 상한치', 
+      '피격 시 회복', '스킬 사용시 피해감소 확률', '처형 확률', '처치 시 공증', '처치 시 방증', '지역 이동 시 공증', 
+      '지역 이동 시 방증', '특정 스킬 쿨감'
+    };
+    return percStats.contains(name) || name.contains('%') || name.contains('확률') || name.contains('피해') || name.contains('효율');
   }
 
   Widget _buildComparisonRow(String label, double current, double target, {bool isPercentage = false}) {
@@ -1164,9 +1169,12 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
     IconData icon = isZero ? Icons.remove : (isPos ? Icons.arrow_upward : Icons.arrow_downward);
 
     String diffStr;
-    if (isPercentage) {
-      String suffix = label == '공격 속도' ? '' : '%';
-      diffStr = '${isPos ? '+' : (isZero ? '+' : '')}${diff.toStringAsFixed(1)}$suffix';
+    if (label == '공격 속도') {
+      diffStr = '${isPos ? '+' : (isZero ? '+' : '')}${diff.toStringAsFixed(2)}';
+    } else if (label == '치명타 시 쿨감') {
+      diffStr = '${isPos ? '+' : (isZero ? '+' : '')}${diff.toStringAsFixed(1)}s';
+    } else if (isPercentage) {
+      diffStr = '${isPos ? '+' : (isZero ? '+' : '')}${diff.toStringAsFixed(1)}%';
     } else {
       diffStr = '${isPos ? '+' : (isZero ? '+' : '')}${NumberFormat('#,###').format(diff.toInt())}';
     }
@@ -1256,17 +1264,78 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
 
           return Container(
             margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03), 
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.02)),
+            ),
             child: Row(
               children: [
-                Text(opt.toString(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(width: 6),
-                Text('(MAX: +$maxValStr)', style: const TextStyle(color: Colors.white24, fontSize: 9)), // 🆕 최대치 가이드
-                const Spacer(),
-                Row(children: List.generate(opt.stars, (i) => const Icon(Icons.star, size: 10, color: Colors.amberAccent))),
+                // 1. 좌측 영역: 옵션 텍스트 및 최대치 가이드 (위아래 배치)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        opt.toString(), 
+                        style: const TextStyle(
+                          color: Colors.white, 
+                          fontSize: 12, 
+                          fontWeight: FontWeight.w600,
+                        ),
+                        softWrap: true,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '(MAX: +$maxValStr)', 
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.25), 
+                          fontSize: 9, 
+                          fontWeight: FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(width: 8),
-                GestureDetector(onTap: () { opt.isLocked = !opt.isLocked; setState(() {}); }, child: Icon(opt.isLocked ? Icons.lock : Icons.lock_open, size: 16, color: opt.isLocked ? Colors.amberAccent : Colors.white12)),
+                // 2. 우측 영역: 별점 및 잠금 버튼
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(
+                        opt.stars, 
+                        (i) => const Padding(
+                          padding: EdgeInsets.only(left: 1),
+                          child: Icon(Icons.star, size: 9, color: Colors.amberAccent),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: () { 
+                        opt.isLocked = !opt.isLocked; 
+                        setState(() {}); 
+                      }, 
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: opt.isLocked ? Colors.amberAccent.withValues(alpha: 0.1) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          opt.isLocked ? Icons.lock : Icons.lock_open, 
+                          size: 14, 
+                          color: opt.isLocked ? Colors.amberAccent : Colors.white10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           );
@@ -1357,11 +1426,11 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
     int lockCount = item.subOptions.where((o) => o.isLocked).length;
     int powderCost = lockCount == 0 ? 0 : (1000 * pow(10, lockCount - 1)).toInt();
     
-    // [v0.4.8] 기능별 해금 체크
+    // [v0.4.8] 기능별 해금 체크 (1/10 압축 반영)
     int totalSlotLv = gs.player.totalSlotEnhanceLevel;
-    bool isEnhanceUnlocked = totalSlotLv >= 50;
-    bool isRerollUnlocked = totalSlotLv >= 300;
-    bool isPotentialUnlocked = totalSlotLv >= 1000;
+    bool isEnhanceUnlocked = totalSlotLv >= 5;
+    bool isRerollUnlocked = totalSlotLv >= 30;
+    bool isPotentialUnlocked = totalSlotLv >= 100;
 
     return Column(
       children: [
@@ -1412,17 +1481,18 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
           children: [
             // 1. 재설정 버튼
             Expanded(child: _FeatureBtn(
-              title: isRerollUnlocked ? '재설정 (${item.rerollCount}/5)' : '슬롯 300강', 
+              title: isRerollUnlocked ? '재설정 (${item.rerollCount}/5)' : '슬롯 30강', 
               icon: isRerollUnlocked ? Icons.refresh : Icons.lock_outline, 
               color: Colors.cyanAccent, 
               enabled: isRerollUnlocked,
+              isFull: true, // 🆕 크기 통일
               cost: isRerollUnlocked ? Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text('✨', style: TextStyle(fontSize: 9)),
                   Text(_formatNumber(powderCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
                 ],
-              ) : Text('(현재 $totalSlotLv / 300)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
+              ) : Text('(현재 $totalSlotLv / 30)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withValues(alpha: 0.5), fontWeight: FontWeight.bold)),
               onTap: () {
                 if (gs.player.rerollStone < 1 || gs.player.abyssalPowder < powderCost) {
                   widget.onShowToast?.call('재료가 부족합니다!', isError: true);
@@ -1440,17 +1510,18 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
             const SizedBox(width: 6),
             // 2. 잠재능력 버튼
             Expanded(child: _FeatureBtn(
-              title: isPotentialUnlocked ? '잠재능력' : '슬롯 1000강', 
+              title: isPotentialUnlocked ? '잠재능력' : '슬롯 100강', 
               icon: isPotentialUnlocked ? Icons.auto_awesome : Icons.lock_outline, 
               color: Colors.purpleAccent,
               enabled: isPotentialUnlocked,
+              isFull: true, // 🆕 크기 통일
               cost: isPotentialUnlocked ? const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text('🔮', style: TextStyle(fontSize: 9)),
                   Text('10', style: TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
                 ],
-              ) : Text('(현재 $totalSlotLv / 1000)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
+              ) : Text('(현재 $totalSlotLv / 100)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withValues(alpha: 0.5), fontWeight: FontWeight.bold)),
               onTap: () { 
                 if (gs.player.cube < 10) {
                   widget.onShowToast?.call('큐브가 부족합니다! (필요: 10개)', isError: true);
@@ -1471,6 +1542,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // 보호석 토글 버튼 (강화 버튼 상단에 정렬)
                   if (isEnhanceUnlocked)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
@@ -1479,9 +1551,9 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                           decoration: BoxDecoration(
-                            color: useProtection ? Colors.orangeAccent.withOpacity(0.12) : Colors.black26,
+                            color: useProtection ? Colors.orangeAccent.withValues(alpha: 0.12) : Colors.black26,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: useProtection ? Colors.orangeAccent.withOpacity(0.4) : Colors.white10),
+                            border: Border.all(color: useProtection ? Colors.orangeAccent.withValues(alpha: 0.4) : Colors.white10),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -1493,7 +1565,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                                   '보호: ${gs.player.protectionStone}',
                                   style: TextStyle(
                                     color: useProtection ? Colors.orangeAccent : Colors.white38,
-                                    fontSize: 7, 
+                                    fontSize: 8, 
                                     fontWeight: FontWeight.bold,
                                   ),
                                   overflow: TextOverflow.ellipsis,
@@ -1503,12 +1575,16 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                           ),
                         ),
                       ),
-                    ),
+                    )
+                  else
+                    const SizedBox(height: 24), // 잠금 상태에서도 높이 균형을 위해 빈 공간 유지
+                  
                   _FeatureBtn(
-                    title: isEnhanceUnlocked ? '강화 (+${item.enhanceLevel})' : '슬롯 50강', 
+                    title: isEnhanceUnlocked ? '강화 (+${item.enhanceLevel})' : '슬롯 5강', 
                     icon: isEnhanceUnlocked ? Icons.flash_on : Icons.lock_outline, 
                     color: Colors.blueAccent,
                     enabled: isEnhanceUnlocked,
+                    isFull: true, // 🆕 크기 통일
                     cost: isEnhanceUnlocked ? Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1518,7 +1594,7 @@ class _ItemDetailDialogState extends State<_ItemDetailDialog> {
                         const Text('💎', style: TextStyle(fontSize: 9)),
                         Text(_formatNumber(item.stoneCost), style: const TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
                       ],
-                    ) : Text('(현재 $totalSlotLv / 50)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withOpacity(0.5), fontWeight: FontWeight.bold)),
+                    ) : Text('(현재 $totalSlotLv / 5)', style: TextStyle(fontSize: 8, color: Colors.amberAccent.withValues(alpha: 0.5), fontWeight: FontWeight.bold)),
                     onTap: () async {
                       if (item.isLocked) {
                         widget.onShowToast?.call('잠긴 아이템은 강화할 수 없습니다!', isError: true);
@@ -1667,21 +1743,36 @@ class _FeatureBtn extends StatelessWidget {
     return PressableScale(
       onTap: enabled ? onTap : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        height: 76, // 🆕 고정 높이 부여로 크기 통일
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         width: isFull ? double.infinity : null,
         decoration: BoxDecoration(
-          color: color.withOpacity(enabled ? 0.1 : 0.03), borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(enabled ? 0.3 : 0.05)),
+          color: color.withValues(alpha: enabled ? 0.1 : 0.03), 
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: enabled ? 0.3 : 0.05)),
         ),
-        child: Column(children: [
-          Icon(icon, size: 18, color: color.withOpacity(enabled ? 1 : 0.2)),
-          const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.withOpacity(enabled ? 1 : 0.3))),
-          if (cost != null) ...[
-            const SizedBox(height: 4),
-            cost!,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, // 🆕 내용 중앙 정렬
+          children: [
+            Icon(icon, size: 18, color: color.withValues(alpha: enabled ? 1 : 0.2)),
+            const SizedBox(height: 6),
+            Text(
+              title, 
+              style: TextStyle(
+                fontSize: 11, 
+                fontWeight: FontWeight.bold, 
+                color: color.withValues(alpha: enabled ? 1 : 0.3)
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (cost != null) ...[
+              const SizedBox(height: 4),
+              cost!,
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }
