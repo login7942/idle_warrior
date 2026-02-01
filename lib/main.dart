@@ -2593,23 +2593,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ),
                 ),
               ),
-
-            // 🆕 [v0.8.39] 지면 연소 효과 오버레이 (몬스터 발밑 고정)
-            Selector<GameState, bool>(
-              selector: (_, gs) => gs.isScorchedGroundActive,
-              builder: (context, isActive, _) {
-                if (!isActive) return const SizedBox.shrink();
-                return Positioned(
-                  bottom: 75, // 몬스터 이미지 바닥쪽
-                  right: 35,  // 몬스터 영역(우측) 조준
-                  width: 140, // 3개 불꽃이 들어갈 정도의 너비
-                  height: 80,
-                  child: IgnorePointer(
-                    child: _buildScorchedGroundEffect(),
-                  ),
-                );
-              },
-            ),
           ],
         );
       },
@@ -2755,6 +2738,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               Stack(
                 alignment: Alignment.bottomCenter,
                 children: [
+                   // 🆕 [v2.2.7] 지면 연소 효과 (몬스터 발밑 고정 - 화면 비례 대응)
+                   if (!p)
+                     Selector<GameState, bool>(
+                       selector: (_, gs) => gs.isScorchedGroundActive,
+                       builder: (context, isActive, _) {
+                         if (!isActive) return const SizedBox.shrink();
+                         return IgnorePointer(
+                           child: SizedBox(
+                             width: 160,
+                             height: 60,
+                             child: _buildScorchedGroundEffect(),
+                           ),
+                         );
+                       },
+                     ),
                    // 🆕 높이를 150->125로 압축하여 상단 공백 제거
                    IgnorePointer(
                      child: CustomPaint(
