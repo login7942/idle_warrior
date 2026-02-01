@@ -2207,7 +2207,7 @@ class GameState extends ChangeNotifier {
           int dmg = _burnDmgPerTick;
           currentMonster!.hp -= dmg;
           _monsterCurrentHp = currentMonster!.hp;
-          onDamageDealt?.call('🔥$dmg', dmg, false, true, oy: -15, shouldAnimate: true);
+          onDamageDealt?.call('🔥$dmg', dmg, false, true, oy: -15, shouldAnimate: false); // 🆕 도트 데미지는 공격 모션 제외
           if (currentMonster!.hp <= 0) {
             handleVictory(null);
           }

@@ -2496,8 +2496,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               mainAxisAlignment: MainAxisAlignment.spaceAround, 
               children: [
                 // 1. 플레이어 영역 (체력 및 보호막 변화 감시)
-                Selector<GameState, (int, int)>(
-                  selector: (_, gs) => (gs.playerCurrentHp, gs.playerShield),
+                Selector<GameState, (int, int, DateTime?, DateTime?)>(
+                  selector: (_, gs) => (
+                    gs.playerCurrentHp, 
+                    gs.playerShield,
+                    gs.player.skillAtkSpdBuffEndTime,
+                    gs.player.skillCritBuffEndTime,
+                  ),
                   builder: (context, data, child) => RepaintBoundary(
                     child: _buildActor(
                       gameState.player.name, 
@@ -2516,8 +2521,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 // 2. 몬스터 영역 (몬스터 존재 여부 및 체력 변화 감시)
                 Center(
                   key: _monsterKey,
-                  child: Selector<GameState, (int, double)>(
-                    selector: (_, gs) => (gs.monsterCurrentHp, gs.currentMonster?.frozenTimeLeft ?? 0.0),
+                  child: Selector<GameState, (int, double, double, double)>(
+                    selector: (_, gs) => (
+                      gs.monsterCurrentHp, 
+                      gs.currentMonster?.frozenTimeLeft ?? 0.0,
+                      gs.currentMonster?.stunTimeLeft ?? 0.0,
+                      gs.currentMonster?.judgmentTimeLeft ?? 0.0,
+                    ),
                     builder: (context, data, child) {
                       final m = gameState.currentMonster;
                       if (m == null) return const SizedBox(width: 100, height: 150);
@@ -2671,17 +2681,29 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     if (gameState.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillCritBuffEndTime!))
                       _buildStatusBadge('CRT UP', Colors.orangeAccent),
                   ],
-                ),
-              if (!p && isFrozen)
-                _buildStatusBadge('FROZEN', Colors.blueAccent)
-              else if (!p && gameState.currentMonster != null && gameState.currentMonster!.isStunned)
-                _buildStatusBadge('STUNNED', Colors.orangeAccent)
-              else if (!p && gameState.currentMonster != null && gameState.currentMonster!.isJudged)
-                _buildStatusBadge('ARMOR BREAK', Colors.purpleAccent)
-              else if (!p && gameState.currentMonster != null && gameState.currentMonster!.trait != BossTrait.none)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: _buildTraitBadge(gameState.currentMonster!.trait),
+                )
+              else
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isFrozen)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: _buildStatusBadge('FROZEN', Colors.blueAccent),
+                      ),
+                    if (gameState.currentMonster != null && gameState.currentMonster!.isStunned)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: _buildStatusBadge('STUNNED', Colors.orangeAccent),
+                      ),
+                    if (gameState.currentMonster != null && gameState.currentMonster!.isJudged)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: _buildStatusBadge('ARMOR BREAK', Colors.purpleAccent),
+                      ),
+                    if (gameState.currentMonster != null && gameState.currentMonster!.trait != BossTrait.none && !isFrozen && !gameState.currentMonster!.isStunned && !gameState.currentMonster!.isJudged)
+                      _buildTraitBadge(gameState.currentMonster!.trait),
+                  ],
                 ),
 
               const SizedBox(height: 5),
