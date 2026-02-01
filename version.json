@@ -1,11 +1,11 @@
 {
-  "version": "v0.8.42",
-  "buildNumber": 109,
+  "version": "v0.8.43",
+  "buildNumber": 110,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
   "updated_at": "2026-02-01",
   "changelog": [
-    "전 지역 몬스터 이미지 추가 및 명칭 매핑 완료",
-    "슬롯 강화 UI 수치 및 가이드 가독성 개선",
-    "가이드 퀘스트 난이도 하향 (성장의 토대)"
+    "안드로이드 패키지 고유 ID 적용 (com.login7942.idlewarrior)",
+    "재설치 시 세이브 데이터 연동 및 로그인 안정성 강화",
+    "몬스터 및 시스템 최적화 반영"
   ]
 }
