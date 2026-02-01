@@ -303,7 +303,7 @@ class ItemOption {
     } else if (effect == OptionEffect.skillEcho) {
       return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (시전 시)';
     } else if (effect == OptionEffect.gainShield) {
-      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (처치 시)';
+      return '$prefix${effect.label} ${value.toStringAsFixed(1)}%';
     }
 
     final valStr = effect.isPercentage 
