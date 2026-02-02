@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_state.dart';
 import '../models/reincarnation.dart';
-import '../main.dart'; // GlassContainer, PopBtn 등 사용
+import '../widgets/common_widgets.dart'; // GlassContainer, PopBtn 등 사용
 
 class ReincarnationPanel extends StatelessWidget {
   const ReincarnationPanel({super.key});

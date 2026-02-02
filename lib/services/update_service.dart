@@ -23,7 +23,12 @@ class UpdateService {
         String latestVersion = data['version'];
         int latestBuildNumber = data['buildNumber'] ?? 0;
         String downloadUrl = data['downloadUrl'];
-        String changelog = data['changelog'] ?? '새로운 버전이 출시되었습니다.';
+        String changelog = '';
+        if (data['changelog'] is List) {
+          changelog = (data['changelog'] as List).join('\n');
+        } else {
+          changelog = data['changelog'] ?? '새로운 버전이 출시되었습니다.';
+        }
 
         // 3. 버전 비교 (빌드 번호 또는 버전 명칭 기준)
         if (latestBuildNumber > currentBuildNumber || _isNewerVersion(latestVersion, currentVersion)) {

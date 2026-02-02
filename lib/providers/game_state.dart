@@ -993,6 +993,7 @@ class GameState extends ChangeNotifier {
       int dropTier = 1;
       // 🆕 [v2.3.6] 환생 보너스 (아이템 드롭 확률 보정)
       double dropBonus = player.reincarnation.getBonus('drop_rate'); // pt당 0.01%
+      final double tierRand = rand.nextDouble() * 100;
 
       switch (currentZone.id) {
         case ZoneId.grassland:
