@@ -1,0 +1,830 @@
+Resolving dependencies...
+Downloading packages...
+  app_links 6.4.1 (7.0.0 available)
+  characters 1.4.0 (1.4.1 available)
+  code_assets 0.19.10 (1.0.0 available)
+  google_fonts 7.0.2 (8.0.0 available)
+  hooks 0.20.5 (1.0.0 available)
+  intl 0.18.1 (0.20.2 available)
+  json_annotation 4.9.0 (4.10.0 available)
+  lints 6.0.0 (6.1.0 available)
+  matcher 0.12.17 (0.12.18 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.17.0 (1.18.1 available)
+  native_toolchain_c 0.17.2 (0.17.4 available)
+  objective_c 9.2.2 (9.2.5 available)
+  shared_preferences_android 2.4.18 (2.4.20 available)
+  test_api 0.7.7 (0.7.9 available)
+Got dependencies!
+15 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing idle_warrior...                                       
+
+   info - The private field _zoneStages could be 'final' - _BACKUP_20260120_COMBAT\lib\main.dart:124:20 - prefer_final_fields
+warning - The value of the field '_goldTargetKey' isn't used - _BACKUP_20260120_COMBAT\lib\main.dart:130:19 - unused_field
+warning - The value of the field '_expTargetKey' isn't used - _BACKUP_20260120_COMBAT\lib\main.dart:131:19 - unused_field
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:1016:17 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:1017:22 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:1018:22 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:1019:21 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1227:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1241:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1243:64 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1248:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1249:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1339:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1340:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1375:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1381:95 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1389:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1407:67 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1408:74 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1481:84 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1503:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1529:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1543:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1574:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1575:73 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1633:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1634:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1641:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1779:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1828:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1829:77 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1846:35 - deprecated_member_use
+warning - The declaration '_buildResourceItem' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:1888:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1896:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:1977:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2024:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2024:97 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2025:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2025:79 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2061:94 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2130:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2200:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2311:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2321:79 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2331:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2342:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2363:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2363:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2366:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2366:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2370:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2394:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2396:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2396:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2402:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2405:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2421:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2533:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2533:86 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2540:58 - deprecated_member_use
+warning - The value of the local variable 'rewardText' isn't used - _BACKUP_20260120_COMBAT\lib\main.dart:2667:14 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2687:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2688:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2703:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2805:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2839:70 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2892:67 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:2894:86 - deprecated_member_use
+   info - Unnecessary use of 'toList' in a spread - _BACKUP_20260120_COMBAT\lib\main.dart:2940:36 - unnecessary_to_list_in_spreads
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:2963:59 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:2964:48 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3007:29 - deprecated_member_use
+warning - The declaration '_buildCPBadge' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:3023:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3027:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3029:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3030:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3053:31 - deprecated_member_use
+   info - Statements in a for should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3081:48 - curly_braces_in_flow_control_structures
+   info - Statements in a for should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3087:49 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3105:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3107:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3138:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3138:83 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3140:69 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3167:70 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3242:24 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3244:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3248:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3250:98 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3284:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3284:100 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3286:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3287:58 - deprecated_member_use
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3305:56 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3305:133 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3307:34 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3307:62 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3311:45 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3311:74 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3311:119 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3311:148 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - _BACKUP_20260120_COMBAT\lib\main.dart:3311:189 - unnecessary_non_null_assertion
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3312:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3328:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3328:151 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3356:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3357:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3359:110 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3401:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3403:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3405:87 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3412:31 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3413:58 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3414:36 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3415:35 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3416:36 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3417:35 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:3418:10 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3459:21 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3463:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3499:74 - deprecated_member_use
+warning - The declaration '_buildItemDetailBtn' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:3511:10 - unused_element
+warning - A value for optional parameter 'isFull' isn't ever given - _BACKUP_20260120_COMBAT\lib\main.dart:3511:102 - unused_element_parameter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3523:21 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3527:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3564:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3596:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3600:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3678:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3679:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3685:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3688:47 - deprecated_member_use
+warning - The declaration '_buildTopSmallIconButton' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:3825:10 - unused_element
+warning - The declaration '_buildMiniResource' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:3833:10 - unused_element
+warning - The declaration '_buildMiniInventoryCounter' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:3847:10 - unused_element
+warning - The declaration '_buildTopSmallButton' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:3880:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3895:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:3972:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4005:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4007:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4009:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4052:70 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4078:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4097:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4099:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4101:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4139:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4142:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4153:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4246:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4322:67 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4322:98 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4342:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4342:87 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4348:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4348:87 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4361:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4363:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4382:103 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4382:134 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4455:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4457:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4500:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4503:89 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4558:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4560:72 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4585:162 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4633:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4651:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4659:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4714:74 - deprecated_member_use
+warning - The operand can't be 'null', so the condition is always 'true' - _BACKUP_20260120_COMBAT\lib\main.dart:4856:97 - unnecessary_null_comparison
+warning - Dead code - _BACKUP_20260120_COMBAT\lib\main.dart:4856:198 - dead_code
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4878:29 - deprecated_member_use
+warning - The value of the local variable 'textColor' isn't used - _BACKUP_20260120_COMBAT\lib\main.dart:4915:11 - unused_local_variable
+warning - The value of the local variable 'fontWeight' isn't used - _BACKUP_20260120_COMBAT\lib\main.dart:4916:16 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:4952:31 - deprecated_member_use
+warning - The declaration '_buildDockIcon' isn't referenced - _BACKUP_20260120_COMBAT\lib\main.dart:4963:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5028:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5030:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5082:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5088:96 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5105:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5198:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5219:46 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - _BACKUP_20260120_COMBAT\lib\main.dart:5246:19 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5308:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5309:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5313:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5314:64 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5400:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5413:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5437:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5500:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5500:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5563:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5568:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5654:126 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5675:73 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:5720:53 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\main.dart:5721:44 - curly_braces_in_flow_control_structures
+   info - Unnecessary braces in a string interpolation - _BACKUP_20260120_COMBAT\lib\main.dart:5788:58 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - _BACKUP_20260120_COMBAT\lib\main.dart:5851:30 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5928:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5936:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5964:84 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:5978:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6067:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6084:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6169:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6199:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6217:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6267:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6289:49 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - _BACKUP_20260120_COMBAT\lib\main.dart:6359:44 - unnecessary_brace_in_string_interps
+   info - 'WillPopScope' is deprecated and shouldn't be used. Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre - _BACKUP_20260120_COMBAT\lib\main.dart:6473:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6501:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6541:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6563:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6565:41 - deprecated_member_use
+warning - This default clause is covered by the previous cases - _BACKUP_20260120_COMBAT\lib\main.dart:6705:7 - unreachable_switch_default
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6711:20 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6717:31 - deprecated_member_use
+warning - The value of the local variable 'magnetT' isn't used - _BACKUP_20260120_COMBAT\lib\main.dart:6792:16 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6832:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6838:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6838:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6844:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6851:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6866:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6874:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6874:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6880:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6887:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6949:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:6949:94 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:7028:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:7028:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:7032:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:7045:101 - deprecated_member_use
+warning - A value for optional parameter 'suffix' isn't ever given - _BACKUP_20260120_COMBAT\lib\main.dart:7068:10 - unused_element_parameter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:7207:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:7208:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\main.dart:7209:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\models\item.dart:73:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\models\item.dart:74:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\models\item.dart:82:32 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:330:25 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:331:29 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:332:30 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:338:27 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:339:31 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:340:32 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:349:33 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:350:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:372:41 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:373:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:374:46 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:375:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:376:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:377:48 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\item.dart:378:16 - curly_braces_in_flow_control_structures
+   info - Unnecessary braces in a string interpolation - _BACKUP_20260120_COMBAT\lib\models\item.dart:568:22 - unnecessary_brace_in_string_interps
+warning - The declaration '_getTypeName' isn't referenced - _BACKUP_20260120_COMBAT\lib\models\item.dart:582:17 - unused_element
+warning - The declaration '_updateHpOption' isn't referenced - _BACKUP_20260120_COMBAT\lib\models\item.dart:667:15 - unused_element
+warning - Unused import: 'item.dart' - _BACKUP_20260120_COMBAT\lib\models\pet.dart:2:8 - unused_import
+warning - Unused import: 'dart:convert' - _BACKUP_20260120_COMBAT\lib\models\player.dart:2:8 - unused_import
+warning - Unused import: 'package:shared_preferences/shared_preferences.dart' - _BACKUP_20260120_COMBAT\lib\models\player.dart:3:8 - unused_import
+   info - Function literals shouldn't be passed to 'forEach' - _BACKUP_20260120_COMBAT\lib\models\player.dart:58:22 - avoid_function_literals_in_foreach_calls
+warning - The value of the local variable 'level' isn't used - _BACKUP_20260120_COMBAT\lib\models\player.dart:77:18 - unused_local_variable
+warning - The value of the local variable 'level' isn't used - _BACKUP_20260120_COMBAT\lib\models\player.dart:112:18 - unused_local_variable
+   info - Function literals shouldn't be passed to 'forEach' - _BACKUP_20260120_COMBAT\lib\models\player.dart:238:22 - avoid_function_literals_in_foreach_calls
+   info - Function literals shouldn't be passed to 'forEach' - _BACKUP_20260120_COMBAT\lib\models\player.dart:275:22 - avoid_function_literals_in_foreach_calls
+   info - Function literals shouldn't be passed to 'forEach' - _BACKUP_20260120_COMBAT\lib\models\player.dart:306:22 - avoid_function_literals_in_foreach_calls
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\player.dart:318:33 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\player.dart:319:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\player.dart:324:43 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - _BACKUP_20260120_COMBAT\lib\models\player.dart:325:14 - curly_braces_in_flow_control_structures
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\auth_service.dart:63:7 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:12:9 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:24:7 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:27:7 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:37:9 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:48:9 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:52:7 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:59:7 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:78:7 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:94:7 - avoid_print
+   info - Don't invoke 'print' in production code - _BACKUP_20260120_COMBAT\lib\services\cloud_save_service.dart:97:7 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\services\update_service.dart:63:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\services\update_service.dart:65:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\services\update_service.dart:68:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\services\update_service.dart:91:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\services\update_service.dart:97:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260120_COMBAT\lib\services\update_service.dart:110:62 - deprecated_member_use
+warning - The asset directory 'assets/images/' doesn't exist - _BACKUP_20260120_COMBAT\pubspec.yaml:70:7 - asset_directory_does_not_exist
+  error - The argument type 'Skill (where Skill is defined in D:\code\idle_warrior\_BACKUP_20260121_STABLE\lib\models\skill.dart)' can't be assigned to the parameter type 'Skill (where Skill is defined in D:\code\idle_warrior\lib\models\skill.dart)'.  - _BACKUP_20260121_STABLE\lib\main.dart:2340:114 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3087:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3088:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3092:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3093:64 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3178:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3216:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3266:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3266:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3268:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3301:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3301:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3369:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3374:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3481:73 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3701:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3811:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3896:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3926:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3944:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:3994:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4016:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4331:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4333:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4567:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4573:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4573:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4579:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4586:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4601:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4609:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4609:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4615:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4622:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4684:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4684:94 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4767:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\main.dart:4780:101 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\models\item.dart:57:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\models\item.dart:58:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\models\item.dart:66:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\common_widgets.dart:212:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\common_widgets.dart:215:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:58:27 - deprecated_member_use
+  error - The getter 'powder' isn't defined for the type 'Player' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:75:49 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:106:27 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:107:43 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:107:86 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:113:30 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:124:35 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:129:32 - undefined_getter
+  error - The setter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:143:29 - undefined_setter
+  error - The argument type 'ItemType (where ItemType is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'ItemType (where ItemType is defined in D:\code\idle_warrior\_BACKUP_20260121_STABLE\lib\models\item.dart)'.  - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:176:52 - argument_type_not_assignable
+  error - The argument type 'Item (where Item is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'Item (where Item is defined in D:\code\idle_warrior\_BACKUP_20260121_STABLE\lib\models\item.dart)'.  - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:182:25 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:227:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:228:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:257:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:257:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:259:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:259:95 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:279:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:280:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:287:123 - deprecated_member_use
+  error - The argument type 'Item (where Item is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'Item (where Item is defined in D:\code\idle_warrior\_BACKUP_20260121_STABLE\lib\models\item.dart)'.  - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:329:19 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:374:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:374:84 - deprecated_member_use
+  error - The argument type 'ItemGrade' can't be assigned to the parameter type 'int'.  - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:392:64 - argument_type_not_assignable
+  error - 2 positional arguments expected by 'executeBulkDismantle', but 1 found - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:392:77 - not_enough_positional_arguments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:440:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:489:128 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:578:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:578:162 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:631:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:631:165 - deprecated_member_use
+  error - The getter 'powder' isn't defined for the type 'Player' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:655:64 - undefined_getter
+  error - The getter 'powder' isn't defined for the type 'Player' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:657:55 - undefined_getter
+  error - The setter 'powder' isn't defined for the type 'Player' - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:657:55 - undefined_setter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:705:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:732:24 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:733:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:736:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260121_STABLE\lib\widgets\inventory_panel.dart:738:96 - deprecated_member_use
+  error - The argument type 'Skill (where Skill is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\models\skill.dart)' can't be assigned to the parameter type 'Skill (where Skill is defined in D:\code\idle_warrior\lib\models\skill.dart)'.  - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:2344:114 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3091:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3092:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3096:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3097:64 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3182:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3220:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3270:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3270:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3272:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3305:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3305:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3373:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3378:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3485:73 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3705:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3815:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3900:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3930:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3948:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:3998:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4020:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4335:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4337:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4571:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4577:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4577:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4583:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4590:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4605:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4613:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4613:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4619:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4626:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4688:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4688:94 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4771:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\main.dart:4784:101 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\models\item.dart:57:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\models\item.dart:58:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\models\item.dart:66:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:331:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:333:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:335:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:337:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:339:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:341:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:353:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:370:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:456:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:475:51 - deprecated_member_use
+warning - This default clause is covered by the previous cases - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:492:7 - unreachable_switch_default
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:499:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:66:27 - deprecated_member_use
+  error - The getter 'powder' isn't defined for the type 'Player' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:83:49 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:114:27 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:115:43 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:115:86 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:121:30 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:132:35 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:137:32 - undefined_getter
+  error - The setter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:151:29 - undefined_setter
+  error - The argument type 'ItemType (where ItemType is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'ItemType (where ItemType is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\models\item.dart)'.  - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:184:52 - argument_type_not_assignable
+  error - The argument type 'Item (where Item is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'Item (where Item is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\models\item.dart)'.  - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:190:25 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:235:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:236:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:265:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:265:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:267:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:267:95 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:287:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:288:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:295:123 - deprecated_member_use
+  error - The argument type 'Item (where Item is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'Item (where Item is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\models\item.dart)'.  - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:337:19 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:384:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:384:84 - deprecated_member_use
+  error - The argument type 'ItemGrade' can't be assigned to the parameter type 'int'.  - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:402:80 - argument_type_not_assignable
+  error - 2 positional arguments expected by 'executeBulkDismantle', but 1 found - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:402:93 - not_enough_positional_arguments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:427:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:475:20 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:477:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:532:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:581:128 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:713:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:715:50 - deprecated_member_use
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:779:17 - undefined_getter
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:779:36 - undefined_getter
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:782:29 - undefined_getter
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:782:60 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:828:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:828:162 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:885:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:885:165 - deprecated_member_use
+  error - The getter 'promotionCubeCost' isn't defined for the type 'Item' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:919:91 - undefined_getter
+  error - The getter 'powder' isn't defined for the type 'Player' - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:927:64 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:982:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1009:24 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1010:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1013:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\_BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1015:96 - deprecated_member_use
+  error - The argument type 'Skill (where Skill is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\lib\models\skill.dart)' can't be assigned to the parameter type 'Skill (where Skill is defined in D:\code\idle_warrior\lib\models\skill.dart)'.  - _BACKUP_20260122_REFACTOR\lib\main.dart:2344:114 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3091:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3092:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3096:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3097:64 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3182:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3220:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3270:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3270:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3272:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3305:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3305:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3373:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3378:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3485:73 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3705:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3815:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3900:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3930:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3948:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:3998:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4020:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4335:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4337:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4571:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4577:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4577:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4583:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4590:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4605:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4613:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4613:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4619:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4626:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4688:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4688:94 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4771:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\main.dart:4784:101 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\models\item.dart:57:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\models\item.dart:58:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\models\item.dart:66:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:331:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:333:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:335:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:337:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:339:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:341:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:353:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:370:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:456:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:475:51 - deprecated_member_use
+warning - This default clause is covered by the previous cases - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:492:7 - unreachable_switch_default
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\common_widgets.dart:499:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:66:27 - deprecated_member_use
+  error - The getter 'powder' isn't defined for the type 'Player' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:83:49 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:114:27 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:115:43 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:115:86 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:121:30 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:132:35 - deprecated_member_use
+  error - The getter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:137:32 - undefined_getter
+  error - The setter 'autoDismantleLevel' isn't defined for the type 'GameState' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:151:29 - undefined_setter
+  error - The argument type 'ItemType (where ItemType is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'ItemType (where ItemType is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\lib\models\item.dart)'.  - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:184:52 - argument_type_not_assignable
+  error - The argument type 'Item (where Item is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'Item (where Item is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\lib\models\item.dart)'.  - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:190:25 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:235:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:236:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:265:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:265:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:267:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:267:95 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:287:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:288:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:295:123 - deprecated_member_use
+  error - The argument type 'Item (where Item is defined in D:\code\idle_warrior\lib\models\item.dart)' can't be assigned to the parameter type 'Item (where Item is defined in D:\code\idle_warrior\_BACKUP_20260122_REFACTOR\lib\models\item.dart)'.  - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:337:19 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:384:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:384:84 - deprecated_member_use
+  error - The argument type 'ItemGrade' can't be assigned to the parameter type 'int'.  - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:402:80 - argument_type_not_assignable
+  error - 2 positional arguments expected by 'executeBulkDismantle', but 1 found - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:402:93 - not_enough_positional_arguments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:427:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:475:20 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:477:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:532:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:581:128 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:713:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:715:50 - deprecated_member_use
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:779:17 - undefined_getter
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:779:36 - undefined_getter
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:782:29 - undefined_getter
+  error - The getter 'name' isn't defined for the type 'ItemOption' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:782:60 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:828:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:828:162 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:885:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:885:165 - deprecated_member_use
+  error - The getter 'promotionCubeCost' isn't defined for the type 'Item' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:919:91 - undefined_getter
+  error - The getter 'powder' isn't defined for the type 'Player' - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:927:64 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:982:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1009:24 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1010:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1013:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - _BACKUP_20260122_REFACTOR\lib\widgets\inventory_panel.dart:1015:96 - deprecated_member_use
+warning - The value of the field '_shakeOffsetX' isn't used - lib\main.dart:135:10 - unused_field
+warning - The value of the field '_shakeOffsetY' isn't used - lib\main.dart:136:10 - unused_field
+warning - The declaration '_spawnLootParticles' isn't referenced - lib\main.dart:516:8 - unused_element
+warning - The declaration '_triggerScreenShake' isn't referenced - lib\main.dart:631:8 - unused_element
+warning - The declaration '_buildMenuPlaceholder' isn't referenced - lib\main.dart:797:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:1288:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:1331:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:1333:41 - deprecated_member_use
+warning - The value of the local variable 'tier' isn't used - lib\main.dart:1398:9 - unused_local_variable
+warning - The declaration '_buildTierTab' isn't referenced - lib\main.dart:1512:10 - unused_element
+warning - The declaration '_buildEquipmentCraftGrid' isn't referenced - lib\main.dart:1708:10 - unused_element
+warning - The declaration '_buildCraftResourceRow' isn't referenced - lib\main.dart:1783:10 - unused_element
+   info - Unnecessary use of multiple underscores - lib\main.dart:1851:38 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\main.dart:1859:38 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\main.dart:1867:40 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\main.dart:1873:44 - unnecessary_underscores
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:2124:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:2124:120 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:2126:124 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:2286:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:2288:69 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:2451:77 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:3411:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:3525:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:3610:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:3640:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:3658:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:3708:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:3730:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4366:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4368:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4895:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4901:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4901:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4907:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4914:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4929:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4937:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4937:88 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4943:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:4950:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:5015:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:5015:98 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:5102:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:5115:103 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\models\item.dart:83:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\models\item.dart:84:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\models\item.dart:92:32 - deprecated_member_use
+warning - The value of the local variable 'isPerc' isn't used - lib\models\item.dart:955:10 - unused_local_variable
+   info - Statements in an if should be enclosed in a block - lib\models\monster.dart:180:17 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\monster.dart:181:23 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\monster.dart:182:24 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\monster.dart:183:23 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\models\monster.dart:184:23 - curly_braces_in_flow_control_structures
+   info - Use interpolation to compose strings and values - lib\models\monster.dart:186:26 - prefer_interpolation_to_compose_strings
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:148:22 - avoid_function_literals_in_foreach_calls
+warning - The operand can't be 'null', so the condition is always 'true' - lib\models\player.dart:1146:20 - unnecessary_null_comparison
+   info - Function literals shouldn't be passed to 'forEach' - lib\models\player.dart:1174:22 - avoid_function_literals_in_foreach_calls
+warning - Unused import: 'package:flutter/material.dart' - lib\models\quest.dart:1:8 - unused_import
+warning - Unused import: 'dart:math' - lib\models\reincarnation.dart:1:8 - unused_import
+   info - Unnecessary braces in a string interpolation - lib\providers\game_state.dart:816:59 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\providers\game_state.dart:863:32 - unnecessary_brace_in_string_interps
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1003:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1004:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1007:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1008:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1009:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1012:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1013:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1014:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1015:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1018:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1019:54 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1020:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1021:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1022:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1025:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1026:54 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1027:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1028:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1029:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1030:16 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1033:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1034:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1035:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1036:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1037:55 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\game_state.dart:1038:16 - curly_braces_in_flow_control_structures
+   info - Unnecessary braces in a string interpolation - lib\providers\game_state.dart:1224:37 - unnecessary_brace_in_string_interps
+warning - The value of the local variable 'totalStones' isn't used - lib\providers\game_state.dart:1813:9 - unused_local_variable
+   info - The type of the right operand ('ItemGrade') isn't a subtype or a supertype of the left operand ('PetGrade') - lib\providers\game_state.dart:2118:23 - unrelated_type_equality_checks
+   info - The type of the right operand ('ItemGrade') isn't a subtype or a supertype of the left operand ('PetGrade') - lib\providers\game_state.dart:2119:23 - unrelated_type_equality_checks
+   info - The type of the right operand ('ItemGrade') isn't a subtype or a supertype of the left operand ('PetGrade') - lib\providers\game_state.dart:2120:23 - unrelated_type_equality_checks
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\achievement_panel.dart:215:84 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\achievement_panel.dart:460:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\achievement_panel.dart:461:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\achievement_panel.dart:465:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\achievement_panel.dart:466:64 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:46:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:80:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:80:73 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:84:70 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:197:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:199:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:279:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:279:77 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\arena_panel.dart:285:72 - deprecated_member_use
+warning - Unused import: 'dart:math' - lib\widgets\character_panel.dart:1:8 - unused_import
+warning - Unused import: 'package:intl/intl.dart' - lib\widgets\character_panel.dart:4:8 - unused_import
+   info - Missing type annotation - lib\widgets\character_panel.dart:103:29 - strict_top_level_inference
+   info - Unnecessary use of 'toList' in a spread - lib\widgets\character_panel.dart:246:26 - unnecessary_to_list_in_spreads
+   info - Missing type annotation - lib\widgets\character_panel.dart:268:29 - strict_top_level_inference
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\character_panel.dart:272:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\character_panel.dart:273:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\character_panel.dart:280:74 - deprecated_member_use
+   info - Unnecessary 'const' keyword - lib\widgets\character_panel.dart:301:15 - unnecessary_const
+   info - Missing type annotation - lib\widgets\character_panel.dart:403:29 - strict_top_level_inference
+   info - Unnecessary 'const' keyword - lib\widgets\character_panel.dart:413:15 - unnecessary_const
+   info - Unnecessary 'const' keyword - lib\widgets\character_panel.dart:452:15 - unnecessary_const
+   info - Unnecessary use of 'toList' in a spread - lib\widgets\character_panel.dart:478:14 - unnecessary_to_list_in_spreads
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\character_panel.dart:546:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\character_panel.dart:546:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\character_panel.dart:554:47 - deprecated_member_use
+warning - Unused import: 'package:intl/intl.dart' - lib\widgets\common_widgets.dart:5:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:350:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:352:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:354:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:356:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:358:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:360:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:362:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:374:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:391:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:407:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:423:70 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:453:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:468:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:552:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:586:51 - deprecated_member_use
+warning - This default clause is covered by the previous cases - lib\widgets\common_widgets.dart:603:7 - unreachable_switch_default
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\common_widgets.dart:610:38 - deprecated_member_use
+warning - Unused import: 'character_panel.dart' - lib\widgets\inventory_panel.dart:9:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:68:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:137:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:138:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:140:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:204:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:207:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:211:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:280:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:280:93 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:281:80 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:294:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:295:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:324:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:324:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:326:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:326:95 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:346:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:347:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:354:123 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:473:71 - deprecated_member_use
+warning - The value of the local variable 'baseChance' isn't used - lib\widgets\inventory_panel.dart:514:17 - unused_local_variable
+warning - The value of the local variable 'bonusChance' isn't used - lib\widgets\inventory_panel.dart:515:17 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:537:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:538:95 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:656:67 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:681:119 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:685:97 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:736:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:766:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:816:20 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:818:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:880:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:932:128 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:962:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1079:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1081:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1207:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1209:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1351:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1351:165 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1446:55 - deprecated_member_use
+warning - The member 'notifyListeners' can only be used within 'package:flutter/src/foundation/change_notifier.dart' or a test - lib\widgets\inventory_panel.dart:1641:18 - invalid_use_of_visible_for_testing_member
+warning - The member 'notifyListeners' can only be used within instance members of subclasses of 'ChangeNotifier' - lib\widgets\inventory_panel.dart:1641:18 - invalid_use_of_protected_member
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1666:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\inventory_panel.dart:1697:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:44:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:96:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:147:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:147:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:149:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:181:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:181:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:247:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:252:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\pet_panel.dart:353:73 - deprecated_member_use
+warning - Unused import: 'common_widgets.dart' - lib\widgets\quest_overlay.dart:6:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:31:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:35:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:36:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:42:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:47:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:168:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:168:93 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quest_overlay.dart:180:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:42:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:93:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:101:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:102:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:148:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:150:48 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\widgets\quick_menu_panel.dart:236:42 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:261:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:334:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:336:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:342:64 - deprecated_member_use
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\widgets\quick_menu_panel.dart:358:13 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:359:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:361:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:379:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:381:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:385:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:408:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:414:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:436:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:491:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\quick_menu_panel.dart:492:46 - deprecated_member_use
+
+806 issues found. (ran in 3.6s)

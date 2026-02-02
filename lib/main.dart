@@ -2833,7 +2833,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       ),
     ),
   );
-}
+      },
+    );
+  }
 
   Widget _buildStatusBadge(String text, Color color) {
     return Container(
