@@ -89,12 +89,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   late AnimationController _playerHitController;
   late AnimationController _monsterAttackController;
   late AnimationController _monsterHitController;
-  late AnimationController _uiTickerController; // 60FPS UI 갱신용
-  late AnimationController _shimmerController; // 프리미엄 아이템 광택용
   late AnimationController _monsterSpawnController; // 몬스터 등장 연출
   late AnimationController _monsterDeathController; // 몬스터 사망 연출
-  late AnimationController _heroPulseController; 
-  late AnimationController _heroRotateController;
   final DamageManager damageManager = DamageManager(); 
   int _sessionMaxDamage = 0; 
 
@@ -207,33 +203,28 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _playerHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _monsterAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _monsterHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _uiTickerController = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
-    _shimmerController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
-    
     _monsterSpawnController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     // 🆕 [v2.2.1] 등장 애니메이션 종료 시점에 전투 시작 허용
     _monsterSpawnController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        // 무한의 탑이나 무투회는 이미 spawnMonster에서 잠금을 해제했을 수 있으나, 
-        // 일반 사냥터의 리듬을 위해 애니메이션 종료 후 확실히 해제함
         if (gameState.currentZone.id != ZoneId.tower && !gameState.isArenaMode) {
           gameState.completeMonsterSpawn();
         }
       }
     });
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
-    _heroPulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
-    _heroRotateController = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
     
-    _uiTickerController.addListener(() {
+    // 🆕 60FPS UI 갱신 (전리품 파티클, 데미지 매니저 업데이트용)
+    // Ticker를 하나만 유지하여 통합 관리
+    final ticker = createTicker((elapsed) {
       final now = DateTime.now();
-      // 🆕 30FPS 쓰로틀링: 33ms가 경과하지 않았으면 업데이트 스킵
       if (now.difference(_lastUiTick).inMilliseconds < 33) return;
       _lastUiTick = now;
 
       _updateParticles(); 
       damageManager.update(); 
     });
+    ticker.start();
     
     _gameLoop.start();
     
@@ -471,12 +462,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _playerHitController.dispose();
     _monsterAttackController.dispose();
     _monsterHitController.dispose();
-    _uiTickerController.dispose();
-    _shimmerController.dispose();
     _monsterSpawnController.dispose();
     _monsterDeathController.dispose();
-    _heroPulseController.dispose();
-    _heroRotateController.dispose();
     
     super.dispose();
   }
@@ -2156,7 +2143,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             _buildCombatHeader(), // 진행도와 효율을 가로로 통합한 새로운 헤더
             Expanded(flex: 10, child: _buildBattleScene()), // 전투 비중 극대화 (7 -> 10)
             SkillQuickbar(
-              uiTicker: _uiTickerController,
               onNavigateToSkillTab: () => setState(() => _selectedIndex = 5),
             ),
             const SizedBox(height: 80), // 하단 독 공간 확보
@@ -2486,9 +2472,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildBattleScene() {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_uiTickerController, _monsterSpawnController, _monsterDeathController]),
-      builder: (context, child) {
+    return Consumer<GameState>(
+      builder: (context, gs, child) {
         return Stack(
           key: _battleSceneKey,
           fit: StackFit.expand, 
@@ -2506,10 +2491,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ),
                   builder: (context, data, child) => RepaintBoundary(
                     child: _buildActor(
-                      gameState.player.name, 
-                      gameState.player.level, 
+                      gs.player.name, 
+                      gs.player.level, 
                       data.$1, 
-                      gameState.player.maxHp, 
+                      gs.player.maxHp, 
                       'assets/images/warrior.png', 
                       _playerAttackController, 
                       _playerHitController,
@@ -2530,7 +2515,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       gs.currentMonster?.judgmentTimeLeft ?? 0.0,
                     ),
                     builder: (context, data, child) {
-                      final m = gameState.currentMonster;
+                      final m = gs.currentMonster;
                       if (m == null) return const SizedBox(width: 100, height: 150);
                       
                       return RepaintBoundary(
@@ -2564,11 +2549,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               ]
             ),
             
-            // 🆕 [v0.5.9] 전투 상태 및 펫 표시 영역 (정적 데이터 위주이므로 Selector 최소화)
-            Selector<GameState, String>(
-              selector: (_, gs) => gs.player.activePet?.id ?? 'none',
-              builder: (context, _, child) => _buildBattleStatusArea(gameState),
-            ),
+            // 🆕 [v0.5.9] 전투 상태 및 펫 표시 영역
+            _buildBattleStatusArea(gs),
             
             // 데미지 텍스트 레이어 (최적화 유지)
             Positioned.fill(
@@ -2577,7 +2559,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   child: CustomPaint(
                     painter: DamagePainter(
                       texts: damageManager.texts,
-                      ticker: _uiTickerController,
+                      tickerProgress: gs.shimmerProgress, // 🆕 공용 쉐이머 값 활용 시도
                     ),
                   ),
                 ),
@@ -2613,8 +2595,10 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0, bool isFrozen = false}) {
     double hpProgress = (h / mh).clamp(0, 1);
     double shieldProgress = (shield / mh).clamp(0, 1);
+    final gs = context.read<GameState>();
+
     return AnimatedBuilder(
-      animation: Listenable.merge([atk, hit, _heroPulseController, _heroRotateController, _monsterSpawnController, _monsterDeathController]), 
+      animation: Listenable.merge([atk, hit, _monsterSpawnController, _monsterDeathController]), 
       builder: (ctx, _) {
         // 1. 공격 애니메이션 강화 (v0.5.24)
         double attackWeight;
@@ -2646,203 +2630,198 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               child: Transform.scale(
                 scale: spawnScale * attackScale,
                 child: Column(
-            mainAxisAlignment: MainAxisAlignment.center, 
-            children: [
-              // 1. 이름 및 등급 뱃지
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ShadowText(n, fontSize: 13, fontWeight: FontWeight.w900, color: p ? Colors.white : Colors.redAccent),
-                  if (!p && gameState.currentMonster != null && gameState.currentMonster!.isBoss) ...[
-                    const SizedBox(width: 4),
-                    if ((h / mh) < 0.5)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: [BoxShadow(color: Colors.red.withValues(alpha: 0.5), blurRadius: 4)],
-                        ),
-                        child: const Text('RAGE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-                      ),
-                  ],
-                ],
-              ),
-              
-              const SizedBox(height: 2),
-              if (p)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center, 
                   children: [
-                    if (gameState.player.skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillAtkSpdBuffEndTime!))
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: _buildStatusBadge('SPD UP', Colors.yellowAccent),
-                      ),
-                    if (gameState.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillCritBuffEndTime!))
-                      _buildStatusBadge('CRT UP', Colors.orangeAccent),
-                  ],
-                )
-              else
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isFrozen)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: _buildStatusBadge('FROZEN', Colors.blueAccent),
-                      ),
-                    if (gameState.currentMonster != null && gameState.currentMonster!.isStunned)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: _buildStatusBadge('STUNNED', Colors.orangeAccent),
-                      ),
-                    if (gameState.currentMonster != null && gameState.currentMonster!.isJudged)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: _buildStatusBadge('ARMOR BREAK', Colors.purpleAccent),
-                      ),
-                    if (gameState.currentMonster != null && gameState.currentMonster!.trait != BossTrait.none && !isFrozen && !gameState.currentMonster!.isStunned && !gameState.currentMonster!.isJudged)
-                      _buildTraitBadge(gameState.currentMonster!.trait),
-                  ],
-                ),
-
-              const SizedBox(height: 5),
-              
-              // 2. 프리미엄 컴팩트 HP 바
-              Container(
-                width: 110, height: 8, // 🆕 너비 85->110, 높이 7->8 상향
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.white10, width: 0.5),
-                ), 
-                child: Stack(
-                  children: [
-                    // A. 기본 HP 레이어
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: hpProgress),
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeOutQuart,
-                      builder: (context, value, _) => FractionallySizedBox(
-                        alignment: Alignment.centerLeft, 
-                        widthFactor: value, 
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: p ? [Colors.greenAccent, Colors.green.shade800] : [Colors.redAccent, Colors.red.shade900]
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // B. 보호막 레이어 (하늘색 반투명 오버레이)
-                    if (shield > 0)
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0, end: shieldProgress),
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                        builder: (context, sVal, _) => FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: sVal,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(4),
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Colors.lightBlueAccent.withValues(alpha: 0.7), Colors.blue.withValues(alpha: 0.7)]
+                    // 1. 이름 및 상태 뱃지
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ShadowText(n, fontSize: 13, fontWeight: FontWeight.w900, color: p ? Colors.white : Colors.redAccent),
+                        if (!p && gs.currentMonster != null && gs.currentMonster!.isBoss) ...[
+                          const SizedBox(width: 4),
+                          if ((h / mh) < 0.5)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.5), blurRadius: 4)],
                               ),
-                              border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.5), width: 1),
+                              child: const Text('RAGE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                             ),
-                          ),
-                        ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    
+                    // 상태 이상 표시용 뱃지들
+                    if (p)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (gs.player.skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(gs.player.skillAtkSpdBuffEndTime!))
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: _buildStatusBadge('SPD UP', Colors.yellowAccent),
+                            ),
+                          if (gs.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gs.player.skillCritBuffEndTime!))
+                            _buildStatusBadge('CRT UP', Colors.orangeAccent),
+                        ],
+                      )
+                    else
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isFrozen)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: _buildStatusBadge('FROZEN', Colors.blueAccent),
+                            ),
+                          if (gs.currentMonster != null && gs.currentMonster!.isStunned)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: _buildStatusBadge('STUNNED', Colors.orangeAccent),
+                            ),
+                          if (gs.currentMonster != null && gs.currentMonster!.isJudged)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: _buildStatusBadge('ARMOR BREAK', Colors.purpleAccent),
+                            ),
+                          if (gs.currentMonster != null && gs.currentMonster!.trait != BossTrait.none && !isFrozen && !gs.currentMonster!.isStunned && !gs.currentMonster!.isJudged)
+                            _buildTraitBadge(gs.currentMonster!.trait),
+                        ],
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 0), // 🆕 간격을 0으로 설정하여 최대한 밀착
-              
-              // 3. ✨ [v0.5.28] 고성능 통합 비주얼 엔진 (HeroEffectPainter)
-              Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                   // 🆕 지면 효과 (바닥 고정되어야 하므로 Pulse 이동 바깥의 Stack에 배치)
-                   if (!p)
-                     Selector<GameState, bool>(
-                       selector: (_, gs) => gs.isScorchedGroundActive,
-                       builder: (context, isActive, _) {
-                         if (!isActive) return const SizedBox.shrink();
-                         return IgnorePointer(
-                           child: SizedBox(
-                             width: 160,
-                             height: 60,
-                             child: _buildScorchedGroundEffect(),
+
+                    const SizedBox(height: 5),
+
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHpBar(hpProgress, p ? Colors.greenAccent : Colors.redAccent, Colors.black54, shieldProgress: shieldProgress),
+                        if (shield > 0) ...[
+                          const SizedBox(width: 4),
+                          _buildStatusBadge('🛡️', Colors.blueAccent),
+                        ],
+                      ],
+                    ),
+                    
+                    // 3. 캐릭터 + 오오라 비주얼
+                    Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                         if (!p)
+                           Selector<GameState, bool>(
+                             selector: (_, gs) => gs.isScorchedGroundActive,
+                             builder: (context, isActive, _) {
+                               if (!isActive) return const SizedBox.shrink();
+                               return IgnorePointer(
+                                 child: SizedBox(
+                                   width: 160,
+                                   height: 60,
+                                   child: _buildScorchedGroundEffect(),
+                                 ),
+                               );
+                             },
                            ),
-                         );
-                       },
-                     ),
-                   
-                   // 🆕 캐릭터 + 오오라 통합 바운스 레이어
-                   AnimatedBuilder(
-                     animation: _heroPulseController,
-                     builder: (context, child) {
-                       return Transform.translate(
-                         offset: p ? Offset(0, -6.0 * _heroPulseController.value) : Offset(0, -3.0 * _heroPulseController.value),
-                         child: Stack(
-                           alignment: Alignment.bottomCenter,
-                           children: [
-                             // 이펙트
-                             IgnorePointer(
-                               child: AnimatedBuilder(
-                                 animation: _heroRotateController,
-                                 builder: (context, _) => CustomPaint(
+                         
+                         Transform.translate(
+                           offset: p ? Offset(0, -6.0 * gs.heroPulse) : Offset(0, -3.0 * gs.heroPulse),
+                           child: Stack(
+                             alignment: Alignment.bottomCenter,
+                             children: [
+                               IgnorePointer(
+                                 child: CustomPaint(
                                    size: const Size(150, 125),
                                    painter: HeroEffectPainter(
-                                     promotionLevel: p ? gameState.player.promotionLevel : 0,
+                                     promotionLevel: p ? gs.player.promotionLevel : 0,
                                      isPlayer: p,
-                                     pulse: _heroPulseController.value,
-                                     rotation: _heroRotateController.value,
+                                     pulse: gs.heroPulse,
+                                     rotation: gs.heroRotate,
                                    ),
                                  ),
                                ),
-                             ),
-                             // 캐릭터
-                             SizedBox(
-                               width: 110, height: 110, 
-                               child: ColorFiltered(
-                                 colorFilter: isFrozen 
-                                   ? const ColorFilter.mode(Colors.lightBlueAccent, BlendMode.modulate) 
-                                   : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
-                                 child: Image.asset(img, fit: BoxFit.contain),
+                               SizedBox(
+                                 width: 110, height: 110, 
+                                 child: ColorFiltered(
+                                   colorFilter: isFrozen 
+                                     ? const ColorFilter.mode(Colors.lightBlueAccent, BlendMode.modulate) 
+                                     : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+                                   child: Image.asset(img, fit: BoxFit.contain),
+                                 ),
                                ),
-                             ),
-                           ],
+                             ],
+                           ),
                          ),
-                       );
-                     },
-                   ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    ),
-  );
+        );
       },
     );
   }
 
+  Widget _buildHpBar(double progress, Color color, Color bgColor, {double shieldProgress = 0}) {
+    return Container(
+      width: 110, height: 8,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.white10, width: 0.5),
+      ),
+      child: Stack(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutQuart,
+            builder: (context, value, _) => FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: value,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [color, color.withOpacity(0.5)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (shieldProgress > 0)
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: shieldProgress),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              builder: (context, sVal, _) => FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: sVal,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.lightBlueAccent.withOpacity(0.7), Colors.blue.withOpacity(0.7)],
+                    ),
+                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.5), width: 1),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
   Widget _buildStatusBadge(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(4),
         boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 4)],
       ),
       child: Text(
@@ -2910,17 +2889,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     // 표시할 내용이 전혀 없으면 그리지 않음
     if (pet == null && !isOptimalZone && !gameState.isInSpecialDungeon && !hasBuffs) return const SizedBox.shrink();
 
-    return AnimatedBuilder(
-      animation: _uiTickerController,
-      builder: (context, child) {
-        final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
-        final double floatingY = sin(time * 2.5) * 6.0; 
-        final double floatingX = cos(time * 1.5) * 3.0;
-        
-        return Align(
-          alignment: const Alignment(-0.9, -0.85), // 좌측 상단 부유
-          child: Transform.translate(
-            offset: Offset(floatingX, floatingY),
+    // 🆕 틱마다 부유 효과 계산 (이미 상위에서 Consumer<GameState>로 묶여있어 매 틱 rebuild됨)
+    final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
+    final double floatingY = sin(time * 2.5) * 6.0; 
+    final double floatingX = cos(time * 1.5) * 3.0;
+    
+    return Align(
+      alignment: const Alignment(-0.9, -0.85), // 좌측 상단 부유
+      child: Transform.translate(
+        offset: Offset(floatingX, floatingY),
             child: Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -3058,8 +3035,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               ],
             ),
           ),
-        );
-      },
     );
   }
 
@@ -3595,103 +3570,98 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildPremiumItemSlot(Item item, {double size = 52, required VoidCallback onTap, bool isPaused = false}) {
     final grade = item.grade;
+    final gs = context.read<GameState>();
     return PressableScale(
       onTap: onTap,
-      child: AnimatedBuilder(
-        animation: _shimmerController,
-        builder: (context, child) {
-          return Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: grade.bgGradient,
-              border: Border.all(
-                color: grade.color.withOpacity(0.8),
-                width: grade.index >= 4 ? 2.2 : 1.2,
-              ),
-              boxShadow: [
-                if (grade.glowIntensity > 0)
-                  BoxShadow(
-                    color: grade.glowColor,
-                    blurRadius: grade.glowIntensity,
-                    spreadRadius: 1,
-                  ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                // 쉬머 광택 효과 (최상위 등급 전용)
-                if (grade == ItemGrade.mythic && !isPaused)
-                  Positioned.fill(
-                    child: ShimmerSheen(progress: _shimmerController.value),
-                  ),
-
-                // 중앙 아이콘 후광 (Glow)
-                Center(
-                  child: Container(
-                    width: size * 0.5,
-                    height: size * 0.5,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: grade.color.withOpacity(0.3),
-                          blurRadius: 12,
-                          spreadRadius: 4,
-                        )
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 아이콘 (크기 확대)
-                Center(child: ItemIcon(type: item.type, size: size * 0.55)),
-        
-        // --- 강화 계승/파손 비주얼 레이어 ---
-        if (item.isBroken)
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.red.withOpacity(0.2), // 파손 붉은 기운
-              ),
-              child: Center(
-                child: Transform.rotate(
-                  angle: -0.5,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
-                    child: const Text('BROKEN', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)),
-                  ),
-                ),
-              ),
-            ),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: grade.bgGradient,
+          border: Border.all(
+            color: grade.color.withOpacity(0.8),
+            width: grade.index >= 4 ? 2.2 : 1.2,
           ),
-        
-        // 아이템 등급별 광택/특수효과...
-                // 라벨 디자인 (T-뱃지 및 N-마크)
-                _buildSlotLabels(item),
+          boxShadow: [
+            if (grade.glowIntensity > 0)
+              BoxShadow(
+                color: grade.glowColor,
+                blurRadius: grade.glowIntensity,
+                spreadRadius: 1,
+              ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            // 쉬머 광택 효과 (최상위 등급 전용)
+            if (grade == ItemGrade.mythic && !isPaused)
+              Positioned.fill(
+                child: ShimmerSheen(progress: gs.shimmerProgress),
+              ),
 
-                // 강화 수치
-                if (item.enhanceLevel > 0)
-                  Positioned(
-                    bottom: 4, right: 6,
-                    child: Text(
-                      '+${item.enhanceLevel}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.greenAccent,
-                        fontWeight: FontWeight.bold,
-                        shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+            // 중앙 아이콘 후광 (Glow)
+            Center(
+              child: Container(
+                width: size * 0.5,
+                height: size * 0.5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: grade.color.withOpacity(0.3),
+                      blurRadius: 12,
+                      spreadRadius: 4,
+                    )
+                  ],
+                ),
+              ),
+            ),
+
+            // 아이콘 (크기 확대)
+            Center(child: ItemIcon(type: item.type, size: size * 0.55)),
+            
+            // --- 강화 계승/파손 비주얼 레이어 ---
+            if (item.isBroken)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.red.withOpacity(0.2), // 파손 붉은 기운
+                  ),
+                  child: Center(
+                    child: Transform.rotate(
+                      angle: -0.5,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
+                        child: const Text('BROKEN', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)),
                       ),
                     ),
                   ),
-              ],
-            ),
-          );
-        },
+                ),
+              ),
+            
+            // 라벨 디자인 (T-뱃지 및 N-마크)
+            _buildSlotLabels(item),
+
+            // 강화 수치
+            if (item.enhanceLevel > 0)
+              Positioned(
+                bottom: 4, right: 6,
+                child: Text(
+                  '+${item.enhanceLevel}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Colors.greenAccent,
+                    fontWeight: FontWeight.bold,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -4729,9 +4699,9 @@ class DamageManager {
 /// 🆕 고성능 데미지 텍스트 렌더러 (CustomPainter)
 class DamagePainter extends CustomPainter {
   final List<DamageEntry> texts;
-  final Animation<double> ticker;
+  final double tickerProgress; // 🆕 애니메이션 진행도 (필요시 활용)
 
-  DamagePainter({required this.texts, required this.ticker}) : super(repaint: ticker);
+  DamagePainter({required this.texts, required this.tickerProgress});
 
   @override
   void paint(Canvas canvas, Size size) {

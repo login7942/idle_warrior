@@ -8,12 +8,10 @@ import 'common_widgets.dart';
 /// main.dart의 부하를 줄이기 위해 분리되었습니다.
 
 class SkillQuickbar extends StatelessWidget {
-  final Animation<double> uiTicker;
   final VoidCallback onNavigateToSkillTab;
 
   const SkillQuickbar({
     super.key,
-    required this.uiTicker,
     required this.onNavigateToSkillTab,
   });
 
@@ -54,9 +52,8 @@ class SkillQuickbar extends StatelessWidget {
                             Center(child: Opacity(opacity: skill.isUnlocked ? 1.0 : 0.3, child: SkillIcon(skill: skill, size: 28))),
                             if (skill.isUnlocked)
                               Positioned.fill(
-                                child: AnimatedBuilder(
-                                  animation: uiTicker,
-                                  builder: (context, child) {
+                                child: Builder(
+                                  builder: (context) {
                                     final totalCdr = gameState.player.cdr + gameState.player.getSpecificSkillCdr(i + 1);
                                     final progress = skill.getCooldownProgress(totalCdr);
                                     return FractionallySizedBox(
@@ -69,9 +66,8 @@ class SkillQuickbar extends StatelessWidget {
                               ),
                             if (skill.isUnlocked)
                               Center(
-                                child: AnimatedBuilder(
-                                  animation: uiTicker,
-                                  builder: (context, child) {
+                                child: Builder(
+                                  builder: (context) {
                                     final totalCdr = gameState.player.cdr + gameState.player.getSpecificSkillCdr(i + 1);
                                     if (skill.isReady(totalCdr)) return const SizedBox.shrink();
                                     return Text(

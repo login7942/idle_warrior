@@ -51,6 +51,34 @@ class PendingHit {
 }
 
 class GameState extends ChangeNotifier {
+  // 🆕 배치 업데이트 제어용 플래그
+  bool _suppressNotify = false;
+  bool _needsNotify = false;
+
+  @override
+  void notifyListeners() {
+    if (_suppressNotify) {
+      _needsNotify = true;
+    } else {
+      super.notifyListeners();
+    }
+  }
+
+  /// 🆕 프레임당 단 1번의 notifyListeners()를 보장하기 위한 배치 업데이트 시작
+  void beginBatchUpdate() {
+    _suppressNotify = true;
+    _needsNotify = false;
+  }
+
+  /// 🆕 배치 업데이트 종료 및 변경 사항이 있을 경우 UI 갱신 트리거
+  void endBatchUpdate() {
+    _suppressNotify = false;
+    if (_needsNotify) {
+      notifyListeners();
+      _needsNotify = false;
+    }
+  }
+
   // --- 서비스 레이어 ---
   final AuthService authService = AuthService();
   final CloudSaveService _cloudSaveService = CloudSaveService();
@@ -171,6 +199,15 @@ class GameState extends ChangeNotifier {
   int _skillRoundRobinIndex = 0;
   int _normalAttackCombo = 0; // 🆕 일반 공격 콤보 단계 (0~3)
   
+  // --- 애니메이션 전용 상태 (Shared Animation States) ---
+  double _shimmerProgress = 0.0;
+  double get shimmerProgress => _shimmerProgress;
+  double _heroPulse = 1.0;
+  double get heroPulse => _heroPulse;
+  double _heroRotate = 0.0;
+  double get heroRotate => _heroRotate;
+  double _animTimeTotal = 0.0;
+  
   // 🆕 연타 스킬 처리용 큐
   final Queue<PendingHit> pendingHits = Queue<PendingHit>();
   
@@ -188,6 +225,9 @@ class GameState extends ChangeNotifier {
   double _scorchedGroundTimeLeft = 0; // 🆕 화염구 지면 연소 남은 시간 (초)
   int _burnDmgPerTick = 0; // 연소 틱당 데미지
   double _burnAccumulator = 0; // 연소 틱 주기용 누적기
+
+  // 🆕 [v2.4.3] 통합 애니메이션 시스템 (AnimationController 대체)
+  bool _pulseExpanding = true;
 
   // [v2.0] 신규 버프 타이머 변수들
   double _killAtkBuffTimeLeft = 0.0;
@@ -2235,6 +2275,9 @@ class GameState extends ChangeNotifier {
 
   // [v2.0] 각종 타이머 업데이트 (GameLoop에서 호출)
   void updateTimers(double dt) {
+    // 🆕 공용 애니메이션 수치 업데이트
+    _animTimeTotal += dt;
+    
     if (_skillDmgReductionTimeLeft > 0) {
       _skillDmgReductionTimeLeft = max(0.0, _skillDmgReductionTimeLeft - dt);
     }
@@ -2283,11 +2326,10 @@ class GameState extends ChangeNotifier {
       if (_burnAccumulator >= 0.5) { // 0.5초마다 틱 발생
         _burnAccumulator = 0;
         if (currentMonster != null && !currentMonster!.isDead) {
-          // 연소 데미지는 방어력을 무시할 수도 있지만, 우선은 고정 데미지로 처리
           int dmg = _burnDmgPerTick;
           currentMonster!.hp -= dmg;
           _monsterCurrentHp = currentMonster!.hp;
-          onDamageDealt?.call('🔥$dmg', dmg, false, true, oy: -15, shouldAnimate: false); // 🆕 도트 데미지는 공격 모션 제외
+          onDamageDealt?.call('🔥$dmg', dmg, false, true, oy: -15, shouldAnimate: false); 
           if (currentMonster!.hp <= 0) {
             handleVictory(null);
           }
@@ -2297,6 +2339,32 @@ class GameState extends ChangeNotifier {
         notifyListeners(); // 연소 종료 알림
       }
     }
+
+    // 🆕 [v2.4.3] 통합 애니메이션 값 업데이트
+    // 1. Hero Pulse (1초 주기로 0.0 -> 1.0 -> 0.0)
+    double pulseSpeed = 1.0; // 1초
+    if (_pulseExpanding) {
+      _heroPulse += dt * pulseSpeed;
+      if (_heroPulse >= 1.0) {
+        _heroPulse = 1.0;
+        _pulseExpanding = false;
+      }
+    } else {
+      _heroPulse -= dt * pulseSpeed;
+      if (_heroPulse <= 0.0) {
+        _heroPulse = 0.0;
+        _pulseExpanding = true;
+      }
+    }
+
+    // 2. Hero Rotate (10초 주기로 0.0 -> 1.0)
+    _heroRotate = (_heroRotate + dt / 10.0) % 1.0;
+
+    // 3. Shimmer (2초 주기로 0.0 -> 1.0)
+    _shimmerProgress = (_shimmerProgress + dt / 2.0) % 1.0;
+
+    // 배치 업데이트 중이므로 여기서 notifyListeners를 불러도 endBatchUpdate에서 한 번만 호출됨
+    notifyListeners();
   }
 
   // [v2.0] 모든 액티브 스킬의 쿨타임을 초 단위(seconds)로 감축
