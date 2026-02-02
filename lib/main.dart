@@ -27,6 +27,7 @@ import 'widgets/common_widgets.dart';
 import 'widgets/quest_overlay.dart';
 import 'widgets/quick_menu_panel.dart'; // 🆕 신규 통합 메뉴 도입
 import 'widgets/arena_panel.dart'; // 🆕 무투회 결투장 패널 도입
+import 'widgets/reincarnation_panel.dart'; // 🆕 환생 패널 도입
 import 'engine/game_loop.dart';
 
 
@@ -785,7 +786,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       case 4: return _buildCraftTab();
       case 5: return SkillPanel(onShowToast: _showToast);
       case 6: return const PetPanel();
-      case 7: return _buildMenuPlaceholder('유물 (환생)');
+      case 7: return const ReincarnationPanel();
       case 8: return AchievementPanel(onShowToast: _showToast, onShowSuccess: _showSuccess);
       case 9: return _buildSystemTab(); // 실제 시스템/관리자 모드 연결
       case 10: return const ArenaPanel(); // 🆕 결투장 패널 연결

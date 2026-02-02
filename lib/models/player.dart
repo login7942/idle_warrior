@@ -2,6 +2,7 @@ import 'dart:math';
 import 'item.dart';
 import 'skill.dart';
 import 'pet.dart';
+import 'reincarnation.dart';
 
 class Player {
   String name;
@@ -135,6 +136,9 @@ class Player {
   DateTime? skillCritBuffEndTime;   // 쌍룡참 치명타 버프
 
   
+  // 🆕 [v2.3.6] 환생 시스템 데이터
+  ReincarnationData reincarnation = ReincarnationData();
+
   // 숙련도 경험치 테이블 (레벨당 필요한 경험치 증가)
   int get craftingMasteryNextExp => craftingMasteryLevel * craftingMasteryLevel * 50;
 
@@ -360,8 +364,8 @@ class Player {
   double baseDropBonus = 100.0;
   // 🆕 [v0.8.14] 성장형 방치 효율: 레벨에 따라 0.5 ~ 0.8까지 상승
   double get baseOffEfficiency {
-    double eff = 0.5 + (level / 1000) * 0.3;
-    return eff.clamp(0.5, 0.8);
+    double eff = 0.5 + (level / 1000) * 0.3 + (reincarnation.getBonus('offline_eff') / 100);
+    return eff.clamp(0.5, 0.8 + (reincarnation.getBonus('offline_eff') / 100)); // 상한선도 환생 보너스만큼 확장
   }
   double baseCdr = 0.0; // 기본 쿨타임 감소 0%
 
@@ -512,6 +516,9 @@ class Player {
     // [세트 효과] 태고의 신 (T6) 2세트: 모든 능력치 +20%
     if (isSetEffectActive('ancient', 2)) finalMult += 0.2;
 
+    // [v2.3.6] 환생 보너스 (최종 체력 % 증가 - 곱연산)
+    finalMult *= (1.0 + (reincarnation.getBonus('final_hp') / 100));
+
     return (((baseHp * petBonus * (1.0 + encyclopediaHpMultiplier)).toInt() + flat + encyclopediaHpBonus.toInt()) * finalMult).toInt();
 
   }
@@ -577,6 +584,9 @@ class Player {
     }
 
 
+    // [v2.3.6] 환생 보너스 (최종 공격력 % 증가 - 곱연산)
+    finalMult *= (1.0 + (reincarnation.getBonus('final_atk') / 100));
+
     return (totalAtk * finalMult).toInt();
 
   }
@@ -640,8 +650,9 @@ class Player {
     });
     double promotionBonus = (promotionLevel >= 3) ? 0.1 : 0.0; // 3단계 보너스: 공속 +10%
     double skillBonus = (skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(skillAtkSpdBuffEndTime!)) ? 0.3 : 0.0; // 🆕 20% 확률 발동 공속 +30%
-    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus + skillBonus;
-    return total.clamp(0.1, 8.0); // 🆕 최대 공속 상향 (6.0 -> 8.0)
+    double reincarnationBonus = reincarnation.getBonus('atk_spd') / 100;
+    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus + skillBonus + reincarnationBonus;
+    return total.clamp(0.1, 10.0); // 🆕 최대 공속 상향 (8.0 -> 10.0)
   }
 
   double get critChance {
@@ -653,7 +664,7 @@ class Player {
       if (item.potential?.effect == OptionEffect.addCritChance) itemBonus += item.potential!.value;
     });
     double skillBonus = (skillCritBuffEndTime != null && DateTime.now().isBefore(skillCritBuffEndTime!)) ? 50.0 : 0.0; // 🆕 20% 확률 발동 치명타 +50%
-    return baseCritChance + getPetCompanionValue('예리한 통찰') + itemBonus + skillBonus;
+    return baseCritChance + getPetCompanionValue('예리한 통찰') + itemBonus + skillBonus + reincarnation.getBonus('crit_dmg');
   }
 
   double get critDamage {
@@ -1079,6 +1090,7 @@ class Player {
     'craftingMasteryExp': craftingMasteryExp,
     'desertBuffEndTime': desertBuffEndTime?.toIso8601String(),
     'isSlotCompressed': isSlotCompressed,
+    'reincarnation': reincarnation.toJson(),
   };
 
 
@@ -1299,6 +1311,11 @@ class Player {
     // 🆕 [v0.7.0] 제작 숙련도 로드
     p.craftingMasteryLevel = json['craftingMasteryLevel'] ?? 1;
     p.craftingMasteryExp = json['craftingMasteryExp'] ?? 0;
+
+    if (json['reincarnation'] != null) {
+      p.reincarnation = ReincarnationData.fromJson(json['reincarnation']);
+    }
+
     if (json['desertBuffEndTime'] != null) {
       p.desertBuffEndTime = DateTime.parse(json['desertBuffEndTime']);
     }

@@ -329,6 +329,56 @@ class GameState extends ChangeNotifier {
     }
   }
 
+  // --- [v2.3.6] 환생 관련 로직 ---
+  int get reincarnationPointsEarned => max(0, player.level - 200);
+
+  Future<void> executeReincarnation() async {
+    if (player.level < 200) return;
+
+    final points = reincarnationPointsEarned;
+    
+    // 1. 환생 데이터 업데이트
+    player.reincarnation.reincarnationCount++;
+    player.reincarnation.points += points;
+    player.reincarnation.totalPointsEarned += points;
+
+    // 2. 캐릭터 초기화
+    player.level = 1;
+    player.exp = 0;
+    player.maxExp = 100;
+    player.gold = 0;
+
+    // 3. 스테이지 초기화 (전체 사냥터 개방 상태는 유지되나 도달 층수는 1로 초기화)
+    currentStage = 1;
+    stageKills = 0;
+    zoneStages.forEach((id, _) => zoneStages[id] = 1);
+    
+    // 4. 상태 초기화
+    _playerCurrentHp = player.maxHp;
+    _monsterCurrentHp = 0;
+    currentMonster = null;
+    isProcessingVictory = false;
+
+    // 5. 저장 및 알림
+    await saveGameData(forceCloud: true);
+    addLog('✨ 환생 성공! 원래의 자리로 돌아가 새로운 힘을 얻었습니다. (+$points 포인트)', LogType.event);
+    
+    notifyListeners();
+  }
+
+  void upgradeReincarnationPerk(String perkId) {
+    if (player.reincarnation.points <= 0) return;
+    
+    try {
+      final perk = player.reincarnation.perks.firstWhere((p) => p.id == perkId);
+      perk.level++;
+      player.reincarnation.points--;
+      
+      saveGameData();
+      notifyListeners();
+    } catch (_) {}
+  }
+
   // --- 데이터 관리 ---
   Future<void> saveGameData({bool forceCloud = false}) async {
     if (!isDataLoaded) return; // 🆕 데이터 로드 전 저장을 방지하여 유실 예방
@@ -643,18 +693,20 @@ class GameState extends ChangeNotifier {
       addLog('✨ 스킬 추가 발동: ${skill.name}이(가) 한 번 더 발동됩니다!', LogType.event);
     }
 
-    // [v2.3.0] 스킬별 특수 효과(Proc) 발동 체크 (20% 확률)
+    // [v2.3.0] 스킬별 특수 효과(Proc) 발동 체크 (20% 확률 + 환생 보너스)
     final rand = Random();
-    if (skill.id == 'act_1' && rand.nextDouble() < 0.2) {
+    final double procChance = 0.2 + (player.reincarnation.getBonus('skill_proc') / 100);
+
+    if (skill.id == 'act_1' && rand.nextDouble() < procChance) {
       player.skillAtkSpdBuffEndTime = DateTime.now().add(const Duration(seconds: 2));
       addLog('🌪️ 바람베기 효과: 공격 속도 증가! (2초)', LogType.event);
-    } else if (skill.id == 'act_2' && rand.nextDouble() < 0.2) {
+    } else if (skill.id == 'act_2' && rand.nextDouble() < procChance) {
       currentMonster!.stunTimeLeft = 2.0;
       addLog('🔨 강격 효과: 몬스터 기절! (2초)', LogType.event);
-    } else if (skill.id == 'act_1_5' && rand.nextDouble() < 0.2) {
+    } else if (skill.id == 'act_1_5' && rand.nextDouble() < procChance) {
       player.skillCritBuffEndTime = DateTime.now().add(const Duration(seconds: 2));
       addLog('⚔️ 쌍룡참 효과: 치명타 확률 증가! (2초)', LogType.event);
-    } else if (skill.id == 'act_5' && rand.nextDouble() < 0.2) {
+    } else if (skill.id == 'act_5' && rand.nextDouble() < procChance) {
       currentMonster!.judgmentTimeLeft = 2.0;
       addLog('🌠 메테오 효과: 심판! 방어력 무력화! (2초)', LogType.event);
     }
@@ -733,6 +785,12 @@ class GameState extends ChangeNotifier {
     }
 
     int finalDmg = isCrit ? (baseDmg * player.critDamage / 100).toInt() : baseDmg;
+    
+    // [v2.3.6] 환생 보너스 (보스 피해량 증가)
+    if (currentMonster != null && currentMonster!.isBoss) {
+      finalDmg = (finalDmg * (1.0 + player.reincarnation.getBonus('boss_damage') / 100)).toInt();
+    }
+
     if (isExec) {
       finalDmg = currentMonster!.hp; // 즉사
     }
@@ -933,48 +991,49 @@ class GameState extends ChangeNotifier {
     if (rand.nextDouble() < dropChance) {
       // 🆕 [v2.2] 사냥터별 다중 티어 드롭 시스템 (가중치 방식)
       int dropTier = 1;
-      double tierRand = rand.nextDouble() * 100;
+      // 🆕 [v2.3.6] 환생 보너스 (아이템 드롭 확률 보정)
+      double dropBonus = player.reincarnation.getBonus('drop_rate'); // pt당 0.01%
 
       switch (currentZone.id) {
         case ZoneId.grassland:
           dropTier = 1; // T1 (100%)
           break;
         case ZoneId.forest:
-          if (tierRand < 1.5) dropTier = 2; // T2 (1.5%)
+          if (tierRand < (1.5 + dropBonus)) dropTier = 2; // T2 (1.5% + @)
           else dropTier = 1;
           break;
         case ZoneId.mine:
-          if (tierRand < 1.0) dropTier = 3;      // T3 (1.0%)
-          else if (tierRand < 11.0) dropTier = 2; // T2 (10.0%)
+          if (tierRand < (1.0 + dropBonus)) dropTier = 3;      // T3 (1.0% + @)
+          else if (tierRand < (11.0 + dropBonus * 2)) dropTier = 2; // T2 (10.0% + @)
           else dropTier = 1;
           break;
         case ZoneId.dungeon:
-          if (tierRand < 0.5) dropTier = 4;       // T4 (0.5%)
-          else if (tierRand < 10.0) dropTier = 3;  // T3 (9.5%)
-          else if (tierRand < 30.0) dropTier = 2; // T2 (20.0%)
+          if (tierRand < (0.5 + dropBonus)) dropTier = 4;       // T4 (0.5% + @)
+          else if (tierRand < (10.0 + dropBonus * 2)) dropTier = 3;  // T3 (9.5% + @)
+          else if (tierRand < (30.0 + dropBonus * 3)) dropTier = 2; // T2 (20.0% + @)
           else dropTier = 1;
           break;
         case ZoneId.volcano:
-          if (tierRand < 0.3) dropTier = 5;       // T5 (0.3%)
-          else if (tierRand < 5.0) dropTier = 4;   // T4 (4.7%)
-          else if (tierRand < 20.0) dropTier = 3;  // T3 (15.0%)
-          else if (tierRand < 50.0) dropTier = 2;  // T2 (30.0%)
+          if (tierRand < (0.3 + dropBonus)) dropTier = 5;       // T5 (0.3% + @)
+          else if (tierRand < (5.0 + dropBonus * 2)) dropTier = 4;   // T4 (4.7% + @)
+          else if (tierRand < (20.0 + dropBonus * 3)) dropTier = 3;  // T3 (15.0% + @)
+          else if (tierRand < (50.0 + dropBonus * 4)) dropTier = 2;  // T2 (30.0% + @)
           else dropTier = 1;
           break;
         case ZoneId.snowfield:
-          if (tierRand < 0.1) dropTier = 6;        // T6 (0.1%)
-          else if (tierRand < 5.0) dropTier = 5;    // T5 (4.9%)
-          else if (tierRand < 15.0) dropTier = 4;   // T4 (10.0%)
-          else if (tierRand < 35.0) dropTier = 3;   // T3 (20.0%)
-          else if (tierRand < 65.0) dropTier = 2;   // T2 (30.0%)
+          if (tierRand < (0.1 + dropBonus)) dropTier = 6;        // T6 (0.1% + @)
+          else if (tierRand < (5.0 + dropBonus * 2)) dropTier = 5;    // T5 (4.9% + @)
+          else if (tierRand < (15.0 + dropBonus * 3)) dropTier = 4;   // T4 (10.0% + @)
+          else if (tierRand < (35.0 + dropBonus * 4)) dropTier = 3;   // T3 (20.0% + @)
+          else if (tierRand < (65.0 + dropBonus * 5)) dropTier = 2;   // T2 (30.0% + @)
           else dropTier = 1;
           break;
         case ZoneId.abyss:
-          if (tierRand < 1.0) dropTier = 6;        // T6 (1.0%)
-          else if (tierRand < 15.0) dropTier = 5;   // T5 (14.0%)
-          else if (tierRand < 35.0) dropTier = 4;   // T4 (20.0%)
-          else if (tierRand < 60.0) dropTier = 3;   // T3 (25.0%)
-          else if (tierRand < 80.0) dropTier = 2;   // T2 (20.0%)
+          if (tierRand < (1.0 + dropBonus)) dropTier = 6;        // T6 (1.0% + @)
+          else if (tierRand < (15.0 + dropBonus * 2)) dropTier = 5;   // T5 (14.0% + @)
+          else if (tierRand < (35.0 + dropBonus * 3)) dropTier = 4;   // T4 (20.0% + @)
+          else if (tierRand < (60.0 + dropBonus * 4)) dropTier = 3;   // T3 (25.0% + @)
+          else if (tierRand < (80.0 + dropBonus * 5)) dropTier = 2;   // T2 (20.0% + @)
           else dropTier = 1;
           break;
         default:
