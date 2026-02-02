@@ -35,8 +35,14 @@ class GameLoop {
     gameState.beginBatchUpdate();
 
     try {
-      // 🆕 0-1. 몬스터 소환 대기 처리 (isProcessingVictory와 무관하게 실행)
+      // 🆕 몬스터 소환 대기 처리 (isProcessingVictory와 무관하게 실행)
       final now = DateTime.now();
+      double t = dt;
+      
+      // [v2.4.9] 타이머 시스템 업데이트 (애니메이션, 쿨타임 등)
+      // 몬스터 존재 여부와 상관없이 항상 실행되어야 텍스트 등이 끊기지 않음
+      gameState.updateTimers(t);
+
       if (gameState.pendingMonsterSpawn && gameState.monsterSpawnScheduledTime != null) {
         if (now.isAfter(gameState.monsterSpawnScheduledTime!)) {
           gameState.pendingMonsterSpawn = false;
@@ -51,12 +57,9 @@ class GameLoop {
       _logicAccumulator += dt;
       if (_logicAccumulator < 0.033) return;
 
-      // 누적된 시간을 실제 로직 처리 시간(t)으로 사용
-      double t = _logicAccumulator;
+      // 누적된 시간을 실제 전투 로직 처리 시간(tCombat)으로 사용
+      double tCombat = _logicAccumulator;
       _logicAccumulator = 0;
-
-      // [v2.0] 타이머 시스템 업데이트 (피해 감소 등)
-      gameState.updateTimers(t);
 
       // 🆕 0. 연타 스킬 타격 처리 (예약된 시간이 된 타격 실행)
       while (gameState.pendingHits.isNotEmpty) {
@@ -84,7 +87,7 @@ class GameLoop {
       // 1. 플레이어 공격 주기 처리 (v0.1.x 직렬화 적용)
       // 연타 스킬(pendingHits)이 남아있는 동안에는 다음 공격 턴 게이지를 쌓지 않음
       if (gameState.pendingHits.isEmpty) {
-        _attackAccumulator += t;
+        _attackAccumulator += tCombat;
       }
 
       double playerAttackInterval = 1.0 / gameState.player.attackSpeed;
@@ -96,14 +99,14 @@ class GameLoop {
       }
 
       // 2. 몬스터 공격 주기 처리 (기본 1.5초, 보스 광폭화 시 1.0초 등 가변 적용)
-      _monsterAttackAccumulator += t;
+      _monsterAttackAccumulator += tCombat;
       if (_monsterAttackAccumulator >= gameState.monsterAttackInterval) {
         gameState.monsterPerformAttack();
         _monsterAttackAccumulator = 0;
       }
 
       // 3. 체력 재생 처리 (1틱 = 3초)
-      _regenAccumulator += t;
+      _regenAccumulator += tCombat;
       if (_regenAccumulator >= 3.0) {
         gameState.applyRegen();
         _regenAccumulator = 0;

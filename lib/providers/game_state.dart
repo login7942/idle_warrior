@@ -256,7 +256,7 @@ class GameState extends ChangeNotifier {
   // --- UI 통신용 콜백 ---
   Function(String text, int damage, bool isCrit, bool isSkill, {double? ox, double? oy, bool shouldAnimate, String? skillIcon, int? combo})? onDamageDealt;
   Function(int damage, {bool isShield})? onPlayerDamageTaken;
-  VoidCallback? onMonsterSpawned;
+  Function(String imagePath)? onMonsterSpawned; // 🆕 몬스터 소환 콜백 (프리캐싱용)
   Function(int gold, int exp)? onVictory;
   Function(int healAmount)? onHeal;
   VoidCallback? onStageJump; // [v0.0.79] 스테이지 점프 발생 시 호출
@@ -611,7 +611,10 @@ class GameState extends ChangeNotifier {
     currentMonster = Monster.generate(currentZone, currentStage, isFinal: isFinal);
     monsterCurrentHp = currentMonster!.hp;
     lastMonsterSpawnTime = DateTime.now();
-    onMonsterSpawned?.call();
+    
+    // 🆕 [v2.4.7] 이미지 프리캐싱을 위해 경로 전달하며 콜백 호출
+    onMonsterSpawned?.call(currentMonster!.imagePath);
+    
     notifyListeners();
   }
 
@@ -997,27 +1000,24 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    _dropMaterials(currentMonster!.level);
-    _dropItem();
-    
-    // 💡 최적화: 매 처치마다 저장하지 않고 배치(Batch) 처리
-    _victoryCountSinceSave++;
-    if (_victoryCountSinceSave >= 10) {
-      saveGameData();
-      _victoryCountSinceSave = 0;
-    }
+    // 🆕 [v2.4.7] 성능 최적화: 무거운 루프 및 전리품 계산을 Microtask로 분리하여 처치 순간의 Hitch 해결
+    Future.microtask(() {
+      _dropMaterials(currentMonster!.level);
+      _dropItem();
+      
+      _victoryCountSinceSave++;
+      if (_victoryCountSinceSave >= 10) {
+        saveGameData();
+        _victoryCountSinceSave = 0;
+      }
+      _processAutoCraft();
+    });
     
     // 🆕 전투 리듬 개선: 대기 후 다음 몬스터 소환 (단, 무한의 탑은 수동 진행이므로 제외)
     if (!isTower) {
       pendingMonsterSpawn = true;
       monsterSpawnScheduledTime = DateTime.now().add(const Duration(milliseconds: 250));
     }
-
-    // 🆕 [v0.5.40] 재료 획득 후 자동 제작 프로세스 실행
-    _processAutoCraft();
-
-    // 🆕 [v0.8.27] 퀘스트 체크: 처치 수 또는 스테이지 도달 (이미 위에서 체크되었을 가능성이 커서 한 번만 수행되도록 최적화)
-    // checkQuestProgress(QuestType.reachStage, currentStage); // 중복 제거
   }
 
 
@@ -1982,48 +1982,57 @@ class GameState extends ChangeNotifier {
 
   // 🆕 [v0.5.40] 자동 제작 엔진: 재료 충족 시 랜덤 부위 자동 생성
   void _processAutoCraft() {
-    final Map<int, int> shardCosts = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
-    final Map<int, int> coreCosts = { 2: 5, 3: 10, 4: 30, 5: 30, 6: 30 };
+    // 🆕 [v2.4.5] 성능 최적화: 무거운 루프 로직을 Microtask로 분리하여 처치 순간의 프레임 드랍 방지
+    Future.microtask(() {
+      final Map<int, int> shardCosts = { 2: 300, 3: 1000, 4: 3000, 5: 7500, 6: 15000 };
+      final Map<int, int> coreCosts = { 2: 5, 3: 10, 4: 30, 5: 30, 6: 30 };
 
-    for (int t = 2; t <= 6; t++) {
-      if (player.autoCraftTiers[t] == true) {
-        int shardCost = shardCosts[t] ?? 999999;
-        int coreCost = coreCosts[t] ?? 999999;
+      bool changed = false;
+      for (int t = 2; t <= 6; t++) {
+        if (player.autoCraftTiers[t] == true) {
+          int shardCost = shardCosts[t] ?? 999999;
+          int coreCost = coreCosts[t] ?? 999999;
 
-        while (player.shards >= shardCost && 
-               player.abyssalPowder >= coreCost && 
-               player.inventory.length < player.maxInventory) {
-          
-          final type = ItemType.values[Random().nextInt(6)]; 
-          final newItem = craftItem(type, t, shardCost: shardCost, abyssalCost: coreCost);
-          
-          if (newItem != null) {
-            addLog('[자동제작] T$t ${newItem.type.nameKr} 제작 완료!', LogType.item);
-            onLootAcquired?.call('🔨', 'T$t ${newItem.name}', newItem.grade, amount: 1);
-          } else {
-            break;
+          while (player.shards >= shardCost && 
+                 player.abyssalPowder >= coreCost && 
+                 player.inventory.length < player.maxInventory) {
+            
+            final type = ItemType.values[Random().nextInt(6)]; 
+            final newItem = craftItem(type, t, shardCost: shardCost, abyssalCost: coreCost);
+            
+            if (newItem != null) {
+              changed = true;
+              addLog('[자동제작] T$t ${newItem.type.nameKr} 제작 완료!', LogType.item);
+              onLootAcquired?.call('🔨', 'T$t ${newItem.name}', newItem.grade, amount: 1);
+            } else {
+              break;
+            }
           }
         }
       }
-    }
-    notifyListeners();
+      // 데이터가 실제로 변경되었을 때만 UI 상의 알림 등을 위해 최소한으로 호출
+      if (changed) notifyListeners();
+    });
   }
 
 
   // 🆕 [v0.5.58] 길잡이 퀘스트 시스템 로직
 
   void checkQuestProgress(QuestType type, int value) {
-    if (player.currentQuestIndex >= GuideQuestData.quests.length) return;
-    if (player.isQuestRewardClaimable) return;
+    // 🆕 [v2.4.5] 퀘스트 체크도 Microtask로 분리하여 처치 순간의 부하 분산
+    Future.microtask(() {
+      if (player.currentQuestIndex >= GuideQuestData.quests.length) return;
+      if (player.isQuestRewardClaimable) return;
 
-    final quest = GuideQuestData.quests[player.currentQuestIndex];
-    if (quest.type == type) {
-      if (value >= quest.targetValue) {
-        player.isQuestRewardClaimable = true;
-        addLog('★ 퀘스트 완료! [${quest.title}] 보상을 확인하세요.', LogType.event);
-        notifyListeners();
+      final quest = GuideQuestData.quests[player.currentQuestIndex];
+      if (quest.type == type) {
+        if (value >= quest.targetValue) {
+          player.isQuestRewardClaimable = true;
+          addLog('★ 퀘스트 완료! [${quest.title}] 보상을 확인하세요.', LogType.event);
+          notifyListeners();
+        }
       }
-    }
+    });
   }
 
   void claimQuestReward() {

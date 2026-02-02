@@ -215,18 +215,37 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     
     // 🆕 60FPS UI 갱신 (전리품 파티클, 데미지 매니저 업데이트용)
-    // Ticker를 하나만 유지하여 통합 관리
+    DateTime lastFrameTime = DateTime.now();
     final ticker = createTicker((elapsed) {
       final now = DateTime.now();
-      if (now.difference(_lastUiTick).inMilliseconds < 33) return;
+      double dt = now.difference(lastFrameTime).inMilliseconds / 1000.0;
+      
+      // 🆕 [v2.4.8] Delta Time Capping: 프레임 드랍(Hitch) 시 텍스트가 순간이동하는 현상 방지
+      // 시스템 부하로 틱이 지연되어도 한 번에 최대 2프레임분(약 30fps) 이상의 이동을 허용하지 않음
+      if (dt > 0.033) dt = 0.033;
+      
+      lastFrameTime = now;
+      
+      if (now.difference(_lastUiTick).inMilliseconds < 16) return; // 60FPS 타겟으로 조정
       _lastUiTick = now;
 
       _updateParticles(); 
-      damageManager.update(); 
+      damageManager.update(dt); 
     });
     ticker.start();
     
     _gameLoop.start();
+
+    // 🆕 [v2.4.7] 몬스터 이미지 프리캐싱 루틴 및 등장 애니메이션 통합
+    gameState.onMonsterSpawned = (imagePath) {
+       if (mounted) {
+         precacheImage(AssetImage(imagePath), context);
+         
+         // 몬스터 등장 애니메이션 초기화 및 실행
+         _monsterDeathController.reset();
+         _monsterSpawnController.forward(from: 0);
+       }
+    };
     
     // 🆕 전투 이벤트와 UI 연출 연결
     gameState.onDamageDealt = (text, damage, isCrit, isSkill, {ox, oy, shouldAnimate = true, skillIcon, combo}) {
@@ -268,12 +287,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _addFloatingText('-$damage', false, isShield: isShield);
     };
 
-    gameState.onMonsterSpawned = () {
-      if (!mounted) return;
-      // 몬스터 등장 애니메이션 초기화 및 실행
-      _monsterDeathController.reset();
-      _monsterSpawnController.forward(from: 0);
-    };
 
     // 🆕 럭키 스트릭, 천장 성공 등 특수 연출 연결
     gameState.onSpecialEvent = (title, message) {
@@ -606,7 +619,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     
     damageManager.add(DamageEntry(
       text: text,
-      createdAt: DateTime.now(),
       type: type,
       basePosition: basePos + Offset(ox, oy),
       skillIcon: skillIcon, // 🆕 아이콘 전달
@@ -2038,9 +2050,12 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
 
   Widget _buildStageBarLarge() {
-    return Consumer<GameState>(
-      builder: (context, gameState, child) {
-        double progress = (gameState.stageKills / gameState.targetKills).clamp(0, 1);
+    // 🆕 [v2.4.6] 최적화: 필요한 데이터만 감시하여 리빌드 부하 감소
+    return Selector<GameState, String>(
+      selector: (_, gs) => '${gs.stageKills}_${gs.targetKills}_${gs.currentStage}_${gs.autoAdvance}',
+      builder: (context, _, child) {
+        final gameState = context.read<GameState>();
+        double progress = (gameState.stageKills / gameState.targetKills).clamp(0.0, 1.0);
         bool isBossStage = gameState.currentStage % 50 == 0;
         
         return Container(
@@ -2050,25 +2065,25 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(7),
-            // 보스 스테이지일 경우 바 전체에 미세한 붉은 광운 추가
             boxShadow: isBossStage ? [
               BoxShadow(color: Colors.redAccent.withValues(alpha: 0.15), blurRadius: 8, spreadRadius: 1)
             ] : null,
           ),
           child: Stack(
             children: [
+              // 🆕 경량화: AnimatedContainer 대신 TweenAnimationBuilder 하나만 사용
               TweenAnimationBuilder<double>(
                 tween: Tween<double>(end: progress),
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 200), // 가볍게 200ms
+                curve: Curves.easeOut,
                 builder: (context, value, child) => FractionallySizedBox(
                   alignment: Alignment.centerLeft,
                   widthFactor: value,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 500),
+                  child: Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(7),
                       boxShadow: isBossStage ? [
-                        BoxShadow(color: Colors.redAccent.withValues(alpha: 0.6), blurRadius: 10, spreadRadius: 2)
+                        BoxShadow(color: Colors.redAccent.withValues(alpha: 0.4), blurRadius: 10, spreadRadius: 1)
                       ] : null,
                       gradient: LinearGradient(
                         colors: isBossStage 
@@ -2214,8 +2229,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         children: [
           TweenAnimationBuilder<double>(
             tween: Tween<double>(end: progress),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutCubic,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
             builder: (context, value, _) => FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: value,
@@ -4558,16 +4573,15 @@ class LootNotification {
 class DamageEntry {
   final String text;
   final DamageType type;
-  final DateTime createdAt;
   final Offset basePosition;
   final String? skillIcon; // 🆕 스킬 아이콘
   final int? combo; // 🆕 콤보 단계
+  double lifeProgress = 0.0; // 🆕 진행도 (0.0 ~ 1.0)
   // 🆕 최적화: 레이아웃이 완료된 객체를 캐싱
   late final TextPainter textPainter;
 
   DamageEntry({
     required this.text,
-    required this.createdAt,
     required this.type,
     required this.basePosition,
     this.skillIcon,
@@ -4690,9 +4704,13 @@ class DamageManager {
     texts.add(entry);
   }
   
-  void update() {
-    final now = DateTime.now();
-    texts.removeWhere((t) => now.difference(t.createdAt).inMilliseconds >= 800);
+  void update(double dt) {
+    for (var i = texts.length - 1; i >= 0; i--) {
+      texts[i].lifeProgress += dt / 0.8; // 0.8초 동안 지속
+      if (texts[i].lifeProgress >= 1.0) {
+        texts.removeAt(i);
+      }
+    }
   }
 }
 
@@ -4706,31 +4724,28 @@ class DamagePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (texts.isEmpty) return;
-    final now = DateTime.now();
 
     for (var ft in texts) {
-      final elapsedMs = now.difference(ft.createdAt).inMilliseconds;
-      if (elapsedMs < 0 || elapsedMs >= 800) continue;
-
-      final double progress = elapsedMs / 800; // 0.0 ~ 1.0 (0.8s)
+      final double progress = ft.lifeProgress;
+      if (progress < 0 || progress >= 1.0) continue;
       
       double scale = 1.0;
       double offsetY = 0.0;
       double opacity = 1.0;
 
-      // 1단계: 0~0.16s (0~20%) - 팝업 (투명도 0->1, 크기 0.5->1.2, 살짝 튕김)
+      // 1단계: 0~0.2 (20%) - 팝업 (투명도 0->1, 크기 0.5->1.2)
       if (progress <= 0.2) {
-        final p = progress / 0.2; // 0.0 ~ 1.0
-        opacity = p; // 0.0 -> 1.0
-        scale = 0.5 + (0.7 * p); // 0.5 -> 1.2
-        offsetY = -20 * p; // 0 -> -20px (살짝 튕김)
+        final p = progress / 0.2; 
+        opacity = p.clamp(0.0, 1.0);
+        scale = 0.5 + (0.7 * p); 
+        offsetY = -20 * p;
       } 
-      // 2단계: 0.16~0.8s (20~100%) - 상승 소멸 (부드럽게 떠오르며 투명도 1->0)
+      // 2단계: 0.2~1.0 (80%) - 상승 소멸
       else {
-        final p = (progress - 0.2) / 0.8; // 0.0 ~ 1.0
-        opacity = 1.0 - p; // 1.0 -> 0.0
-        scale = 1.2 - (0.2 * p); // 1.2 -> 1.0
-        offsetY = -20 - (60 * p); // -20 -> -80px까지 (총 80px 이동)
+        final p = (progress - 0.2) / 0.8; 
+        opacity = (1.0 - p).clamp(0.0, 1.0);
+        scale = 1.2 - (0.2 * p); 
+        offsetY = -20 - (60 * p); 
       }
 
       // 최종 좌표 계산 (basePosition + 애니메이션 오프셋)
