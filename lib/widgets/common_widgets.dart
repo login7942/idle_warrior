@@ -1011,9 +1011,9 @@ class HeroEffectPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 🆕 기준점 이원화 (Ground vs Body)
+    // 🆕 기준점 최적화 (Body 효과 상향 및 Ground 밀착)
     final groundCenter = Offset(size.width / 2, size.height - 20); // 발끝
-    final bodyCenter = Offset(size.width / 2, size.height * 0.55); // 몸체 중앙
+    final bodyCenter = Offset(size.width / 2, size.height * 0.48); // 몸체 중앙 (흉부 높이로 상향)
     final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
 
     // 🆕 10단계 무지개 효과용 Hue 계산

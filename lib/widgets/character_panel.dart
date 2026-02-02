@@ -132,31 +132,32 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
               // [좌측 영역] 캐릭터 아바타 및 이펙트
               Expanded(
                 flex: 4,
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    // 이펙트 레이어 (사이즈 축소 260 -> 180)
-                    AnimatedBuilder(
-                      animation: Listenable.merge([_heroPulseController, _heroRotateController]),
-                      builder: (context, _) => IgnorePointer(
-                        child: CustomPaint(
-                          size: const Size(180, 180),
-                          painter: HeroEffectPainter(
-                            promotionLevel: player.promotionLevel,
-                            isPlayer: true,
-                            pulse: _heroPulseController.value,
-                            rotation: _heroRotateController.value,
+                child: AnimatedBuilder(
+                  animation: _heroPulseController,
+                  builder: (context, child) {
+                    // 캐릭터와 이펙트가 함께 바운스되도록 상위에서 translate 적용
+                    return Transform.translate(
+                      offset: Offset(0, -10 * _heroPulseController.value),
+                      child: Stack(
+                        alignment: Alignment.bottomCenter,
+                        children: [
+                          // 이펙트 레이어
+                          IgnorePointer(
+                            child: AnimatedBuilder(
+                              animation: _heroRotateController,
+                              builder: (context, _) => CustomPaint(
+                                size: const Size(180, 180),
+                                painter: HeroEffectPainter(
+                                  promotionLevel: player.promotionLevel,
+                                  isPlayer: true,
+                                  pulse: _heroPulseController.value,
+                                  rotation: _heroRotateController.value,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                    // 아바타 본체 (사이즈 축소 195 -> 140)
-                    AnimatedBuilder(
-                      animation: _heroPulseController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(0, -10 * _heroPulseController.value),
-                          child: Padding(
+                          // 아바타 본체
+                          Padding(
                             padding: const EdgeInsets.only(bottom: 20), 
                             child: SizedBox(
                               height: 140, 
@@ -167,10 +168,10 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  ],
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
               
