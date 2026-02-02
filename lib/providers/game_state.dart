@@ -2135,13 +2135,13 @@ class GameState extends ChangeNotifier {
     double baseGoldPerMin = 120.0 * tier * goldMult;
     double baseShardPerMin = 0.5 * tier * shardMult;
     double basePowderPerMin = 0.2 * tier * powderMult;
-    double baseStonePerMin = 0.05 * tier * stoneMult;
+    double baseStonePerMin = 0.2 * tier * stoneMult; // 🆕 0.05 -> 0.2 상향 (4배)
     
     int gold = (minutes * baseGoldPerMin * totalEfficiency).toInt();
     int shards = (minutes * baseShardPerMin * totalEfficiency).toInt();
     int powderReward = (minutes * basePowderPerMin * totalEfficiency).toInt();
     int coreReward = (killsPerMin > 0 && tier >= 2) ? (minutes * 0.1 * totalEfficiency).toInt() : 0;
-    int stone = (minutes * 0.05 * tier * totalEfficiency).toInt();
+    int stone = (minutes * baseStonePerMin * totalEfficiency).toInt(); // 🆕 baseStonePerMin 적용으로 광산 보너스(1.5x) 활성화
 
 
     return {
