@@ -1366,7 +1366,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             _buildCraftHeader(),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
                 children: [
                   _buildCraftCategory(
                     0, '⚔️ 장비 제작 (리뉴얼 중)', 

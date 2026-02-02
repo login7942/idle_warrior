@@ -146,7 +146,21 @@ class Monster {
     double defScaling = pow(1.01, s).toDouble();
     int mDef = (baseDef * multiplier * defScaling).toInt();
     
-    double rewardMultiplier = multiplier * (1 + s / 500);
+    // 5-1. 보상 배율 산출 (소프트캡 적용)
+    // 스테이지 300 초과 시 보상 성장을 억제하여 사냥터 이동 유도
+    double rewardMultiplier;
+    if (s <= 300) {
+      rewardMultiplier = multiplier * (1 + s / 500);
+    } else {
+      // 300층 시점의 베이스 보상 배율 계산
+      double capPointMultiplier = 31 * pow(1.065, (300 - 200) / 10).toDouble() * zone.difficultyMultiplier;
+      double capPointRewardBase = capPointMultiplier * (1 + 300 / 500);
+      
+      // 300층 이후로는 로그 함수를 사용하여 성장을 매우 완만하게 조정 (소프트캡)
+      // log(s/300 + 1) 은 완만한 상승을 보장
+      rewardMultiplier = capPointRewardBase * (1 + log(s / 300) * 0.5);
+    }
+
     int mGold = (baseGold * rewardMultiplier).toInt();
     int mExp = (baseExp * rewardMultiplier).toInt();
 

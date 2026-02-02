@@ -100,7 +100,7 @@ class ReincarnationPanel extends StatelessWidget {
 
   Widget _buildPerkList(GameState gs, ReincarnationData re) {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
       itemCount: re.perks.length,
       itemBuilder: (context, index) {
         final perk = re.perks[index];

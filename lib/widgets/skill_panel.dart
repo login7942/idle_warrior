@@ -176,7 +176,7 @@ class SkillPanel extends StatelessWidget {
     final list = player.skills.where((s) => s.type == type).toList();
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
       itemCount: list.length,
       itemBuilder: (context, i) {
         final skill = list[i];

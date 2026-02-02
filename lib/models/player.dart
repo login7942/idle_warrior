@@ -651,8 +651,15 @@ class Player {
     double promotionBonus = (promotionLevel >= 3) ? 0.1 : 0.0; // 3단계 보너스: 공속 +10%
     double skillBonus = (skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(skillAtkSpdBuffEndTime!)) ? 0.3 : 0.0; // 🆕 20% 확률 발동 공속 +30%
     double reincarnationBonus = reincarnation.getBonus('atk_spd') / 100;
-    double total = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus + skillBonus + reincarnationBonus;
-    return total.clamp(0.1, 10.0); // 🆕 최대 공속 상향 (8.0 -> 10.0)
+    double rawAs = baseAttackSpeed + (getSkillValue('pas_1') / 100) + (getPetCompanionValue('가속 점프') / 100) + (getPetCompanionValue('급강하 공격') / 100) + (getPetCompanionValue('화염 폭풍') / 100) + itemBonus + promotionBonus + skillBonus + reincarnationBonus;
+    
+    // [소프트캡] 공속 5.0 초과 시 초과분의 40%만 적용
+    double effectiveAs = rawAs;
+    if (rawAs > 5.0) {
+      effectiveAs = 5.0 + (rawAs - 5.0) * 0.4;
+    }
+    
+    return effectiveAs.clamp(0.1, 10.0); // 🆕 최대 공속 상향 (8.0 -> 10.0)
   }
 
   double get critChance {
@@ -788,7 +795,15 @@ class Player {
     // [세트 효과] 차원 여행자 (T4) 4세트: 쿨감 +15%
     double setBonus = isSetEffectActive('dimension', 4) ? 15.0 : 0.0;
     
-    return baseCdr + getSkillValue('pas_6') + potentialCdr + promotionBonus + setBonus;
+    double rawCdr = baseCdr + getSkillValue('pas_6') + potentialCdr + promotionBonus + setBonus;
+    
+    // [소프트캡] 쿨감 50% 초과 시 초과분의 50%만 적용
+    double effectiveCdr = rawCdr;
+    if (rawCdr > 50.0) {
+      effectiveCdr = 50.0 + (rawCdr - 50.0) * 0.5;
+    }
+    
+    return effectiveCdr;
   }
 
   /// 특정 스킬 번호(1~6)에 대한 추가 쿨타임 감소 (%)
