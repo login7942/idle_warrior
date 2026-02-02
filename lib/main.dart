@@ -3295,37 +3295,44 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 ),
                 const SizedBox(height: 40),
                 // 🆕 구글 로그인 버튼 (로그아웃 상태일 때 표시)
-                if (!_authService.isLoggedIn)
+                if (!_authService.isLoggedIn) ...[
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.only(bottom: 12),
                     child: PopBtn(
                       '구글 계정으로 로그인', 
                       Colors.white, 
                       () async {
                         _showToast('구글 로그인 창을 띄웁니다...');
-                        final success = await _authService.signInWithGoogle();
-                        if (success) {
-                           _showToast('로그인 성공! 데이터를 불러옵니다...');
-                           await gameState.loadGameData();
-                        }
+                        await _authService.signInWithGoogle();
+                        // 🆕 GameState의 authListener가 나머지를 처리함
                       },
                       icon: Icons.login,
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: PopBtn(
+                      '게스트로 시작 (익명)', 
+                      Colors.grey.withValues(alpha: 0.8), 
+                      () async {
+                        _showToast('익명 계정을 생성합니다...');
+                        await _authService.signInAnonymously();
+                      },
+                      icon: Icons.person_outline,
+                    ),
+                  ),
+                ],
                 // 🆕 구글 계정 보호 버튼 (익명 계정일 때 표시)
                 if (_authService.isLoggedIn && _authService.isAnonymous)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: PopBtn(
-                      '구글 계정으로 데이터 보호', 
-                      Colors.white, 
+                      '구글 계정으로 데이터 전환/보호', 
+                      Colors.amberAccent.withValues(alpha: 0.8), 
                       () async {
                         _showToast('구글 로그인 창을 띄웁니다...');
-                        final success = await _authService.signInWithGoogle();
-                        if (success) {
-                           _showToast('계정 보호 완료! 데이터를 불러옵니다...');
-                           await gameState.loadGameData();
-                        }
+                        await _authService.signInWithGoogle();
+                        // 🆕 GameState의 authListener가 로그인을 감지하면 데이터를 로드함
                       },
                       icon: Icons.security,
                     ),

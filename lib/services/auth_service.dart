@@ -60,6 +60,9 @@ class AuthService {
     }
   }
   
+  /// 인증 상태 변경 스트림
+  Stream<AuthState> get onAuthStateChange => _supabase.auth.onAuthStateChange;
+
   /// 세션 새로고침
   Future<bool> refreshSession() async {
     try {

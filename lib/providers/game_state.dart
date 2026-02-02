@@ -156,7 +156,9 @@ class GameState extends ChangeNotifier {
   // --- 시스템 상태 ---
   bool isProcessingVictory = false;
   bool isCloudSynced = false;
+  bool isDataLoaded = false; // 🆕 데이터가 완전히 로드되었는지 여부
   DateTime? lastCloudSaveTime;
+  StreamSubscription<AuthState>? _authSubscription; // 🆕 인증 상태 구독
   
   // --- 무투회(토너먼트) 상태 (v2.2) ---
   List<TournamentNPC> tournamentNPCs = [];
@@ -284,8 +286,22 @@ class GameState extends ChangeNotifier {
     _initializeGame();
     // 🆕 10초마다 자동 저장 타이머 시작
     _autoSaveTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (_victoryCountSinceSave > 0) {
+      // 🆕 데이터가 로드된 상태에서만 자동 저장을 시도하여 데이터 유실 방지
+      if (_victoryCountSinceSave > 0 && isDataLoaded) {
         saveGameData(); 
+      }
+    });
+
+    // 🆕 인증 상태 변경 감지 리스너 추가
+    _authSubscription = authService.onAuthStateChange.listen((data) {
+      final event = data.event;
+      if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.tokenRefreshed) {
+        debugPrint('[Auth] 로그인 또는 세션 갱신 감지됨: ${data.session?.user.id}');
+        loadGameData(); // 로그인 시 클라우드 데이터를 즉시 동기화
+      } else if (event == AuthChangeEvent.signedOut) {
+        isDataLoaded = false;
+        isCloudSynced = false;
+        notifyListeners();
       }
     });
   }
@@ -294,20 +310,18 @@ class GameState extends ChangeNotifier {
   void dispose() {
     _autoSaveTimer?.cancel();
     _specialDungeonTimer?.cancel();
+    _authSubscription?.cancel(); // 🆕 구독 해제
     super.dispose();
   }
 
   Future<void> _initializeGame() async {
     try {
-      if (!authService.isLoggedIn) {
-        await authService.signInAnonymously();
-      }
+      // 🆕 앱 시작 시 강제 익명 로그인을 제거하여 기존 세션 유지를 우선함
+      // 세션이 있다면 loadGameData 내부에서 자동으로 클라우드 로드 시도
       await loadGameData();
     } catch (e) {
       debugPrint('초기화 중 오류 발생: $e');
-      await loadGameData();
     } finally {
-      // 🆕 초기화 완료 알림 (성공/실패 무관하게 완료 처리)
       if (!initializationCompleter.isCompleted) {
         initializationCompleter.complete();
       }
@@ -316,6 +330,8 @@ class GameState extends ChangeNotifier {
 
   // --- 데이터 관리 ---
   Future<void> saveGameData({bool forceCloud = false}) async {
+    if (!isDataLoaded) return; // 🆕 데이터 로드 전 저장을 방지하여 유실 예방
+    
     final nowTime = DateTime.now();
     final nowStr = nowTime.toIso8601String();
     final prefs = await SharedPreferences.getInstance();
@@ -400,6 +416,7 @@ class GameState extends ChangeNotifier {
 
     if (targetData != null) {
       _applyLoadedData(targetData);
+      isDataLoaded = true; // 🆕 로드 완료 표시
       if (isFromCloud) {
         addLog('클라우드에서 데이터를 불러왔습니다.', LogType.event);
         isCloudSynced = true;
@@ -407,7 +424,9 @@ class GameState extends ChangeNotifier {
         isCloudSynced = cloudDataMap != null;
       }
     } else {
+      // 🆕 데이터가 아예 없는 신규 유저의 경우에만 익명 로그인을 제안하거나 최소 데이터 생성
       _initializeStarterData();
+      isDataLoaded = true; 
     }
 
     // 데이터 로드 후 첫 몬스터 생성
