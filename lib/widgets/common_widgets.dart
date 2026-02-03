@@ -1011,9 +1011,12 @@ class HeroEffectPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 🆕 기준점 최적화 (Body 효과 상향 및 Ground 밀착)
-    final groundCenter = Offset(size.width / 2, size.height - 20); // 발끝
-    final bodyCenter = Offset(size.width / 2, size.height * 0.48); // 몸체 중앙 (흉부 높이로 상향)
+    // 🆕 완전히 상대적인 좌표 시스템 도입 (0.0 ~ 1.0)
+    // bodyCenter: 캐릭터 이미지의 정중앙 (흉부/복부 높이)
+    final bodyCenter = Offset(size.width * 0.5, size.height * 0.5); 
+    // groundCenter: 발밑 효과용 (센터에서 약간 하단)
+    final groundCenter = Offset(size.width * 0.5, size.height * 0.7); 
+    
     final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
 
     // 🆕 10단계 무지개 효과용 Hue 계산
@@ -1023,12 +1026,12 @@ class HeroEffectPainter extends CustomPainter {
       return HSVColor.fromAHSV(1.0, hue, 0.7, 1.0).toColor();
     }
 
-    // 1. 바닥 그림자
+    // 1. 바닥 그림자 (마법진과 일치시키기 위해 groundCenter 사용)
     final shadowPaint = Paint()
       ..color = Colors.black.withValues(alpha: 0.4)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
     canvas.drawOval(
-      Rect.fromCenter(center: groundCenter, width: 60 - (10 * pulse), height: 12),
+      Rect.fromCenter(center: groundCenter, width: size.width * 0.4 * (1 - 0.1 * pulse), height: size.height * 0.08),
       shadowPaint,
     );
 
@@ -1044,48 +1047,50 @@ class HeroEffectPainter extends CustomPainter {
       canvas.save();
       canvas.translate(groundCenter.dx, groundCenter.dy);
       canvas.rotate(rotation * 2 * pi);
-      canvas.drawCircle(Offset.zero, 45, sealPaint);
+      
+      final double sealRadius = size.width * 0.35;
+      canvas.drawCircle(Offset.zero, sealRadius, sealPaint);
       
       final nodePaint = Paint()..style = PaintingStyle.fill;
       for (int i = 0; i < 4; i++) {
         double angle = i * pi / 2;
         nodePaint.color = Colors.cyan;
         if (promotionLevel >= 10) nodePaint.color = getRainbowColor(i * 90);
-        canvas.drawCircle(Offset(cos(angle) * 45, sin(angle) * 45), 2.5, nodePaint);
+        canvas.drawCircle(Offset(cos(angle) * sealRadius, sin(angle) * sealRadius), 2.5, nodePaint);
       }
       canvas.restore();
     }
 
-    // 3. 블룸 오라 (bodyCenter 기준 - 캐릭터 중심 배정)
+    // 3. 블룸 오라 (bodyCenter 기준 - 캐릭터 정중앙)
     if (isPlayer && (promotionLevel >= 4)) {
       final auraPulse = 1.0 + (pulse * 0.12);
       final auraColor = promotionLevel >= 10 ? getRainbowColor(180) : Colors.blueAccent;
       
       final auraPaint = Paint()
         ..color = auraColor.withValues(alpha: 0.12 * (1 - pulse))
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20 + (10 * pulse));
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.15 + (10 * pulse));
       
-      canvas.drawCircle(bodyCenter, 40 * auraPulse, auraPaint);
+      canvas.drawCircle(bodyCenter, size.width * 0.3 * auraPulse, auraPaint);
       
       if (promotionLevel >= 7) {
         final corePaint = Paint()
           ..color = auraColor.withValues(alpha: 0.2)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-        canvas.drawCircle(bodyCenter, 22, corePaint);
+        canvas.drawCircle(bodyCenter, size.width * 0.15, corePaint);
       }
     }
 
-    // 4. 부유 파티클 (몸체 전체를 감싸도록 범위 조정)
+    // 4. 부유 파티클 (전체 영역 활용)
     if (isPlayer && (promotionLevel >= 1)) {
       int particleCount = (4 + (promotionLevel * 2)).clamp(4, 20);
       for (int i = 0; i < particleCount; i++) {
         final double speed = 0.25 + (i * 0.05);
         final double progress = (pulse * speed + (i / particleCount)) % 1.0;
         
-        // 파티클이 발끝에서 시작해 머리 위까지 솟아오름
-        final double zigZag = sin(progress * pi * 4 + i) * 15.0; 
-        final double startX = (i - (particleCount / 2)) * 8.0;
-        final double currentY = groundCenter.dy - (size.height * 0.8 * progress); 
+        final double zigZag = sin(progress * pi * 4 + i) * (size.width * 0.1); 
+        final double startX = (i - (particleCount / 2)) * (size.width * 0.06);
+        // 발밑(ground)에서 위(body 위쪽)까지 솟아오름
+        final double currentY = groundCenter.dy - (size.height * 0.6 * progress); 
         
         final pColor = promotionLevel >= 10 ? getRainbowColor(i * 40) : (i % 2 == 0 ? Colors.cyanAccent : Colors.blueAccent);
         final pPaint = Paint()

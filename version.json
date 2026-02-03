@@ -1,11 +1,11 @@
 {
-  "version": "v0.8.43",
-  "buildNumber": 110,
+  "version": "2.7.4",
+  "buildNumber": 142,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "updated_at": "2026-02-01",
+  "updated_at": "2026-02-03",
   "changelog": [
-    "안드로이드 패키지 고유 ID 적용 (com.login7942.idlewarrior)",
-    "재설치 시 세이브 데이터 연동 및 로그인 안정성 강화",
-    "몬스터 및 시스템 최적화 반영"
+    "하단 메뉴바 나노 슬림(Nano Slim) 2단 그리드 개편",
+    "메뉴 텍스트 제거 및 아이콘 크기 최적화로 전투 화면 개방감 극대화",
+    "스킬 퀵바 하단 텍스트 겹침 현상 해결 및 레이아웃 안정화"
   ]
 }

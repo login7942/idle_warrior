@@ -2287,7 +2287,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             SkillQuickbar(
               onNavigateToSkillTab: () => setState(() => _selectedIndex = 5),
             ),
-            const SizedBox(height: 80), // 하단 독 공간 확보
+            const SizedBox(height: 55), // 나노 슬림 독에 맞춘 최적화 (여백 최소화)
           ],
         ),
         
@@ -2488,119 +2488,99 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   Widget _buildBottomDock() {
     final List<String> emojis = ['⚔️', '👤', '🗺️', '🎒', '🔨', '⚡', '🐾', '💎', '🏆', '⚙️', '🏟️'];
-    final List<String> labels = ['전투', '캐릭터', '사냥터', '가방', '제작', '스킬', '펫', '환생', '업적', '설정', '결투장'];
     
     return Container(
-      padding: const EdgeInsets.only(bottom: 12, top: 2), // 하단 여백 소폭 조정
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
-        height: 56, 
+      padding: EdgeInsets.zero, // 패딩 완전 제거 (나노 슬림)
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1D2E).withValues(alpha: 0.98),
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.7), blurRadius: 5, offset: const Offset(0, -2)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 상단행
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(6, (i) => _buildDockItem(i, emojis[i])),
+          ),
+          // 하단행
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(5, (i) {
+              int idx = i + 6;
+              return _buildDockItem(idx, emojis[idx]);
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDockItem(int idx, String emoji) {
+    bool isSel = _selectedIndex == idx;
+    
+    return PressableScale(
+      onTap: () {
+        if (_selectedIndex != idx) {
+          setState(() {
+            if (_selectedIndex == 3) {
+              for (var item in player.inventory) {
+                item.isNew = false;
+              }
+            }
+            _selectedIndex = idx;
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: MediaQuery.of(context).size.width / 7.2, // 폭 소폭 더 줄임
+        padding: const EdgeInsets.symmetric(vertical: 3), // 터치 영역 최소 유지
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1D2E).withValues(alpha: 0.92), // 배경색 통일감 있게 조정
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 15, offset: const Offset(0, 5)),
-          ],
+          color: isSel ? Colors.blueAccent.withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(
-              dragDevices: {
-                ui.PointerDeviceKind.touch,
-                ui.PointerDeviceKind.mouse, // 마우스 드래그 스크롤 명시적 허용
-              },
-            ),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: emojis.length,
-              itemBuilder: (context, idx) {
-                bool isSel = _selectedIndex == idx;
-                return PressableScale(
-                  onTap: () {
-                    if (_selectedIndex != idx) {
-                      setState(() {
-                        // '가방'(index 3) 탭에 있다가 다른 탭으로 넘어갈 때만 N 마크 해제
-                        if (_selectedIndex == 3) {
-                          for (var item in player.inventory) {
-                            item.isNew = false;
-                          }
-                        }
-                        _selectedIndex = idx;
-                      });
-                    }
+        child: Center(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Text(
+                emoji,
+                style: TextStyle(
+                  fontSize: isSel ? 18 : 16, // 나노 슬림 아이콘 크기 (획기적 축소)
+                  shadows: [Shadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 1)],
+                ),
+              ),
+              // 가방 알림 (index 3)
+              if (idx == 3 && player.inventory.any((i) => i.isNew))
+                Positioned(
+                  top: -1, right: -2,
+                  child: Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)),
+                ),
+              // 스킬 알림 (index 5)
+              if (idx == 5)
+                Selector<GameState, bool>(
+                  selector: (_, gs) => gs.isAnySkillUpgradeable,
+                  builder: (context, canUpgrade, _) {
+                    if (!canUpgrade) return const SizedBox.shrink();
+                    return Positioned(
+                      top: -1, right: -2,
+                      child: Container(
+                        width: 4, height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF1A1D2E), width: 0.5),
+                        ),
+                      ),
+                    );
                   },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: 62,
-                    margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-                    decoration: BoxDecoration(
-                      color: isSel ? Colors.blueAccent.withValues(alpha: 0.15) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                      border: isSel 
-                        ? Border.all(color: Colors.blueAccent.withValues(alpha: 0.3), width: 1)
-                        : null,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Text(
-                              emojis[idx],
-                              style: TextStyle(
-                                fontSize: isSel ? 18 : 16,
-                                shadows: [
-                                  Shadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 3, offset: const Offset(1, 1))
-                                ],
-                              ),
-                            ),
-                            // 🆕 [v0.8.10] 스킬 업그레이드 가능 알림 (레드닷)
-                            if (idx == 5)
-                              Selector<GameState, bool>(
-                                selector: (_, gs) => gs.isAnySkillUpgradeable,
-                                builder: (context, canUpgrade, _) {
-                                  if (!canUpgrade) return const SizedBox.shrink();
-                                  return Positioned(
-                                    top: -2,
-                                    right: -2,
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: Colors.redAccent,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: const Color(0xFF1A1D2E), width: 1.5),
-                                        boxShadow: [
-                                          BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 4)
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          labels[idx],
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: isSel ? FontWeight.w900 : FontWeight.bold,
-                            color: isSel ? Colors.blueAccent : Colors.white38,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -2796,44 +2776,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     ),
                     const SizedBox(height: 2),
                     
-                    // 상태 이상 표시용 뱃지들
-                    if (p)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (gs.player.skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(gs.player.skillAtkSpdBuffEndTime!))
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: _buildStatusBadge('SPD UP', Colors.yellowAccent),
-                            ),
-                          if (gs.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gs.player.skillCritBuffEndTime!))
-                            _buildStatusBadge('CRT UP', Colors.orangeAccent),
-                        ],
-                      )
-                    else
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isFrozen)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: _buildStatusBadge('FROZEN', Colors.blueAccent),
-                            ),
-                          if (gs.currentMonster != null && gs.currentMonster!.isStunned)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: _buildStatusBadge('STUNNED', Colors.orangeAccent),
-                            ),
-                          if (gs.currentMonster != null && gs.currentMonster!.isJudged)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: _buildStatusBadge('ARMOR BREAK', Colors.purpleAccent),
-                            ),
-                          if (gs.currentMonster != null && gs.currentMonster!.trait != BossTrait.none && !isFrozen && !gs.currentMonster!.isStunned && !gs.currentMonster!.isJudged)
-                            _buildTraitBadge(gs.currentMonster!.trait),
-                        ],
-                      ),
-
                     const SizedBox(height: 5),
 
                     Row(
@@ -2847,9 +2789,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       ],
                     ),
                     
-                    // 3. 캐릭터 + 오오라 비주얼
+                     // 3. 캐릭터 + 오오라 비주얼 (중앙 정렬로 통일)
                     Stack(
-                      alignment: Alignment.bottomCenter,
+                      alignment: Alignment.center,
                       children: [
                          if (!p)
                            Selector<GameState, bool>(
@@ -2857,10 +2799,13 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                              builder: (context, isActive, _) {
                                if (!isActive) return const SizedBox.shrink();
                                return IgnorePointer(
-                                 child: SizedBox(
-                                   width: 160,
-                                   height: 60,
-                                   child: _buildScorchedGroundEffect(),
+                                 child: Transform.translate(
+                                   offset: const Offset(0, 30), // 바닥 효과는 중심보다 아래에 위치
+                                   child: SizedBox(
+                                     width: 160,
+                                     height: 60,
+                                     child: _buildScorchedGroundEffect(),
+                                   ),
                                  ),
                                );
                              },
@@ -2869,11 +2814,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                          Transform.translate(
                            offset: p ? Offset(0, -6.0 * gs.heroPulse) : Offset(0, -3.0 * gs.heroPulse),
                            child: Stack(
-                             alignment: Alignment.bottomCenter,
+                             alignment: Alignment.center,
                              children: [
                                IgnorePointer(
                                  child: CustomPaint(
-                                   size: const Size(150, 125),
+                                   size: const Size(140, 140), // 1:1 비율 권장
                                    painter: HeroEffectPainter(
                                      promotionLevel: p ? gs.player.promotionLevel : 0,
                                      isPlayer: p,
@@ -2975,30 +2920,39 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // OLD _buildCombatParticle REMOVED (Integrated into HeroEffectPainter)
 
-  Widget _buildTraitBadge(BossTrait trait) {
-    String label = '';
-    Color color = Colors.grey;
-    IconData icon = Icons.help_outline;
-
+  IconData _getTraitIcon(BossTrait trait) {
     switch (trait) {
-      case BossTrait.crush:
-        label = '파쇄';
-        color = Colors.orangeAccent;
-        icon = Icons.g_mobiledata_sharp;
-        break;
-      case BossTrait.corrupt:
-        label = '오염';
-        color = Colors.greenAccent;
-        icon = Icons.bloodtype;
-        break;
-      case BossTrait.erode:
-        label = '침식';
-        color = Colors.purpleAccent;
-        icon = Icons.timer_off;
-        break;
-      case BossTrait.none:
-        return const SizedBox.shrink();
+      case BossTrait.crush: return Icons.gavel; // 파쇄
+      case BossTrait.corrupt: return Icons.opacity; // 오염 (핏방울/액체)
+      case BossTrait.erode: return Icons.hourglass_bottom; // 침식 (시간/부식)
+      case BossTrait.none: return Icons.help_outline;
     }
+  }
+
+  Color _getTraitColor(BossTrait trait) {
+    switch (trait) {
+      case BossTrait.crush: return Colors.orangeAccent;
+      case BossTrait.corrupt: return Colors.greenAccent;
+      case BossTrait.erode: return Colors.purpleAccent;
+      case BossTrait.none: return Colors.grey;
+    }
+  }
+
+  String _getTraitLabel(BossTrait trait) {
+    switch (trait) {
+      case BossTrait.crush: return '파쇄';
+      case BossTrait.corrupt: return '오염';
+      case BossTrait.erode: return '침식';
+      case BossTrait.none: return '';
+    }
+  }
+
+  Widget _buildTraitBadge(BossTrait trait) {
+    if (trait == BossTrait.none) return const SizedBox.shrink();
+    
+    final label = _getTraitLabel(trait);
+    final color = _getTraitColor(trait);
+    final icon = _getTraitIcon(trait);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -3024,163 +2978,177 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   Widget _buildBattleStatusArea(GameState gameState) {
     final pet = gameState.player.activePet;
     final bool isOptimalZone = gameState.isOptimalZone;
-    final bool hasBuffs = gameState.isSkillDmgReductionActive || 
-                        gameState.isKillAtkBuffActive || gameState.isZoneAtkBuffActive ||
-                        gameState.isKillDefBuffActive || gameState.isZoneDefBuffActive;
+    final bool hasPlayerBuffs = pet != null || isOptimalZone || 
+                               gameState.isSkillDmgReductionActive || 
+                               gameState.isKillAtkBuffActive || gameState.isZoneAtkBuffActive ||
+                               gameState.isKillDefBuffActive || gameState.isZoneDefBuffActive ||
+                               (gameState.player.skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillAtkSpdBuffEndTime!)) ||
+                               (gameState.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillCritBuffEndTime!));
     
-    // 표시할 내용이 전혀 없으면 그리지 않음
-    if (pet == null && !isOptimalZone && !gameState.isInSpecialDungeon && !hasBuffs) return const SizedBox.shrink();
+    final bool hasMonsterDebuffs = gameState.currentMonster != null && (
+                                  gameState.currentMonster!.isStunned || 
+                                  (gameState.currentMonster?.frozenTimeLeft != null && gameState.currentMonster!.frozenTimeLeft > 0) ||
+                                  gameState.currentMonster!.isJudged ||
+                                  gameState.currentMonster!.trait != BossTrait.none
+                                );
 
-    // 🆕 틱마다 부유 효과 계산 (이미 상위에서 Consumer<GameState>로 묶여있어 매 틱 rebuild됨)
+    // 틱마다 부유 효과 계산
     final double time = DateTime.now().millisecondsSinceEpoch / 1000.0;
     final double floatingY = sin(time * 2.5) * 6.0; 
-    final double floatingX = cos(time * 1.5) * 3.0;
     
-    return Align(
-      alignment: const Alignment(-0.9, -0.85), // 좌측 상단 부유
-      child: Transform.translate(
-        offset: Offset(floatingX, floatingY),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                // 1. 활성화된 펫 표시
-                if (pet != null)
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: pet.grade.color.withValues(alpha: 0.6), width: 2.0),
-                      boxShadow: [
-                        BoxShadow(color: pet.grade.color.withValues(alpha: 0.3), blurRadius: 10, spreadRadius: 2),
-                      ],
-                    ),
-                    child: Text(
-                      pet.iconEmoji, 
-                      style: const TextStyle(fontSize: 28),
-                    ),
-                  ),
-
-                // 2. 버프 아이콘들 (스킬 감댐, 공중, 방중 등)
-                if (gameState.isSkillDmgReductionActive)
-                  _buildBuffIcon(
-                    Icons.shield_rounded, 
-                    Colors.blueAccent, 
-                    '피해감소 -${player.dmgReductionOnSkill.toStringAsFixed(1)}%', 
-                    gameState.skillDmgReductionTimeLeft
-                  ),
-                
-                if (gameState.isKillAtkBuffActive || gameState.isZoneAtkBuffActive)
-                  _buildBuffIcon(
-                    Icons.bolt_rounded, 
-                    Colors.redAccent, 
-                    '공격력 +${(player.killAtkBonus + player.zoneAtkBonus).toStringAsFixed(1)}%', 
-                    max(gameState.killAtkBuffTimeLeft, gameState.zoneAtkBuffTimeLeft)
-                  ),
-
-                if (gameState.isKillDefBuffActive || gameState.isZoneDefBuffActive)
-                  _buildBuffIcon(
-                    Icons.security, 
-                    Colors.greenAccent, 
-                    '방어력 +${(player.killDefBonus + player.zoneDefBonus).toStringAsFixed(1)}%', 
-                    max(gameState.killDefBuffTimeLeft, gameState.zoneDefBuffTimeLeft)
-                  ),
-
-                // 🆕 버프 상세 정보 힌트 (배치 순서 고정)
-                if (_activeBuffHint != null)
-                  AnimatedOpacity(
-                    opacity: 1.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    return Stack(
+      children: [
+        // 1. [좌측 상단] 플레이어 버프 영역
+        if (hasPlayerBuffs || gameState.isInSpecialDungeon)
+          Align(
+            alignment: const Alignment(-0.9, -0.85),
+            child: Transform.translate(
+              offset: Offset(0, floatingY),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (pet != null)
+                    Container(
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white24),
+                        color: Colors.black45,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: pet.grade.color.withValues(alpha: 0.6), width: 2.0),
                         boxShadow: [
-                          BoxShadow(color: Colors.black54, blurRadius: 10),
+                          BoxShadow(color: pet.grade.color.withValues(alpha: 0.3), blurRadius: 10, spreadRadius: 2),
                         ],
                       ),
-                      child: Text(
-                        _activeBuffHint!,
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
+                      child: Text(pet.iconEmoji, style: const TextStyle(fontSize: 24)),
                     ),
-                  ),
 
-                // 3. 던전 타이머 (특별 던전 시)
-                if (gameState.isInSpecialDungeon)
-                  _buildSpecialDungeonTimer(gameState),
-
-                // 4. 적정 사냥터 보너스 표시 (펫 유무 상관없이 노출)
-                if (isOptimalZone)
-                  GestureDetector(
-                    onTap: () {
-                      _optimalZoneHintTimer?.cancel();
-                      setState(() => _showOptimalZoneHint = true);
-                      _optimalZoneHintTimer = Timer(const Duration(seconds: 2), () {
-                        if (mounted) setState(() => _showOptimalZoneHint = false);
-                      });
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Colors.blueAccent, Colors.blueAccent.withValues(alpha: 0.6)],
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.home_rounded, 
-                            color: Colors.white, 
-                            size: 20,
-                          ),
-                        ),
-                        AnimatedOpacity(
-                          opacity: _showOptimalZoneHint ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 300),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: EdgeInsets.only(left: _showOptimalZoneHint ? 8 : 0),
-                            width: _showOptimalZoneHint ? 90 : 0,
-                            height: 36, // 아이콘 크기와 맞춤
-                            child: _showOptimalZoneHint ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.white10),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text(
-                                '적정사냥터버프',
-                                style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                              ),
-                            ) : const SizedBox.shrink(),
-                          ),
-                        ),
-                      ],
+                  if (gameState.player.skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillAtkSpdBuffEndTime!))
+                    _buildBuffIcon(
+                      Icons.speed, 
+                      Colors.yellowAccent, 
+                      '공격속도 상승', 
+                      gameState.player.skillAtkSpdBuffEndTime!.difference(DateTime.now()).inMilliseconds / 1000.0
                     ),
-                  ),
-              ],
+
+                  if (gameState.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillCritBuffEndTime!))
+                    _buildBuffIcon(
+                      Icons.whatshot, 
+                      Colors.orangeAccent, 
+                      '치명타 확률 상승', 
+                      gameState.player.skillCritBuffEndTime!.difference(DateTime.now()).inMilliseconds / 1000.0
+                    ),
+
+                  if (gameState.isSkillDmgReductionActive)
+                    _buildBuffIcon(
+                      Icons.shield, 
+                      Colors.blueAccent, 
+                      '피해감소 -${player.dmgReductionOnSkill.toStringAsFixed(1)}%', 
+                      gameState.skillDmgReductionTimeLeft
+                    ),
+                  
+                  if (gameState.isKillAtkBuffActive || gameState.isZoneAtkBuffActive)
+                    _buildBuffIcon(
+                      Icons.bolt, 
+                      Colors.redAccent, 
+                      '공격력 +${(player.killAtkBonus + player.zoneAtkBonus).toStringAsFixed(1)}%', 
+                      max(gameState.killAtkBuffTimeLeft, gameState.zoneAtkBuffTimeLeft)
+                    ),
+
+                  if (gameState.isKillDefBuffActive || gameState.isZoneDefBuffActive)
+                    _buildBuffIcon(
+                      Icons.security, 
+                      Colors.greenAccent, 
+                      '방어력 +${(player.killDefBonus + player.zoneDefBonus).toStringAsFixed(1)}%', 
+                      max(gameState.killDefBuffTimeLeft, gameState.zoneDefBuffTimeLeft)
+                    ),
+
+                  if (isOptimalZone)
+                    _buildBuffIcon(Icons.home_rounded, Colors.blueAccent, '적정사냥터 버프 활성화', 0),
+
+                  if (gameState.isInSpecialDungeon)
+                    _buildSpecialDungeonTimer(gameState),
+                ],
+              ),
             ),
           ),
+
+        // 2. [우측 상단] 몬스터 데버프/상태 영역
+        if (hasMonsterDebuffs)
+          Align(
+            alignment: const Alignment(0.9, -0.85),
+            child: Transform.translate(
+              offset: Offset(0, floatingY),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                direction: Axis.horizontal,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                   if (gameState.currentMonster!.isStunned)
+                    _buildBuffIcon(
+                      Icons.blur_on, 
+                      Colors.orangeAccent, 
+                      '[몬스터] 기절 상태', 
+                      gameState.currentMonster!.stunTimeLeft,
+                      prefix: '👹'
+                    ),
+                  if (gameState.currentMonster?.frozenTimeLeft != null && gameState.currentMonster!.frozenTimeLeft > 0)
+                    _buildBuffIcon(
+                      Icons.ac_unit, 
+                      Colors.lightBlueAccent, 
+                      '[몬스터] 빙결 상태', 
+                      gameState.currentMonster!.frozenTimeLeft,
+                      prefix: '👹'
+                    ),
+                  if (gameState.currentMonster!.isJudged)
+                    _buildBuffIcon(
+                      Icons.gpp_bad, 
+                      Colors.purpleAccent, 
+                      '[몬스터] 방어력 약화 (방어력 50% 무시)', 
+                      gameState.currentMonster!.judgmentTimeLeft,
+                      prefix: '👹'
+                    ),
+                  if (gameState.currentMonster!.trait != BossTrait.none)
+                    _buildBuffIcon(
+                      _getTraitIcon(gameState.currentMonster!.trait),
+                      _getTraitColor(gameState.currentMonster!.trait),
+                      '[보스 특성] ${_getTraitLabel(gameState.currentMonster!.trait)}',
+                      0,
+                      prefix: '👹'
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+        // 3. [중앙 상단] 팁/설명 레이어
+        if (_activeBuffHint != null)
+          Align(
+            alignment: const Alignment(0, -0.7),
+            child: AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24),
+                  boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 10)],
+                ),
+                child: Text(
+                  _activeBuffHint!,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
-  Widget _buildBuffIcon(IconData icon, Color color, String fullInfo, double timeLeft) {
+  Widget _buildBuffIcon(IconData icon, Color color, String fullInfo, double timeLeft, {String? prefix}) {
     return GestureDetector(
       onTap: () {
         _buffHintTimer?.cancel();
@@ -3201,7 +3169,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
             BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 8, spreadRadius: 1),
           ],
         ),
-        child: Icon(icon, color: color, size: 18),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(icon, color: color, size: 18),
+            if (prefix != null)
+              Positioned(
+                top: -6, right: -6,
+                child: Text(prefix, style: const TextStyle(fontSize: 10)),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -4797,13 +4775,13 @@ class DamageEntry {
       color = _getTypeColor(type);
     }
 
-    return GoogleFonts.luckiestGuy(
+    return GoogleFonts.kanit(
       color: color,
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      letterSpacing: 0.5,
+      fontSize: fontSize + 1, // 🆕 크기 보정을 1pt로 낮추어 날렵함 강조
+      fontWeight: fontWeight == FontWeight.normal ? FontWeight.w500 : FontWeight.w800,
+      letterSpacing: 0.0,
       shadows: [
-        const Shadow(offset: Offset(1, 1), blurRadius: 2, color: Colors.black54),
+        const Shadow(offset: Offset(1, 1), blurRadius: 1.5, color: Colors.black87),
       ], 
     );
   }
@@ -4833,7 +4811,7 @@ class DamageManager {
   
   void update(double dt) {
     for (var i = texts.length - 1; i >= 0; i--) {
-      texts[i].lifeProgress += dt / 0.8; // 0.8초 동안 지속
+      texts[i].lifeProgress += dt / 0.5; // 🆕 [v2.6.1] 0.8초 -> 0.5초로 단축
       if (texts[i].lifeProgress >= 1.0) {
         texts.removeAt(i);
       }
@@ -4860,19 +4838,19 @@ class DamagePainter extends CustomPainter {
       double offsetY = 0.0;
       double opacity = 1.0;
 
-      // 1단계: 0~0.2 (20%) - 팝업 (투명도 0->1, 크기 0.5->1.2)
-      if (progress <= 0.2) {
-        final p = progress / 0.2; 
+      // 1단계: 0~0.25 (25%) - 팝업 (투명도 0->1, 크기 0.5->1.2)
+      if (progress <= 0.25) {
+        final p = progress / 0.25; 
         opacity = p.clamp(0.0, 1.0);
         scale = 0.5 + (0.7 * p); 
-        offsetY = -20 * p;
+        offsetY = -15 * p;
       } 
-      // 2단계: 0.2~1.0 (80%) - 상승 소멸
+      // 2단계: 0.25~1.0 (75%) - 상승 소멸
       else {
-        final p = (progress - 0.2) / 0.8; 
+        final p = (progress - 0.25) / 0.75; 
         opacity = (1.0 - p).clamp(0.0, 1.0);
         scale = 1.2 - (0.2 * p); 
-        offsetY = -20 - (60 * p); 
+        offsetY = -15 - (45 * p); 
       }
 
       // 최종 좌표 계산 (basePosition + 애니메이션 오프셋)

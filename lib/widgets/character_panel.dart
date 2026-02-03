@@ -139,7 +139,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
                     return Transform.translate(
                       offset: Offset(0, -10 * _heroPulseController.value),
                       child: Stack(
-                        alignment: Alignment.bottomCenter,
+                        alignment: Alignment.center,
                         children: [
                           // 이펙트 레이어
                           IgnorePointer(
@@ -156,16 +156,13 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
                               ),
                             ),
                           ),
-                          // 아바타 본체
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 20), 
-                            child: SizedBox(
-                              height: 140, 
-                              child: Image.asset(
-                                'assets/images/warrior.png', 
-                                fit: BoxFit.contain, 
-                                errorBuilder: (c, e, s) => const Icon(Icons.person, size: 60, color: Colors.white24)
-                              ),
+                          // 아바타 본체 (중앙 정렬을 위해 패딩 제거)
+                          SizedBox(
+                            height: 140, 
+                            child: Image.asset(
+                              'assets/images/warrior.png', 
+                              fit: BoxFit.contain, 
+                              errorBuilder: (c, e, s) => const Icon(Icons.person, size: 60, color: Colors.white24)
                             ),
                           ),
                         ],
