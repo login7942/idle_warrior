@@ -40,6 +40,49 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
     super.dispose();
   }
 
+  void _showEditNameDialog(BuildContext context, GameState gameState) {
+    final TextEditingController nameController = TextEditingController(text: gameState.player.name);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.blueAccent, width: 1)),
+        title: const ShadowText('이름 변경', fontSize: 18, fontWeight: FontWeight.bold),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('새로운 캐릭터 이름을 입력하세요.', style: TextStyle(color: Colors.white38, fontSize: 13)),
+            const SizedBox(height: 20),
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+              maxLength: 10,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.black26,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                counterStyle: const TextStyle(color: Colors.white24),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Colors.white38))),
+          TextButton(
+            onPressed: () {
+              if (nameController.text.trim().isNotEmpty) {
+                gameState.updatePlayerName(nameController.text.trim());
+                Navigator.pop(context);
+              }
+            }, 
+            child: const Text('변경', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold))
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<GameState>(
@@ -51,7 +94,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
           child: Column(
             children: [
               // 히어로 쇼케이스 카드
-              _buildHeroShowcase(player),
+              _buildHeroShowcase(gameState),
               const SizedBox(height: 20),
               
               // 능력치 카드 3종
@@ -100,7 +143,8 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
     );
   }
 
-  Widget _buildHeroShowcase(player) {
+  Widget _buildHeroShowcase(GameState gameState) {
+    final player = gameState.player;
     return GlassContainer(
       padding: const EdgeInsets.all(20),
       borderRadius: 34,
@@ -116,7 +160,17 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
                 children: [
                   Text(player.promotionName.toUpperCase(), style: TextStyle(color: Colors.blueAccent.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 3)),
                   const SizedBox(height: 2),
-                  ShadowText(player.name, fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ShadowText(player.name, fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _showEditNameDialog(context, gameState),
+                        child: Icon(Icons.edit, size: 16, color: Colors.white.withValues(alpha: 0.5)),
+                      ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(width: 12),

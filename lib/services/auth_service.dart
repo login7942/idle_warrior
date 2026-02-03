@@ -5,6 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
   
+  /// 현재 사용자 정보
+  User? get currentUser => _supabase.auth.currentUser;
+
   /// 현재 사용자 ID
   String? get userId => _supabase.auth.currentUser?.id;
   
@@ -42,6 +45,9 @@ class AuthService {
         redirectTo: kIsWeb 
           ? Uri.base.origin 
           : 'io.supabase.idlewarrior://login-callback',
+        queryParams: {
+          'prompt': 'select_account',
+        },
       );
       return success;
     } catch (e) {

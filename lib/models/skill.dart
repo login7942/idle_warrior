@@ -43,9 +43,41 @@ class Skill {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'name': name,
+        'description': description,
+        'type': type.name,
+        'iconEmoji': iconEmoji,
         'level': level,
+        'maxLevel': maxLevel,
+        'unlockLevel': unlockLevel,
+        'unlockCost': unlockCost,
+        'baseUpgradeCost': baseUpgradeCost,
+        'costMultiplier': costMultiplier,
+        'baseValue': baseValue,
+        'valuePerLevel': valuePerLevel,
+        'baseCooldown': baseCooldown,
         'lastUsed': lastUsed?.toIso8601String(),
       };
+
+  factory Skill.fromJson(Map<String, dynamic> json) {
+    return Skill(
+      id: json['id'],
+      name: json['name'] ?? '',
+      description: json['description'] ?? '',
+      type: SkillType.values.firstWhere((e) => e.name == json['type'], orElse: () => SkillType.active),
+      iconEmoji: json['iconEmoji'] ?? '',
+      level: json['level'] ?? 0,
+      maxLevel: json['maxLevel'] ?? 100,
+      unlockLevel: json['unlockLevel'] ?? 0,
+      unlockCost: json['unlockCost'] ?? 0,
+      baseUpgradeCost: json['baseUpgradeCost'] ?? 0,
+      costMultiplier: (json['costMultiplier'] ?? 1.0).toDouble(),
+      baseValue: (json['baseValue'] ?? 0).toDouble(),
+      valuePerLevel: (json['valuePerLevel'] ?? 0).toDouble(),
+      baseCooldown: (json['baseCooldown'] ?? 0).toDouble(),
+      lastUsed: json['lastUsed'] != null ? DateTime.parse(json['lastUsed']) : null,
+    );
+  }
 
   // 기존 스킬 리스트에서 정보를 매칭하여 업데이트하기 위해 Named Constructor 대신 업데이트 메서드 사용
   void updateFromJson(Map<String, dynamic> json) {

@@ -9,6 +9,7 @@ class GameLoop {
   // 공격 및 재생 주기를 위한 타이머 누적기
   double _attackAccumulator = 0;
   double _monsterAttackAccumulator = 0;
+  double _defenderAttackAccumulator = 0; // 🆕 PvP 방어자 공격 누적기
   double _regenAccumulator = 0;
   double _logicAccumulator = 0; // 🆕 로직 쓰로틀링용 누적기
 
@@ -99,11 +100,24 @@ class GameLoop {
         _attackAccumulator = 0;
       }
 
-      // 2. 몬스터 공격 주기 처리 (기본 1.5초, 보스 광폭화 시 1.0초 등 가변 적용)
-      _monsterAttackAccumulator += tCombat;
-      if (_monsterAttackAccumulator >= gameState.monsterAttackInterval) {
-        gameState.monsterPerformAttack();
-        _monsterAttackAccumulator = 0;
+      // 2. 몬스터 또는 PvP 방어자 공격 주기 처리
+      if (gameState.isPvPMode) {
+        // PvP 모드: 방어자 공격 처리
+        _defenderAttackAccumulator += tCombat;
+        double defenderAttackInterval = 1.0 / (gameState.defenderSnapshot?.attackSpeed ?? 1.0);
+        if (defenderAttackInterval < 0.167) defenderAttackInterval = 0.167;
+
+        if (_defenderAttackAccumulator >= defenderAttackInterval) {
+          gameState.processDefenderTurn();
+          _defenderAttackAccumulator = 0;
+        }
+      } else {
+        // 일반 모드: 몬스터 공격 처리
+        _monsterAttackAccumulator += tCombat;
+        if (_monsterAttackAccumulator >= gameState.monsterAttackInterval) {
+          gameState.monsterPerformAttack();
+          _monsterAttackAccumulator = 0;
+        }
       }
 
       // 3. 체력 재생 처리 (1틱 = 3초)

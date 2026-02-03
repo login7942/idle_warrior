@@ -28,6 +28,8 @@ import 'widgets/quest_overlay.dart';
 import 'widgets/quick_menu_panel.dart'; // 🆕 신규 통합 메뉴 도입
 import 'widgets/arena_panel.dart'; // 🆕 무투회 결투장 패널 도입
 import 'widgets/reincarnation_panel.dart'; // 🆕 환생 패널 도입
+import 'widgets/ranking_panel.dart'; // 🆕 PvP 랭킹 패널 도입
+import 'services/pvp_manager.dart';
 import 'engine/game_loop.dart';
 
 
@@ -233,6 +235,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   // 전리품 파티클 시스템
   final List<LootParticle> _lootParticles = [];
   final GlobalKey _battleSceneKey = GlobalKey(); // 🆕 배틀 장면 좌표 기준키
+  final GlobalKey _playerKey = GlobalKey(); // 🆕 플레이어 위치 기준키
   final GlobalKey _monsterKey = GlobalKey();
   
   // 관리자 모드
@@ -375,7 +378,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     };
     
     // 🆕 전투 이벤트와 UI 연출 연결
-    gameState.onDamageDealt = (text, damage, isCrit, isSkill, {ox, oy, shouldAnimate = true, skillIcon, combo}) {
+    gameState.onDamageDealt = (text, damage, isCrit, isSkill, {isPlayerTarget = false, ox, oy, shouldAnimate = true, skillIcon, combo}) {
       if (!mounted) return;
 
       // 🆕 데미지 효율 기록 추가
@@ -389,13 +392,27 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       }
 
       if (shouldAnimate) {
-        // 몬스터 피격 (뒤로 밀림)
-        _monsterHitController.forward(from: 0);
-        // 플레이어 공격 (앞으로 튀어남)
-        _playerAttackController.forward(from: 0);
+        if (isPlayerTarget == true) {
+          // 플레이어 피격 (뒤로 밀림)
+          _playerHitController.forward(from: 0);
+          // 몬스터/방어자 공격 (앞으로 튀어나감)
+          _monsterAttackController.forward(from: 0);
+        } else {
+          // 몬스터/방어자 피격 (뒤로 밀림)
+          _monsterHitController.forward(from: 0);
+          // 플레이어 공격 (앞으로 튀어나감)
+          _playerAttackController.forward(from: 0);
+        }
       }
-      // 데미지 텍스트 (isSkill 여부 전달, 오프셋 반영, 스킬 아이콘 전달)
-      _addFloatingText(text, true, isCrit: isCrit, isSkill: isSkill, offsetX: ox, offsetY: oy, skillIcon: skillIcon, combo: combo);
+      
+      // 데미지 텍스트 (텍스트가 비어있으면 데미지 숫자로 대체하며 부호 추가)
+      String displayText = text;
+      if (displayText.isEmpty && damage > 0) {
+        displayText = '-$damage';
+      }
+
+      _addFloatingText(displayText, isPlayerTarget != true, 
+        isCrit: isCrit, isSkill: isSkill, offsetX: ox, offsetY: oy, skillIcon: skillIcon, combo: combo);
     };
 
     gameState.onHeal = (healAmount) {
@@ -485,6 +502,11 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     gameState.onSpecialDungeonEnd = () {
       if (!mounted) return;
       _exitSpecialDungeon();
+    };
+
+    gameState.onPvPResult = (isVictory, scoreChange) {
+      if (!mounted) return;
+      _showPvPResultDialog(isVictory, scoreChange);
     };
 
 
@@ -596,6 +618,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     gs.onSpecialEvent = null;
     gs.onVictory = null;
     gs.onStageJump = null;
+    gs.onPvPResult = null; // 🆕 PvP 콜백 해제
 
     // 4. 애니메이션 컨트롤러 해제
     _playerAttackController.dispose();
@@ -734,15 +757,34 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           basePos = battleBox.globalToLocal(globalCenter);
         }
       } else {
-        // 플레이어 캐릭터는 좌측에 고정된 편 (배틀 박스 기준 상대 좌표 사용 제안)
-        // 화면 크기에 대응하기 위해 하드코딩 대신 비율 또는 몬스터 대비 좌측 위치 사용
-        basePos = Offset(battleBox.size.width * 0.25, battleBox.size.height * 0.6);
+        // 🆕 플레이어 피격 시 실제 플레이어 위치(GlobalKey) 기반으로 좌표 확보
+        final playerBox = _playerKey.currentContext?.findRenderObject() as RenderBox?;
+        if (playerBox != null) {
+          final globalCenter = playerBox.localToGlobal(Offset(playerBox.size.width / 2, playerBox.size.height / 2));
+          basePos = battleBox.globalToLocal(globalCenter);
+        } else {
+          // 폴백: 비율 기반
+          basePos = Offset(battleBox.size.width * 0.25, battleBox.size.height * 0.4);
+        }
       }
     }
 
-    // 2. 추가 오프셋 적용 (더 넓게 흩어지도록 범위 확장)
-    double ox = offsetX ?? (rand.nextDouble() * 80) - 40; // ±40px 범위
-    double oy = offsetY ?? (rand.nextDouble() * 50) - 25; // ±25px 범위
+    // 2. 추가 오프셋 적용 (더 넓게 흩어지도록 범위 확장 및 랜덤성 강화)
+    // 전달된 offsetX/Y가 있더라도 약간의 랜덤 변동을 주어 겹침을 방지합니다.
+    double jitterX = (rand.nextDouble() * 40) - 20; // ±20px 랜덤 지터
+    double jitterY = (rand.nextDouble() * 30) - 15; // ±15px 랜덤 지터
+
+    double ox = (offsetX ?? 0) + jitterX;
+    if (offsetX == null && !isMonsterTarget) {
+      // 플레이어 대상인데 오프셋이 없으면(예: 회복) 기본적으로 중앙 상단 근처
+      ox = (rand.nextDouble() * 60) - 30;
+    }
+
+    double oy = (offsetY ?? 0) + jitterY;
+    if (offsetY == null) {
+      // 기본적으로 머리 위로 띄우기 위해 음수값 방향 선호
+      oy = -40 - (rand.nextDouble() * 40); 
+    }
     
     damageManager.add(DamageEntry(
       text: text,
@@ -916,6 +958,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       case 8: return AchievementPanel(onShowToast: _showToast, onShowSuccess: _showSuccess);
       case 9: return _buildSystemTab(); // 실제 시스템/관리자 모드 연결
       case 10: return const ArenaPanel(); // 🆕 결투장 패널 연결
+      case 11: return RankingPanel(onShowToast: _showToast, onNavigateToTab: () => setState(() => _selectedIndex = 0));
       default: return _buildCombatTab();
     }
   }
@@ -2298,13 +2341,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           width: 200,
           child: _buildLootNotificationList(),
         ),
-
-        // 🆕 전체 로그 버튼 (사냥 화면 우측 상단 플로팅)
-        Positioned(
-          top: 130,
-          right: 16,
-          child: _buildFloatingLogBtn(),
-        ),
       ],
     );
   }
@@ -2405,11 +2441,27 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   _buildStatDivider(),
                   Expanded(child: _buildStatItem(Colors.redAccent, gameState.killsPerMin.toStringAsFixed(1), '분당처치')),
                   const SizedBox(width: 8),
+                  
+                  // 🆕 전체 로그 버튼 (대시보드 내부로 이동)
+                  PressableScale(
+                    onTap: _showFullLogDialog,
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                      ),
+                      child: const Icon(Icons.history, size: 16, color: Colors.white60),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+
                   // 🆕 통합 관제 센터 버튼 (여기에 통합)
                   PressableScale(
                     onTap: _showQuickMenu,
                     child: Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
                         color: Colors.blueAccent.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
@@ -2487,7 +2539,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildBottomDock() {
-    final List<String> emojis = ['⚔️', '👤', '🗺️', '🎒', '🔨', '⚡', '🐾', '💎', '🏆', '⚙️', '🏟️'];
+    final List<String> emojis = ['⚔️', '👤', '🗺️', '🎒', '🔨', '⚡', '🐾', '💎', '🏆', '⚙️', '🏟️', '🥈'];
     
     return Container(
       padding: EdgeInsets.zero, // 패딩 완전 제거 (나노 슬림)
@@ -2510,7 +2562,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           // 하단행
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(5, (i) {
+            children: List.generate(6, (i) {
               int idx = i + 6;
               return _buildDockItem(idx, emojis[idx]);
             }),
@@ -2612,6 +2664,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     gs.player.skillCritBuffEndTime,
                   ),
                   builder: (context, data, child) => RepaintBoundary(
+                    key: _playerKey, // 🆕 플레이어 키 연결
                     child: _buildActor(
                       gs.player.name, 
                       gs.player.level, 
@@ -2626,19 +2679,22 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   ),
                 ),
                 
-                // 2. 몬스터 영역 (몬스터 존재 여부 및 체력 변화 감시)
+                // 2. 몬스터 또는 PvP 방어자 영역
                 Center(
                   key: _monsterKey,
-                  child: Selector<GameState, (int, double, double, double)>(
+                  child: Selector<GameState, (int, double, double, double, bool)>(
                     selector: (_, gs) => (
-                      gs.monsterCurrentHp, 
-                      gs.currentMonster?.frozenTimeLeft ?? 0.0,
-                      gs.currentMonster?.stunTimeLeft ?? 0.0,
-                      gs.currentMonster?.judgmentTimeLeft ?? 0.0,
+                      gs.isPvPMode ? gs.defenderCurrentHp : gs.monsterCurrentHp, 
+                      gs.isPvPMode ? 0.0 : (gs.currentMonster?.frozenTimeLeft ?? 0.0),
+                      gs.isPvPMode ? 0.0 : (gs.currentMonster?.stunTimeLeft ?? 0.0),
+                      gs.isPvPMode ? 0.0 : (gs.currentMonster?.judgmentTimeLeft ?? 0.0),
+                      gs.isPvPMode,
                     ),
                     builder: (context, data, child) {
-                      final m = gs.currentMonster;
-                      if (m == null) return const SizedBox(width: 100, height: 150);
+                      final isPvP = data.$5;
+                      
+                      if (!isPvP && gs.currentMonster == null) return const SizedBox(width: 100, height: 150);
+                      if (isPvP && gs.defenderSnapshot == null) return const SizedBox(width: 100, height: 150);
                       
                       return RepaintBoundary(
                         child: FadeTransition(
@@ -2650,15 +2706,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                               child: ScaleTransition(
                                 scale: CurvedAnimation(parent: _monsterSpawnController, curve: Curves.easeOutBack),
                                 child: _buildActor(
-                                  m.name, 
-                                  m.level, 
+                                  isPvP ? gs.defenderSnapshot!.username : gs.currentMonster!.name, 
+                                  isPvP ? gs.defenderSnapshot!.level : gs.currentMonster!.level, 
                                   data.$1, 
-                                  m.maxHp, 
-                                  m.imagePath, 
+                                  isPvP ? gs.defenderSnapshot!.maxHp : gs.currentMonster!.maxHp, 
+                                  isPvP ? 'assets/images/warrior.png' : gs.currentMonster!.imagePath, 
                                   _monsterAttackController, 
                                   _monsterHitController,
                                   false,
                                   isFrozen: data.$2 > 0,
+                                  shield: isPvP ? gs.defenderShield : 0,
+                                  isEnemyPlayer: isPvP,
                                 ),
                               ),
                             ),
@@ -2714,7 +2772,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0, bool isFrozen = false}) {
+  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0, bool isFrozen = false, bool isEnemyPlayer = false}) {
     double hpProgress = (h / mh).clamp(0, 1);
     double shieldProgress = (shield / mh).clamp(0, 1);
     final gs = context.read<GameState>();
@@ -3473,10 +3531,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   '로그아웃', 
                   Colors.white10, 
                   () async {
-                    await _authService.signOut();
-                    setState(() {
-                      _isCloudSynced = false;
-                    });
+                    await gameState.signOut();
                     _showToast('로그아웃되었습니다.');
                   },
                   icon: Icons.logout,
@@ -3559,10 +3614,70 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                   });
                   _showToast('모든 재화를 대량 지급했습니다.', isError: false);
                 }, isFull: true),
+                const SizedBox(height: 12),
+                // 🆕 PvP 클론 생성 버튼
+                PopBtn('현재 플레이어 복제 (PvP 테스트용)', Colors.purpleAccent, _showCloneNameDialog, isFull: true, icon: Icons.copy),
               ],
             ),
           ),
           const SizedBox(height: 100),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 PvP 클론 이름 입력 다이얼로그
+  void _showCloneNameDialog() {
+    final TextEditingController nameController = TextEditingController(text: '${player.name}_Clone');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: ShadowText('PvP 상대로 복제', fontSize: 18, fontWeight: FontWeight.bold),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('현재 플레이어의 모든 능력치와 장비를 복제하여 PvP 대전 상대로 등록합니다.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: '클론 이름',
+                labelStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purpleAccent),
+            onPressed: () async {
+              String cloneName = nameController.text.trim();
+              if (cloneName.isEmpty) {
+                _showToast('이름을 입력해주세요.');
+                return;
+              }
+              Navigator.pop(context);
+              _showToast('클론 생성 중...', isError: false);
+              
+              final pvpManager = PvPManager();
+              final success = await pvpManager.uploadClone(player, cloneName);
+              
+              if (success) {
+                _showToast('[$cloneName] 클론이 PvP 상대로 등록되었습니다!', isError: false);
+              } else {
+                _showToast('클론 생성 실패. (DB 제약 조건 확인 필요)');
+              }
+            }, 
+            child: const Text('복제하기', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+          ),
         ],
       ),
     );
@@ -4648,6 +4763,78 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   String _formatNumber(num n) {
     return BigNumberFormatter.format(n);
+  }
+
+  void _showPvPResultDialog(bool isVictory, int scoreChange) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1D2E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: isVictory ? Colors.amber : Colors.redAccent, width: 2),
+        ),
+        title: Center(
+          child: ShadowText(
+            isVictory ? 'VICTORY' : 'DEFEAT',
+            fontSize: 32,
+            fontWeight: FontWeight.w900,
+            color: isVictory ? Colors.amber : Colors.redAccent,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(isVictory ? Icons.emoji_events : Icons.sentiment_very_dissatisfied, 
+                 color: isVictory ? Colors.amber.withOpacity(0.5) : Colors.redAccent.withOpacity(0.5), 
+                 size: 64),
+            const SizedBox(height: 16),
+            Text(
+              isVictory ? '상대방과의 대전에서 승리했습니다!' : '상상 이상의 강력한 상대였습니다...',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('랭킹 점수: ', style: TextStyle(color: Colors.white38)),
+                  Text(
+                    '${scoreChange > 0 ? "+" : ""}$scoreChange pts',
+                    style: TextStyle(
+                      color: scoreChange >= 0 ? Colors.greenAccent : Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Center(
+            child: PopBtn(
+              '확인',
+              isVictory ? Colors.amber : Colors.blueAccent,
+              () {
+                Navigator.pop(context);
+                final gs = context.read<GameState>();
+                gs.endPvPBattle(); // 🆕 사냥터로 복귀
+              },
+              isFull: false,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
