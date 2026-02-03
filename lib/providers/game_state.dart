@@ -20,6 +20,14 @@ import '../services/cloud_save_service.dart';
 
 enum LogType { damage, item, event }
 
+/// 🆕 앱 초기화 상태
+enum AppInitializationState {
+  initializing, // 초기화 중
+  needsLogin,    // 로그인 필요 (신규 또는 로그아웃 상태)
+  loadingData,   // 데이터 로드 중 (클라우드/로컬)
+  ready          // 준비 완료 (게임 시작 가능)
+}
+
 class CombatLogEntry {
   final String message;
   final LogType type;
@@ -99,6 +107,32 @@ class GameState extends ChangeNotifier {
     if (_playerShield == val) return;
     _playerShield = val;
     notifyListeners();
+  }
+
+  // 🆕 앱 초기화 상태 관리
+  AppInitializationState _initState = AppInitializationState.initializing;
+  AppInitializationState get initState => _initState;
+
+  void _updateInitState(AppInitializationState newState) {
+    if (_initState == newState) return;
+    _initState = newState;
+    debugPrint('[GameState] InitState 변경: $newState');
+    notifyListeners();
+  }
+
+  // 🆕 게스트 모드로 시작 (로컬 데이터 로드)
+  Future<void> startAsGuest() async {
+    _updateInitState(AppInitializationState.loadingData);
+    await loadGameData();
+  }
+
+  // 🆕 구글 로그인 시작
+  Future<void> startWithGoogle() async {
+    final success = await authService.signInWithGoogle();
+    if (!success) {
+      _updateInitState(AppInitializationState.needsLogin);
+    }
+    // 성공 시 Auth 리스너가 감감지하여 loadGameData를 호출함
   }
 
   Monster? currentMonster;
@@ -338,8 +372,12 @@ class GameState extends ChangeNotifier {
       final event = data.event;
       if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.tokenRefreshed) {
         debugPrint('[Auth] 로그인 또는 세션 갱신 감지됨: ${data.session?.user.id}');
+        if (_initState == AppInitializationState.needsLogin) {
+          _updateInitState(AppInitializationState.loadingData);
+        }
         loadGameData(); // 로그인 시 클라우드 데이터를 즉시 동기화
       } else if (event == AuthChangeEvent.signedOut) {
+        _updateInitState(AppInitializationState.needsLogin);
         isDataLoaded = false;
         isCloudSynced = false;
         notifyListeners();
@@ -356,12 +394,18 @@ class GameState extends ChangeNotifier {
   }
 
   Future<void> _initializeGame() async {
+    _updateInitState(AppInitializationState.initializing);
     try {
-      // 🆕 앱 시작 시 강제 익명 로그인을 제거하여 기존 세션 유지를 우선함
-      // 세션이 있다면 loadGameData 내부에서 자동으로 클라우드 로드 시도
-      await loadGameData();
+      // 🆕 세션 확인 및 초기화 흐름 제어
+      if (authService.isLoggedIn) {
+        _updateInitState(AppInitializationState.loadingData);
+        await loadGameData();
+      } else {
+        _updateInitState(AppInitializationState.needsLogin);
+      }
     } catch (e) {
       debugPrint('초기화 중 오류 발생: $e');
+      _updateInitState(AppInitializationState.needsLogin);
     } finally {
       if (!initializationCompleter.isCompleted) {
         initializationCompleter.complete();
@@ -522,6 +566,7 @@ class GameState extends ChangeNotifier {
 
     // 데이터 로드 후 첫 몬스터 생성
     spawnMonster();
+    _updateInitState(AppInitializationState.ready); // 🆕 로드 완료 시 준비 상태로 변경
     notifyListeners();
   }
 

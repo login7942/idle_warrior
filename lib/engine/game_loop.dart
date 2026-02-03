@@ -28,8 +28,11 @@ class GameLoop {
 
 
   void _onTick(Duration elapsed) {
-    final double dt = (elapsed.inMicroseconds - _lastElapsed.inMicroseconds) / 1000000.0;
+    final double rawDt = (elapsed.inMicroseconds - _lastElapsed.inMicroseconds) / 1000000.0;
     _lastElapsed = elapsed;
+
+    // 🆕 [v2.5.1] 게임 루프 dt 보정: 극심한 프레임 드랍 시 로직 폭주 방지
+    final double dt = rawDt > 0.1 ? 0.1 : rawDt;
 
     // 🆕 [최적화] 모든 계산 시작 전 알림 억제
     gameState.beginBatchUpdate();
@@ -37,11 +40,9 @@ class GameLoop {
     try {
       // 🆕 몬스터 소환 대기 처리 (isProcessingVictory와 무관하게 실행)
       final now = DateTime.now();
-      double t = dt;
       
       // [v2.4.9] 타이머 시스템 업데이트 (애니메이션, 쿨타임 등)
-      // 몬스터 존재 여부와 상관없이 항상 실행되어야 텍스트 등이 끊기지 않음
-      gameState.updateTimers(t);
+      gameState.updateTimers(dt);
 
       if (gameState.pendingMonsterSpawn && gameState.monsterSpawnScheduledTime != null) {
         if (now.isAfter(gameState.monsterSpawnScheduledTime!)) {
@@ -53,9 +54,9 @@ class GameLoop {
 
       if (gameState.currentMonster == null || gameState.isProcessingVictory) return;
 
-      // 🆕 30FPS 쓰로틀링: 33ms가 쌓일 때까지 로직 실행 연기
+      // 🆕 로직 누적 (전투 로직은 60FPS에 가깝게 처리하도록 임계치 하향)
       _logicAccumulator += dt;
-      if (_logicAccumulator < 0.033) return;
+      if (_logicAccumulator < 0.016) return;
 
       // 누적된 시간을 실제 전투 로직 처리 시간(tCombat)으로 사용
       double tCombat = _logicAccumulator;

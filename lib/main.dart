@@ -60,7 +60,137 @@ class IdleWarriorApp extends StatelessWidget {
           textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
           useMaterial3: true,
         ),
-        home: const GameMainPage(),
+        home: Selector<GameState, AppInitializationState>(
+          selector: (_, gs) => gs.initState,
+          builder: (context, state, _) {
+            if (state == AppInitializationState.ready) {
+              return const GameMainPage();
+            }
+            return const SplashLoginPage();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// 🆕 스플래시 및 로그인 페이지
+class SplashLoginPage extends StatelessWidget {
+  const SplashLoginPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final gs = context.watch<GameState>();
+    final state = gs.initState;
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          // 배경 (어두운 배경 사용)
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/backgrounds/bg_tower.png', // 임시 배경 (어두운 곳)
+              fit: BoxFit.cover,
+              color: Colors.black.withValues(alpha: 0.6),
+              colorBlendMode: BlendMode.darken,
+              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0F111A)),
+            ),
+          ),
+          
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 타이틀
+                Text(
+                  'IDLE WARRIOR',
+                  style: GoogleFonts.outfit(
+                    fontSize: 42,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 4,
+                    color: Colors.white,
+                    shadows: [
+                      const Shadow(color: Colors.deepPurple, blurRadius: 20),
+                    ],
+                  ),
+                ),
+                Text(
+                  'ADVENTURE',
+                  style: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w300,
+                    letterSpacing: 8,
+                    color: Colors.deepPurpleAccent,
+                  ),
+                ),
+                
+                const SizedBox(height: 80),
+
+                if (state == AppInitializationState.initializing || state == AppInitializationState.loadingData)
+                  Column(
+                    children: [
+                      const CircularProgressIndicator(color: Colors.deepPurpleAccent),
+                      const SizedBox(height: 20),
+                      Text(
+                        state == AppInitializationState.initializing ? 'Initializing...' : 'Syncing with cloud...',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+
+                if (state == AppInitializationState.needsLogin)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Column(
+                      children: [
+                        _buildLoginButton(
+                          label: 'Google 로그인 (데이터 연동)',
+                          icon: Icons.login,
+                          color: Colors.white,
+                          textColor: Colors.black,
+                          onPressed: () => gs.startWithGoogle(),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildLoginButton(
+                          label: '게스트 시작 (로컬 전용)',
+                          icon: Icons.person_outline,
+                          color: Colors.deepPurple.withValues(alpha: 0.3),
+                          textColor: Colors.white,
+                          onPressed: () => gs.startAsGuest(),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoginButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required Color textColor,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, color: textColor),
+        label: Text(
+          label,
+          style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+        ),
       ),
     );
   }
@@ -214,21 +344,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     });
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     
-    // 🆕 60FPS UI 갱신 (전리품 파티클, 데미지 매니저 업데이트용)
+    // 🆕 UI 갱신 (전리품 파티클, 데미지 매니저 업데이트용)
     DateTime lastFrameTime = DateTime.now();
     final ticker = createTicker((elapsed) {
       final now = DateTime.now();
       double dt = now.difference(lastFrameTime).inMilliseconds / 1000.0;
       
-      // 🆕 [v2.4.8] Delta Time Capping: 프레임 드랍(Hitch) 시 텍스트가 순간이동하는 현상 방지
-      // 시스템 부하로 틱이 지연되어도 한 번에 최대 2프레임분(약 30fps) 이상의 이동을 허용하지 않음
-      if (dt > 0.033) dt = 0.033;
+      // 🆕 [v2.5.1] Delta Time Capping 완화: 0.1초 이상의 극심한 멈춤 발생 시에만 보정
+      if (dt > 0.1) dt = 0.1;
       
       lastFrameTime = now;
       
-      if (now.difference(_lastUiTick).inMilliseconds < 16) return; // 60FPS 타겟으로 조정
-      _lastUiTick = now;
-
+      // 💡 최적화: 수동 16ms 제한 제거 (Flutter Ticker가 주사율에 맞춰 최적으로 호출함)
       _updateParticles(); 
       damageManager.update(dt); 
     });
