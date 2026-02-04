@@ -90,18 +90,25 @@ class _RankingPanelState extends State<RankingPanel> {
       children: [
         const Icon(Icons.leaderboard, color: Colors.amber, size: 28),
         const SizedBox(width: 12),
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('명예의 전당', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-            Text('최강의 전사들이 이름을 올린 기록입니다.', style: TextStyle(color: Colors.white38, fontSize: 12)),
-          ],
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('명예의 전당', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text('최강의 전사들이 이름을 올린 기록입니다.', 
+                style: TextStyle(color: Colors.white38, fontSize: 11),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
         // 🆕 내 정보 갱신 버튼 추가
         IconButton(
+          constraints: const BoxConstraints(),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           tooltip: '내 정보 최신화',
-          icon: const Icon(Icons.cloud_upload, color: Colors.blueAccent),
+          icon: const Icon(Icons.cloud_upload, color: Colors.blueAccent, size: 22),
           onPressed: () async {
             final gs = context.read<GameState>();
             final success = await _pvpManager.uploadSnapshot(gs.player);
@@ -114,14 +121,18 @@ class _RankingPanelState extends State<RankingPanel> {
           },
         ),
         IconButton(
+          constraints: const BoxConstraints(),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           tooltip: '랭킹 새로고침',
-          icon: const Icon(Icons.refresh, color: Colors.white54),
+          icon: const Icon(Icons.refresh, color: Colors.white54, size: 22),
           onPressed: _loadRankings,
         ),
         // 🆕 최근 전투 기록 버튼 추가
         IconButton(
+          constraints: const BoxConstraints(),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           tooltip: '최근 전투 기록',
-          icon: const Icon(Icons.history, color: Colors.amberAccent),
+          icon: const Icon(Icons.history, color: Colors.amberAccent, size: 22),
           onPressed: _showBattleLogs,
         ),
       ],
