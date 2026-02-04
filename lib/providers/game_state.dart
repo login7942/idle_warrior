@@ -623,7 +623,6 @@ class GameState extends ChangeNotifier {
           
           notifyListeners();
         }
-      }
     }
   }
 
