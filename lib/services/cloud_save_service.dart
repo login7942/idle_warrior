@@ -51,8 +51,8 @@ class CloudSaveService {
           .maybeSingle();
       
       if (response == null) {
-        debugPrint('[CloudSave] 클라우드 데이터 없음');
-        return null;
+        debugPrint('[CloudSave] 클라우드 데이터 없음 (신규 유저)');
+        return null; // 데이터 자체가 없는 경우
       }
       
       debugPrint('[CloudSave] 클라우드 로드 성공 (버전: ${response['version']})');
@@ -62,8 +62,8 @@ class CloudSaveService {
         'version': response['version'],
       };
     } catch (e) {
-      debugPrint('[CloudSave] 클라우드 로드 실패: $e');
-      return null;
+      debugPrint('[CloudSave] 클라우드 로드 실패 (네트워크/서버 에러): $e');
+      rethrow; // 에러 발생 시 명시적으로 에러를 던져서 상위에서 처리하게 함
     }
   }
   

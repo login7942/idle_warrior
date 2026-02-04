@@ -223,6 +223,7 @@ class GameState extends ChangeNotifier {
   bool isProcessingVictory = false;
   bool isCloudSynced = false;
   bool isDataLoaded = false; // 🆕 데이터가 완전히 로드되었는지 여부
+  bool isCloudLoadFailed = false; // 🆕 클라우드 로딩 실패 여부 (덮어쓰기 방지용)
   DateTime? lastCloudSaveTime;
   StreamSubscription<AuthState>? _authSubscription; // 🆕 인증 상태 구독
   
@@ -569,6 +570,13 @@ class GameState extends ChangeNotifier {
   // --- 데이터 관리 ---
   Future<void> saveGameData({bool forceCloud = false}) async {
     if (!isDataLoaded) return; // 🆕 데이터 로드 전 저장을 방지하여 유실 예방
+
+    // 🆕 [v2.7.23] 클라우드 로드 실패 상태에서는 자동 저장을 방지하여 원본 데이터를 보호함
+    // 단, 사용자가 명시적으로 '강제 동기화'를 시도한 경우에는 허용
+    if (isCloudLoadFailed && !forceCloud) {
+      debugPrint('[GameState] 클라우드 로드 실패 상태이므로 자동 저장을 건너뜁니다.');
+      return;
+    }
     
     final nowTime = DateTime.now();
     final nowStr = nowTime.toIso8601String();
@@ -605,13 +613,24 @@ class GameState extends ChangeNotifier {
           lastCloudSaveTime == null || 
           nowTime.difference(lastCloudSaveTime!).inSeconds >= 300; // 300초 (5분)
 
-      if (shouldSaveToCloud) {
-        lastCloudSaveTime = nowTime;
-        final success = await _cloudSaveService.saveToCloud(saveData);
-        isCloudSynced = success;
-        notifyListeners();
+        if (shouldSaveToCloud) {
+          lastCloudSaveTime = nowTime;
+          final success = await _cloudSaveService.saveToCloud(saveData);
+          isCloudSynced = success;
+          
+          // 🆕 저장이 성공하면 로드 실패 상태를 해제함
+          if (success) isCloudLoadFailed = false;
+          
+          notifyListeners();
+        }
       }
     }
+  }
+
+  // 🆕 클라우드 로드 오류 상태를 강제로 해제 (사용자가 새 시작을 원하는 경우 등)
+  void clearCloudLoadError() {
+    isCloudLoadFailed = false;
+    notifyListeners();
   }
 
   Future<void> loadGameData() async {
@@ -621,12 +640,18 @@ class GameState extends ChangeNotifier {
     
     Map<String, dynamic>? cloudDataMap;
     String? cloudTime;
+    bool cloudLoadError = false; // 🆕 클라우드 로드 에러 여부
 
     if (authService.isLoggedIn) {
-      final cloudSave = await _cloudSaveService.loadFromCloud();
-      if (cloudSave != null) {
-        cloudDataMap = cloudSave['data'] as Map<String, dynamic>;
-        cloudTime = cloudSave['timestamp'] as String;
+      try {
+        final cloudSave = await _cloudSaveService.loadFromCloud();
+        if (cloudSave != null) {
+          cloudDataMap = cloudSave['data'] as Map<String, dynamic>;
+          cloudTime = cloudSave['timestamp'] as String;
+        }
+      } catch (e) {
+        debugPrint('[GameState] 클라우드 로드 실패 (데이터 보호 모드): $e');
+        cloudLoadError = true;
       }
     }
 
@@ -655,6 +680,10 @@ class GameState extends ChangeNotifier {
     if (targetData != null) {
       _applyLoadedData(targetData);
       isDataLoaded = true; // 🆕 로드 완료 표시
+      
+      // 클라우드 로드 중 에러가 있었다면 (비록 로컬 데이터를 썼더라도) 에러 상태 유지
+      isCloudLoadFailed = cloudLoadError;
+
       if (isFromCloud) {
         addLog('클라우드에서 데이터를 불러왔습니다.', LogType.event);
         isCloudSynced = true;
@@ -662,9 +691,12 @@ class GameState extends ChangeNotifier {
         isCloudSynced = cloudDataMap != null;
       }
     } else {
-      // 🆕 데이터가 아예 없는 신규 유저의 경우에만 익명 로그인을 제안하거나 최소 데이터 생성
+      // 🆕 데이터가 아예 없는 신규 유저의 경우
       _initializeStarterData();
       isDataLoaded = true; 
+      
+      // 클라우드 에러로 인해 신규 데이터가 된 것이라면 failed=true (덮어쓰기 방지)
+      isCloudLoadFailed = cloudLoadError;
     }
 
     // 데이터 로드 후 첫 몬스터 생성

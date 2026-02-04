@@ -213,15 +213,47 @@ class _QuickMenuPanelState extends State<QuickMenuPanel> with SingleTickerProvid
           children: [
             _buildSectionTitle('계정 및 데이터'),
             _buildActionCard(
-              title: '클라우드 저장',
-              subtitle: '데이터를 서버에 강제 동기화합니다. (최근 저장: ${gs.lastCloudSaveTime != null ? DateFormat('HH:mm:ss').format(gs.lastCloudSaveTime!) : '기록 없음'})',
-              icon: Icons.cloud_upload_outlined,
-              onTap: () {
-                gs.saveGameData(forceCloud: true);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('클라우드 저장이 완료되었습니다.'))
-                );
+              title: gs.isCloudLoadFailed ? '⚠️ 클라우드 동기화 오류' : '클라우드 저장',
+              subtitle: gs.isCloudLoadFailed 
+                ? '서버 데이터를 불러오지 못했습니다. 현재 상태를 저장하려면 [강제 동기화]를 누르세요. (자동 저장 중지됨)'
+                : '데이터를 서버에 강제 동기화합니다. (최근 저장: ${gs.lastCloudSaveTime != null ? DateFormat('HH:mm:ss').format(gs.lastCloudSaveTime!) : '기록 없음'})',
+              icon: gs.isCloudLoadFailed ? Icons.cloud_off : Icons.cloud_upload_outlined,
+              color: gs.isCloudLoadFailed ? Colors.redAccent : Colors.deepPurpleAccent,
+              onTap: () async {
+                if (gs.isCloudLoadFailed) {
+                  // 동기화 재시도
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('서버 데이터를 다시 불러오는 중...'))
+                  );
+                  await gs.loadGameData();
+                  if (!gs.isCloudLoadFailed) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('동기화 성공! 최신 데이터를 불러왔습니다.'))
+                    );
+                  } else {
+                    // 여전히 로드 실패 시 강제 저장 여부 묻기 (또는 그냥 로드 시도 안내)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('여전히 서버에 연결할 수 없습니다. 네트워크를 확인해주세요.'))
+                    );
+                  }
+                } else {
+                  gs.saveGameData(forceCloud: true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('클라우드 저장이 완료되었습니다.'))
+                  );
+                }
               },
+              trailing: gs.isCloudLoadFailed ? ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent.withValues(alpha: 0.2)),
+                onPressed: () {
+                  // 강제로 현재 1레벨(혹은 로컬 데이터)을 클라우드에 덮어씌움
+                  gs.saveGameData(forceCloud: true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('현재 상태를 서버에 강제 저장(덮어쓰기)했습니다.'))
+                  );
+                },
+                child: const Text('강제 덮어쓰기', style: TextStyle(color: Colors.orangeAccent, fontSize: 10)),
+              ) : null,
             ),
             const SizedBox(height: 12),
             // 구글 로그인 연동 버튼 추가
@@ -370,6 +402,8 @@ class _QuickMenuPanelState extends State<QuickMenuPanel> with SingleTickerProvid
     required String subtitle,
     required IconData icon,
     required VoidCallback onTap,
+    Color color = Colors.blueAccent, // 기본값
+    Widget? trailing, // 🆕 추가
   }) {
     return PressableScale(
       onTap: onTap,
@@ -378,22 +412,26 @@ class _QuickMenuPanelState extends State<QuickMenuPanel> with SingleTickerProvid
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.03),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: color.withOpacity(0.1)),
         ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.blueAccent.withOpacity(0.7), size: 20),
+            Icon(icon, color: color.withOpacity(0.7), size: 20),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                  Text(title, style: TextStyle(color: color.withOpacity(0.9), fontSize: 14, fontWeight: FontWeight.bold)),
                   Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 11)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white12, size: 16),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ] else 
+              const Icon(Icons.chevron_right, color: Colors.white12, size: 16),
           ],
         ),
       ),
