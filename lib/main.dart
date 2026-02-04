@@ -418,17 +418,19 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         isCrit: isCrit, isSkill: isSkill, offsetX: ox, offsetY: oy, skillIcon: skillIcon, combo: combo);
     };
 
-    gameState.onHeal = (healAmount) {
+    gameState.onHeal = (healAmount, {isPlayerTarget = true}) {
       if (!mounted) return;
-      _addFloatingText('+$healAmount', false, isHeal: true);
+      _addFloatingText('+$healAmount', isPlayerTarget == false, isHeal: true);
     };
 
-    gameState.onPlayerDamageTaken = (damage, {isShield = false}) {
+    gameState.onPlayerDamageTaken = (damage, {isShield = false, shouldAnimate = true}) {
       if (!mounted) return;
-      // 플레이어 피격 (뒤로 밀림)
-      _playerHitController.forward(from: 0);
-      // 몬스터 공격 (앞으로 튀어나감)
-      _monsterAttackController.forward(from: 0);
+      if (shouldAnimate) {
+        // 플레이어 피격 (뒤로 밀림)
+        _playerHitController.forward(from: 0);
+        // 몬스터 공격 (앞으로 튀어나감)
+        _monsterAttackController.forward(from: 0);
+      }
       
       // 🆕 [v0.8.29] 보호막 피격 여부에 따른 텍스트 연출
       _addFloatingText('-$damage', false, isShield: isShield);
@@ -3700,10 +3702,56 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 const SizedBox(height: 12),
                 // 🆕 PvP 클론 생성 버튼
                 PopBtn('현재 플레이어 복제 (PvP 테스트용)', Colors.purpleAccent, _showCloneNameDialog, isFull: true, icon: Icons.copy),
+                const SizedBox(height: 12),
+                // 🆕 시즌 초기화 버튼
+                PopBtn('PvP 시즌 초기화 (명예의 전당 초기화)', Colors.redAccent.withValues(alpha: 0.6), _showSeasonResetConfirmDialog, isFull: true, icon: Icons.refresh),
               ],
             ),
           ),
           const SizedBox(height: 100),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 PvP 시즌 초기화 확인 다이얼로그
+  void _showSeasonResetConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const ShadowText('⚠️ 시즌 초기화 경고', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('전체 서버의 PvP 데이터가 완전히 삭제됩니다.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            SizedBox(height: 8),
+            Text('• 모든 유저 랭킹 및 스냅샷: 삭제\n• 전투 히스토리 로그: 모두 삭제\n• 초기화 후 "내 정보 최신화"를 한 유저부터 등록됨', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            SizedBox(height: 16),
+            Text('이 작업은 되돌릴 수 없습니다. 정말로 진행할까요?', style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(context);
+              _showToast('시즌 초기화 진행 중...', isError: false);
+              
+              final pvpManager = PvPManager();
+              final success = await pvpManager.resetSeason();
+              
+              if (success) {
+                _showToast('PvP 시즌이 성공적으로 초기화되었습니다!', isError: false);
+              } else {
+                _showToast('시즌 초기화 실패. 관리자 권한을 확인하세요.');
+              }
+            }, 
+            child: const Text('초기화 실행', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+          ),
         ],
       ),
     );

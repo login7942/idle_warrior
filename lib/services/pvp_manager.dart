@@ -58,6 +58,24 @@ class PvPManager {
   Future<bool> uploadClone(Player player, String cloneName) async {
     try {
       final String cloneUserId = _uuid.v4(); // 가상의 UUID 생성
+      final user = _supabase.auth.currentUser;
+      
+      int currentScore = 1000;
+      String currentTier = 'Bronze';
+
+      // 1. 현재 내 랭킹 정보 조회
+      if (user != null) {
+        final rankData = await _supabase
+            .from('pvp_rankings')
+            .select('score, rank_tier')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        
+        if (rankData != null) {
+          currentScore = rankData['score'];
+          currentTier = rankData['rank_tier'];
+        }
+      }
 
       final snapshot = PvPSnapshot(
         userId: cloneUserId,
@@ -91,14 +109,14 @@ class PvPManager {
       // rankings 테이블에도 강제 삽입 (RPC 대신 직접 insert)
       await _supabase.from('pvp_rankings').insert({
         'user_id': cloneUserId,
-        'score': 5000, // 테스트용으로 상단에 노출되도록 높은 점수 부여
-        'wins': 100,
+        'score': currentScore, // 복제 대상의 현재 점수 반영
+        'wins': 0,
         'losses': 0,
-        'rank_tier': 'Diamond',
+        'rank_tier': currentTier, // 복제 대상의 현재 티어 반영
         'updated_at': DateTime.now().toIso8601String(),
       });
 
-      print('PvP 클론 생성 성공: $cloneName ($cloneUserId)');
+      print('PvP 클론 생성 성공: $cloneName ($cloneUserId) - 점수: $currentScore');
       return true;
     } on PostgrestException catch (e) {
       print('PvP 클론 생성 DB 오류: [${e.code}] ${e.message}');
@@ -261,6 +279,56 @@ class PvPManager {
     } catch (e) {
       print('PvP 결과 업데이트 실패: $e');
       return null;
+    }
+  }
+
+  /// 전투 로그 저장
+  Future<void> saveBattleLog(String attackerName, String defenderName, bool isVictory) async {
+    try {
+      await _supabase.from('pvp_battle_logs').insert({
+        'attacker_name': attackerName,
+        'defender_name': defenderName,
+        'is_victory': isVictory,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      print('전투 로그 저장 실패: $e');
+    }
+  }
+
+  /// 최근 전투 기록 조회
+  Future<List<PvPBattleLog>> getRecentBattleLogs({int limit = 30}) async {
+    try {
+      final response = await _supabase
+          .from('pvp_battle_logs')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      return (response as List).map((data) => PvPBattleLog.fromJson(data)).toList();
+    } catch (e) {
+      print('전투 기록 조회 실패: $e');
+      return [];
+    }
+  }
+  /// 시즌 초기화 (명예의 전당 및 랭킹 초기화)
+  /// 시즌 초기화 (모든 데이터 완전 삭제)
+  Future<bool> resetSeason() async {
+    try {
+      // 1. 모든 유저의 랭킹 정보 삭제
+      await _supabase.from('pvp_rankings').delete().not('user_id', 'is', null);
+
+      // 2. 모든 유저의 스냅샷 정보 삭제
+      await _supabase.from('pvp_snapshots').delete().not('user_id', 'is', null);
+
+      // 3. 전체 전투 로그 삭제
+      await _supabase.from('pvp_battle_logs').delete().not('attacker_name', 'is', null);
+
+      print('PvP 시즌 데이터 완전 초기화 완료');
+      return true;
+    } catch (e) {
+      print('PvP 시즌 초기화 실패: $e');
+      return false;
     }
   }
 }

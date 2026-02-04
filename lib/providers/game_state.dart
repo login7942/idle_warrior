@@ -336,13 +336,13 @@ class GameState extends ChangeNotifier {
   // --- UI 통신용 콜백 ---
   // --- UI 통신용 콜백 ---
   Function(String text, int damage, bool isCrit, bool isSkill, {bool isPlayerTarget, double? ox, double? oy, bool shouldAnimate, String? skillIcon, int? combo})? onDamageDealt;
-  Function(int damage, {bool isShield})? onPlayerDamageTaken;
+  Function(int damage, {bool isShield, bool shouldAnimate})? onPlayerDamageTaken;
   Function(String imagePath)? onMonsterSpawned; // 🆕 몬스터 소환 콜백 (프리캐싱용)
   void Function(int gold, int exp)? onVictory;
   void Function(bool isVictory, int scoreChange)? onPvPResult; // 🆕 PvP 결과 알림용 콜백
   void Function(bool win)? onPvPDeath; // 🆕 HP 0 도달 시 즉시 호출되는 사망 연출용 콜백
   VoidCallback? onStageCleared;
-  Function(int healAmount)? onHeal;
+  Function(int healAmount, {bool isPlayerTarget})? onHeal;
   VoidCallback? onStageJump; // [v0.0.79] 스테이지 점프 발생 시 호출
   Function(String title, String message)? onSpecialEvent; // 🆕 럭키 스트릭 등 특수 연출용
   Function(String icon, String name, ItemGrade grade, {int amount})? onLootAcquired; // 🆕 아이콘 기반 알림용
@@ -480,6 +480,10 @@ class GameState extends ChangeNotifier {
   void updatePlayerName(String newName) {
     if (newName.isEmpty) return;
     player.name = newName;
+    
+    // 🆕 퀘스트 체크: 이름 변경
+    checkQuestProgress(QuestType.changeName, 1);
+    
     saveGameData(forceCloud: true); // 즉시 저장 반영
     notifyListeners();
   }
@@ -931,7 +935,7 @@ class GameState extends ChangeNotifier {
     if (actualHpLoss > 0 && defenderSnapshot!.reflectPerc > 0) {
       int reflectDmg = (actualHpLoss * defenderSnapshot!.reflectPerc / 100).toInt();
       if (reflectDmg > 0) {
-        _playerTakePvPDamage(reflectDmg, isSkill: false, skillIcon: '🌵'); // 가시 아이콘 대용
+        _playerTakePvPDamage(reflectDmg, isSkill: false, skillIcon: '🌵', shouldAnimate: false); // 🌵 반사 데미지는 애니메이션 제외
         addLog('🌵 상대의 가시! ${reflectDmg}의 피해를 반사당했습니다.', LogType.damage);
       }
     }
@@ -941,7 +945,7 @@ class GameState extends ChangeNotifier {
       int lifestealAmt = (finalDmg * player.lifesteal / 100).toInt();
       if (lifestealAmt > 0) {
         playerCurrentHp = (playerCurrentHp + lifestealAmt).clamp(0, player.maxHp);
-        onHeal?.call(lifestealAmt);
+        onHeal?.call(lifestealAmt, isPlayerTarget: true);
       }
     }
 
@@ -1154,7 +1158,7 @@ class GameState extends ChangeNotifier {
       int lifestealAmt = (finalDmg * player.lifesteal / 100).toInt();
       if (lifestealAmt > 0) {
         _playerCurrentHp = (_playerCurrentHp + lifestealAmt).clamp(0, player.maxHp);
-        onHeal?.call(lifestealAmt);
+        onHeal?.call(lifestealAmt, isPlayerTarget: true);
       }
     }
 
@@ -1190,7 +1194,7 @@ class GameState extends ChangeNotifier {
       int reflectDmg = (finalDmg * currentOpponent!.reflectPerc / 100).toInt();
       if (reflectDmg > 0) {
         playerCurrentHp = (playerCurrentHp - reflectDmg).clamp(0, player.maxHp);
-        onPlayerDamageTaken?.call(reflectDmg);
+        onPlayerDamageTaken?.call(reflectDmg, shouldAnimate: false); // 🌵 반사 데미지는 애니메이션 제외
         // 반사 데미지 로그 (너무 자주 나오면 지저분하므로 확률적 또는 조건부 노출)
         if (Random().nextDouble() < 0.2) {
           addLog('⚡ NPC 반사 효과: ${reflectDmg}의 데미지를 돌려받았습니다!', LogType.damage);
@@ -1379,7 +1383,7 @@ class GameState extends ChangeNotifier {
     }
   }
 
-  void _playerTakePvPDamage(int damage, {bool isCrit = false, bool isSkill = false, String? skillIcon, int? combo, bool isDoubleHit = false}) {
+  void _playerTakePvPDamage(int damage, {bool isCrit = false, bool isSkill = false, String? skillIcon, int? combo, bool isDoubleHit = false, bool shouldAnimate = true}) {
     if (isProcessingVictory) {
       debugPrint('[PvP] 승리 처리 중 플레이어 피해 무시');
       return;
@@ -1410,7 +1414,7 @@ class GameState extends ChangeNotifier {
       int reflectDmg = (damage * player.reflectPerc / 100).toInt();
       if (reflectDmg > 0 && defenderCurrentHp > 0) {
         defenderCurrentHp = (defenderCurrentHp - reflectDmg).clamp(0, defenderSnapshot!.maxHp);
-        onDamageDealt?.call('🌵$reflectDmg', reflectDmg, false, false, oy: -20, shouldAnimate: true);
+        onDamageDealt?.call('🌵$reflectDmg', reflectDmg, false, false, oy: -20, shouldAnimate: false); // 🌵 반사는 애니메이션 제외
         addLog('🌵 가시 발동! ${reflectDmg}의 피해를 반사했습니다.', LogType.damage);
         if (defenderCurrentHp <= 0) _processPvPVictory();
       }
@@ -1421,14 +1425,14 @@ class GameState extends ChangeNotifier {
       int recoverAmt = (remainingDmg * player.recoverOnDamagedPerc / 100).toInt();
       if (recoverAmt > 0) {
         playerCurrentHp = (playerCurrentHp + recoverAmt).clamp(0, player.maxHp);
-        onHeal?.call(recoverAmt);
+        onHeal?.call(recoverAmt, isPlayerTarget: true);
       }
     }
 
     // 플레이어 피격 연출 (UI에서 위치를 자동으로 잡도록 오프셋 제거)
     onDamageDealt?.call('', damage, isCrit, isSkill, 
       isPlayerTarget: true, // 플레이어가 맞음
-      shouldAnimate: true, skillIcon: skillIcon, combo: combo
+       shouldAnimate: shouldAnimate, skillIcon: skillIcon, combo: combo
     );
 
     // 2연타 처리
@@ -1460,6 +1464,13 @@ class GameState extends ChangeNotifier {
 
     int scoreChange = 20;
     try {
+      // 🆕 전투 로그 저장: 로그인 여부와 관계없이 모두 기록
+      await pvpManager.saveBattleLog(
+        player.name.isEmpty ? 'Warrior' : player.name,
+        defenderSnapshot?.username ?? 'Unknown',
+        true
+      );
+
       final user = authService.currentUser;
       if (user != null) {
         final result = await pvpManager.updatePvPResult(user.id, true);
@@ -1484,6 +1495,13 @@ class GameState extends ChangeNotifier {
 
     int scoreChange = -10;
     try {
+      // 🆕 전투 로그 저장: 로그인 여부와 관계없이 모두 기록
+      await pvpManager.saveBattleLog(
+        player.name.isEmpty ? 'Warrior' : player.name,
+        defenderSnapshot?.username ?? 'Unknown',
+        false
+      );
+
       final user = authService.currentUser;
       if (user != null) {
         final result = await pvpManager.updatePvPResult(user.id, false);
@@ -1791,7 +1809,7 @@ class GameState extends ChangeNotifier {
 
       if (finalRegen > 0) {
         playerCurrentHp = (playerCurrentHp + finalRegen).clamp(0, player.maxHp);
-        onHeal?.call(finalRegen);
+        onHeal?.call(finalRegen, isPlayerTarget: true);
       }
     }
     
@@ -1804,6 +1822,7 @@ class GameState extends ChangeNotifier {
 
       if (finalRegen > 0) {
         defenderCurrentHp = (defenderCurrentHp + finalRegen).clamp(0, defenderSnapshot!.maxHp);
+        onHeal?.call(finalRegen, isPlayerTarget: false); // 🆕 방어자 회복 텍스트 추가
       }
     }
 
@@ -1880,7 +1899,7 @@ class GameState extends ChangeNotifier {
         if (reflectDmg > 0) {
           currentMonster!.hp -= reflectDmg;
           _monsterCurrentHp = currentMonster!.hp;
-          onDamageDealt?.call('🌵$reflectDmg', reflectDmg, false, false, oy: -25, shouldAnimate: true);
+          onDamageDealt?.call('🌵$reflectDmg', reflectDmg, false, false, oy: -25, shouldAnimate: false); // 🌵 반사는 애니메이션 제외
           addLog('🌵 가시 발동! ${reflectDmg}의 피해를 반사했습니다.', LogType.damage);
           _checkMonsterDeath();
         }
@@ -1913,7 +1932,7 @@ class GameState extends ChangeNotifier {
       int healAmt = (mDmg * recPerc / 100).toInt();
       if (healAmt > 0) {
         _playerCurrentHp = (_playerCurrentHp + healAmt).clamp(0, player.maxHp);
-        onHeal?.call(healAmt);
+        onHeal?.call(healAmt, isPlayerTarget: true);
       }
     }
 
@@ -1929,7 +1948,7 @@ class GameState extends ChangeNotifier {
     if (player.isSetEffectActive('mine', 4) && Random().nextDouble() < 0.1) {
       int healAmt = (player.maxHp * 0.05).toInt();
       _playerCurrentHp = (_playerCurrentHp + healAmt).clamp(0, player.maxHp);
-      onHeal?.call(healAmt);
+      onHeal?.call(healAmt, isPlayerTarget: true);
       addLog('🛡️ [세트효과] 광산의 가호로 체력을 회복했습니다.', LogType.event);
     }
     
@@ -2660,7 +2679,6 @@ class GameState extends ChangeNotifier {
     });
   }
 
-
   // 🆕 [v0.5.58] 길잡이 퀘스트 시스템 로직
 
   void checkQuestProgress(QuestType type, int value) {
@@ -2976,6 +2994,7 @@ class GameState extends ChangeNotifier {
     // 🆕 PvP 카운트다운 처리
     if (isPvPMode && _pvpCountdown > 0) {
       _pvpCountdown = max(0.0, _pvpCountdown - dt);
+      _resetAllSkillsToCooldown(); // 🆕 카운트다운 동안 쿨타임 정지 (시작 직후부터 쿨타임 가동되도록)
       if (_pvpCountdown <= 0) {
         addLog('⚔️ 전투 개시! (FIGHT!)', LogType.event);
       }

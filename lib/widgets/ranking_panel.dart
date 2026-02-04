@@ -118,6 +118,12 @@ class _RankingPanelState extends State<RankingPanel> {
           icon: const Icon(Icons.refresh, color: Colors.white54),
           onPressed: _loadRankings,
         ),
+        // 🆕 최근 전투 기록 버튼 추가
+        IconButton(
+          tooltip: '최근 전투 기록',
+          icon: const Icon(Icons.history, color: Colors.amberAccent),
+          onPressed: _showBattleLogs,
+        ),
       ],
     );
   }
@@ -431,6 +437,89 @@ class _RankingPanelState extends State<RankingPanel> {
       gs.startPvPBattle(snapshot);
       widget.onShowToast('${snapshot.username} 유저와 대전을 시작합니다!');
     });
+  }
+
+  Future<void> _showBattleLogs() async {
+    setState(() => _isLoading = true);
+    final logs = await _pvpManager.getRecentBattleLogs();
+    setState(() => _isLoading = false);
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassContainer(
+          borderRadius: 20,
+          border: Border.all(color: Colors.white10),
+          color: const Color(0xFF1A1D2E).withOpacity(0.95),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('⚔️ 최근 전투 기록', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(color: Colors.white10),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+                child: logs.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Text('기록된 전투가 없습니다.', style: TextStyle(color: Colors.white24)),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: logs.length,
+                        separatorBuilder: (context, index) => const Divider(color: Colors.white10, height: 1),
+                        itemBuilder: (context, index) {
+                          final log = logs[index];
+                          final timeStr = "${log.createdAt.hour.toString().padLeft(2, '0')}:${log.createdAt.minute.toString().padLeft(2, '0')}";
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            child: Row(
+                              children: [
+                                Text('[$timeStr]', style: const TextStyle(color: Colors.white24, fontSize: 11)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                      children: [
+                                        TextSpan(text: log.attackerName, style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                                        const TextSpan(text: ' 이(가) '),
+                                        TextSpan(text: log.defenderName, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                        const TextSpan(text: ' 에게 '),
+                                        TextSpan(
+                                          text: log.isVictory ? '승리했습니다.' : '패배했습니다.',
+                                          style: TextStyle(
+                                            color: log.isVictory ? Colors.greenAccent : Colors.orangeAccent,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

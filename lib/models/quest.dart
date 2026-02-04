@@ -22,6 +22,7 @@ enum QuestType {
   enterGoldDungeon, // 황금의 방 입장 🆕
   enterTrialDungeon, // 시련의 방 입장 🆕
   itemPromotion,  // 아이템 승급 🆕
+  changeName,     // 캐릭터 이름 변경 🆕
 }
 
 class QuestReward {
@@ -64,6 +65,14 @@ class Quest {
 
 class GuideQuestData {
   static final List<Quest> quests = [
+    Quest(
+      id: 'q0',
+      title: '첫 인사: 이름 설정',
+      description: '캐릭터 탭에서 이름을 변경하세요.',
+      type: QuestType.changeName,
+      targetValue: 1,
+      reward: QuestReward(gold: 10000, stone: 20),
+    ),
     Quest(
       id: 'q1',
       title: '첫 걸음: 장비 장착',

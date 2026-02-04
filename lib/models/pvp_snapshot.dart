@@ -239,3 +239,26 @@ class PvPRankEntry {
     );
   }
 }
+
+class PvPBattleLog {
+  final String attackerName;
+  final String defenderName;
+  final bool isVictory;
+  final DateTime createdAt;
+
+  PvPBattleLog({
+    required this.attackerName,
+    required this.defenderName,
+    required this.isVictory,
+    required this.createdAt,
+  });
+
+  factory PvPBattleLog.fromJson(Map<String, dynamic> json) {
+    return PvPBattleLog(
+      attackerName: json['attacker_name'] ?? 'Unknown',
+      defenderName: json['defender_name'] ?? 'Unknown',
+      isVictory: json['is_victory'] ?? false,
+      createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+}
