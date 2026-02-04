@@ -1,11 +1,12 @@
 {
-  "version": "2.7.7",
-  "buildNumber": 143,
+  "version": "2.7.13",
+  "buildNumber": 147,
   "downloadUrl": "https://github.com/login7942/idle_warrior/releases/latest",
-  "updated_at": "2026-02-03",
+  "updated_at": "2026-02-04",
   "changelog": [
-    "하단 메뉴바 나노 슬림(Nano Slim) 2단 그리드 개편",
-    "메뉴 텍스트 제거 및 아이콘 크기 최적화로 전투 화면 개방감 극대화",
-    "스킬 퀵바 하단 텍스트 겹침 현상 해결 및 레이아웃 안정화"
+    "PvP 즉시 도전 기능 추가 (랭킹 리스트 버튼)",
+    "명예의 전당 Top 3 UI 슬림화 및 시인성 개선",
+    "PvP 몬스터 등장 버그 및 공격 불가 현상 수정",
+    "안정성 향상 및 최적화"
   ]
 }

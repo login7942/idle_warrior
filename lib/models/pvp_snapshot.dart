@@ -147,14 +147,14 @@ class PvPSnapshot {
     return total;
   }
 
-  /// 🆕 치명타 시 즉사(처형) 발동 확률 (%)
-  double get executeChance {
+  /// 🆕 피격 시 피해 반사 확률 (%)
+  double get reflectPerc {
     double total = 0.0;
     for (var item in equippedItems) {
       for (var opt in item.subOptions) {
-        if (opt.effect == OptionEffect.execute) total += opt.value;
+        if (opt.effect == OptionEffect.reflect) total += opt.value;
       }
-      if (item.potential?.effect == OptionEffect.execute) total += item.potential!.value;
+      if (item.potential?.effect == OptionEffect.reflect) total += item.potential!.value;
     }
     return total;
   }

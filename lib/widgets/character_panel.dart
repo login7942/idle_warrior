@@ -365,7 +365,7 @@ class _CharacterPanelState extends State<CharacterPanel> with TickerProviderStat
                     _buildSubTitle('⚔️ 전투 특화'),
                     _buildStatRow('2연타 확률', '${player.doubleHitChance.toStringAsFixed(1)}%'),
                     _buildStatRow('스킬 추가 발동', '${player.skillEchoChance.toStringAsFixed(1)}%'),
-                    _buildStatRow('처형 확률', '${player.executeChance.toStringAsFixed(1)}%'),
+                    _buildStatRow('가시 (피해 반사)', '${player.reflectPerc.toStringAsFixed(1)}%'),
                     _buildStatRow('쿨타임 감소', '${player.cdr.toStringAsFixed(1)}%'),
                     _buildStatRow('치명타 시 쿨감', '${player.critCdrAmount.toStringAsFixed(1)}s'),
                   ],

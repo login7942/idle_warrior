@@ -223,6 +223,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   late AnimationController _monsterHitController;
   late AnimationController _monsterSpawnController; // 몬스터 등장 연출
   late AnimationController _monsterDeathController; // 몬스터 사망 연출
+  late AnimationController _playerDeathController; // 🆕 플레이어 사망 연출
   final DamageManager damageManager = DamageManager(); 
   int _sessionMaxDamage = 0; 
 
@@ -346,6 +347,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       }
     });
     _monsterDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _playerDeathController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     
     // 🆕 UI 갱신 (전리품 파티클, 데미지 매니저 업데이트용)
     DateTime lastFrameTime = DateTime.now();
@@ -373,6 +375,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
          
          // 몬스터 등장 애니메이션 초기화 및 실행
          _monsterDeathController.reset();
+         _playerDeathController.reset(); // 🆕 사냥터 복귀 시 플레이어 모습 복구
          _monsterSpawnController.forward(from: 0);
        }
     };
@@ -504,6 +507,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _exitSpecialDungeon();
     };
 
+    gameState.onPvPDeath = (isVictory) {
+      if (!mounted) return;
+      if (isVictory) {
+        _monsterDeathController.forward(from: 0);
+      } else {
+        // 🆕 플레이어 패배 시 즉시 사망 연출
+        _playerDeathController.forward(from: 0);
+      }
+    };
+
     gameState.onPvPResult = (isVictory, scoreChange) {
       if (!mounted) return;
       _showPvPResultDialog(isVictory, scoreChange);
@@ -627,6 +640,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     _monsterHitController.dispose();
     _monsterSpawnController.dispose();
     _monsterDeathController.dispose();
+    _playerDeathController.dispose();
     
     super.dispose();
   }
@@ -957,8 +971,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       case 7: return const ReincarnationPanel();
       case 8: return AchievementPanel(onShowToast: _showToast, onShowSuccess: _showSuccess);
       case 9: return _buildSystemTab(); // 실제 시스템/관리자 모드 연결
-      case 10: return const ArenaPanel(); // 🆕 결투장 패널 연결
-      case 11: return RankingPanel(onShowToast: _showToast, onNavigateToTab: () => setState(() => _selectedIndex = 0));
+      case 10: return RankingPanel(onShowToast: _showToast, onNavigateToTab: () => setState(() => _selectedIndex = 0));
       default: return _buildCombatTab();
     }
   }
@@ -2539,7 +2552,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   Widget _buildBottomDock() {
-    final List<String> emojis = ['⚔️', '👤', '🗺️', '🎒', '🔨', '⚡', '🐾', '💎', '🏆', '⚙️', '🏟️', '🥈'];
+    final List<String> emojis = ['⚔️', '👤', '🗺️', '🎒', '🔨', '⚡', '🐾', '💎', '🏆', '⚙️', '🥈'];
     
     return Container(
       padding: EdgeInsets.zero, // 패딩 완전 제거 (나노 슬림)
@@ -2554,15 +2567,15 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 상단행
+          // 상단행 (0~5)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: List.generate(6, (i) => _buildDockItem(i, emojis[i])),
           ),
-          // 하단행
+          // 하단행 (6~10)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(6, (i) {
+            children: List.generate(5, (i) {
               int idx = i + 6;
               return _buildDockItem(idx, emojis[idx]);
             }),
@@ -2656,25 +2669,39 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               mainAxisAlignment: MainAxisAlignment.spaceAround, 
               children: [
                 // 1. 플레이어 영역 (체력 및 보호막 변화 감시)
-                Selector<GameState, (int, int, DateTime?, DateTime?)>(
+                Selector<GameState, (int, int, DateTime?, DateTime?, bool, bool, bool, bool)>(
                   selector: (_, gs) => (
                     gs.playerCurrentHp, 
                     gs.playerShield,
                     gs.player.skillAtkSpdBuffEndTime,
                     gs.player.skillCritBuffEndTime,
+                    gs.isPlayerStunned,
+                    gs.isPlayerFrozen,
+                    gs.isPlayerJudged,
+                    gs.isPlayerBurned,
                   ),
                   builder: (context, data, child) => RepaintBoundary(
-                    key: _playerKey, // 🆕 플레이어 키 연결
-                    child: _buildActor(
-                      gs.player.name, 
-                      gs.player.level, 
-                      data.$1, 
-                      gs.player.maxHp, 
-                      'assets/images/warrior.png', 
-                      _playerAttackController, 
-                      _playerHitController,
-                      true,
-                      shield: data.$2,
+                    key: _playerKey, 
+                    child: FadeTransition(
+                      opacity: Tween<double>(begin: 1.0, end: 0.0).animate(_playerDeathController),
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 1.0, end: 0.8).animate(CurvedAnimation(parent: _playerDeathController, curve: Curves.easeIn)),
+                        child: _buildActor(
+                          gs.player.name, 
+                          gs.player.level, 
+                          data.$1, 
+                          gs.player.maxHp, 
+                          'assets/images/warrior.png', 
+                          _playerAttackController, 
+                          _playerHitController,
+                          true,
+                          shield: data.$2,
+                          isStunned: data.$5,
+                          isFrozen: data.$6,
+                          isJudged: data.$7,
+                          isBurned: data.$8,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -2682,16 +2709,17 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 // 2. 몬스터 또는 PvP 방어자 영역
                 Center(
                   key: _monsterKey,
-                  child: Selector<GameState, (int, double, double, double, bool)>(
+                  child: Selector<GameState, (int, double, double, double, bool, bool)>(
                     selector: (_, gs) => (
                       gs.isPvPMode ? gs.defenderCurrentHp : gs.monsterCurrentHp, 
-                      gs.isPvPMode ? 0.0 : (gs.currentMonster?.frozenTimeLeft ?? 0.0),
-                      gs.isPvPMode ? 0.0 : (gs.currentMonster?.stunTimeLeft ?? 0.0),
-                      gs.isPvPMode ? 0.0 : (gs.currentMonster?.judgmentTimeLeft ?? 0.0),
+                      gs.isPvPMode ? (gs.isDefenderFrozen ? 3.0 : 0.0) : (gs.currentMonster?.frozenTimeLeft ?? 0.0),
+                      gs.isPvPMode ? (gs.isDefenderStunned ? 2.0 : 0.0) : (gs.currentMonster?.stunTimeLeft ?? 0.0),
+                      gs.isPvPMode ? (gs.isDefenderJudged ? 2.0 : 0.0) : (gs.currentMonster?.judgmentTimeLeft ?? 0.0),
+                      gs.isPvPMode && gs.isPlayerBurned, // 임시 방편으로 burn 플래그 활용하거나 별도 추가
                       gs.isPvPMode,
                     ),
                     builder: (context, data, child) {
-                      final isPvP = data.$5;
+                      final isPvP = data.$6;
                       
                       if (!isPvP && gs.currentMonster == null) return const SizedBox(width: 100, height: 150);
                       if (isPvP && gs.defenderSnapshot == null) return const SizedBox(width: 100, height: 150);
@@ -2715,6 +2743,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                   _monsterHitController,
                                   false,
                                   isFrozen: data.$2 > 0,
+                                  isStunned: data.$3 > 0,
+                                  isJudged: data.$4 > 0,
                                   shield: isPvP ? gs.defenderShield : 0,
                                   isEnemyPlayer: isPvP,
                                 ),
@@ -2746,25 +2776,49 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
               ),
             ),
 
-            // 카운트다운 연출
-            if (_towerCountdown > 0)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('CHALLENGE', style: TextStyle(color: Colors.amberAccent, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 4.0)),
-                        const SizedBox(height: 10),
-                        Text('$_towerCountdown', 
-                          style: GoogleFonts.outfit(color: Colors.white, fontSize: 120, fontWeight: FontWeight.w900, shadows: [
-                            const Shadow(color: Colors.amberAccent, blurRadius: 20)
-                          ])),
-                      ],
+            // PvP 카운트다운 연출
+            if (gs.isPvPMode && gs.pvpCountdown > 0)
+              Builder(
+                builder: (context) {
+                  // 🆕 카운트다운 시작 시 사망 애니메이션 리셋
+                  if (gs.pvpCountdown > 2.9) {
+                    _monsterDeathController.reset();
+                    _playerDeathController.reset();
+                  }
+                  return Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              gs.pvpCountdown > 1.0 ? 'PVP MATCH' : 'FIGHT!',
+                              style: GoogleFonts.outfit(
+                                color: gs.pvpCountdown > 1.0 ? Colors.redAccent : Colors.orangeAccent,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 8.0,
+                              )
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              gs.pvpCountdown > 1.0 ? '${gs.pvpCountdown.ceil()}' : 'GO',
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 100,
+                                fontWeight: FontWeight.w900,
+                                shadows: [
+                                  Shadow(color: gs.pvpCountdown > 1.0 ? Colors.redAccent : Colors.orangeAccent, blurRadius: 20)
+                                ]
+                              )
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }
               ),
           ],
         );
@@ -2772,7 +2826,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0, bool isFrozen = false, bool isEnemyPlayer = false}) {
+  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0, bool isFrozen = false, bool isStunned = false, bool isJudged = false, bool isBurned = false, bool isEnemyPlayer = false}) {
     double hpProgress = (h / mh).clamp(0, 1);
     double shieldProgress = (shield / mh).clamp(0, 1);
     final gs = context.read<GameState>();
@@ -2817,7 +2871,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         ShadowText(n, fontSize: 13, fontWeight: FontWeight.w900, color: p ? Colors.white : Colors.redAccent),
-                        if (!p && gs.currentMonster != null && gs.currentMonster!.isBoss) ...[
+                        if (!p && !gs.isPvPMode && gs.currentMonster != null && gs.currentMonster!.isBoss) ...[
                           const SizedBox(width: 4),
                           if ((h / mh) < 0.5)
                             Container(
@@ -2839,10 +2893,27 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildHpBar(hpProgress, p ? Colors.greenAccent : Colors.redAccent, Colors.black54, shieldProgress: shieldProgress),
+                        _buildHpBar(hpProgress, p ? Colors.greenAccent : Colors.redAccent, Colors.black54, shieldProgress: shieldProgress, current: h, max: mh),
                         if (shield > 0) ...[
                           const SizedBox(width: 4),
                           _buildStatusBadge('🛡️', Colors.blueAccent),
+                        ],
+                        // 🆕 상태 이상 배지들
+                        if (isStunned) ...[
+                          const SizedBox(width: 4),
+                          _buildStatusBadge('💫', Colors.yellowAccent),
+                        ],
+                        if (isFrozen) ...[
+                          const SizedBox(width: 4),
+                          _buildStatusBadge('🧊', Colors.cyanAccent),
+                        ],
+                        if (isJudged) ...[
+                          const SizedBox(width: 4),
+                          _buildStatusBadge('⚖️', Colors.deepPurpleAccent),
+                        ],
+                        if (isBurned) ...[
+                          const SizedBox(width: 4),
+                          _buildStatusBadge('🔥', Colors.orangeAccent),
                         ],
                       ],
                     ),
@@ -2909,9 +2980,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildHpBar(double progress, Color color, Color bgColor, {double shieldProgress = 0}) {
+  Widget _buildHpBar(double progress, Color color, Color bgColor, {double shieldProgress = 0, int current = 0, int max = 0}) {
     return Container(
-      width: 110, height: 8,
+      width: 110, height: 12,
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(4),
@@ -2956,6 +3027,18 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                     ),
                     border: Border.all(color: Colors.cyanAccent.withOpacity(0.5), width: 1),
                   ),
+                ),
+              ),
+            ),
+          if (max > 0)
+            Center(
+              child: Text(
+                '$current / $max',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                  shadows: [const Shadow(color: Colors.black, blurRadius: 2)],
                 ),
               ),
             ),
@@ -3043,7 +3126,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                                (gameState.player.skillAtkSpdBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillAtkSpdBuffEndTime!)) ||
                                (gameState.player.skillCritBuffEndTime != null && DateTime.now().isBefore(gameState.player.skillCritBuffEndTime!));
     
-    final bool hasMonsterDebuffs = gameState.currentMonster != null && (
+    final bool hasMonsterDebuffs = !gameState.isPvPMode && gameState.currentMonster != null && (
                                   gameState.currentMonster!.isStunned || 
                                   (gameState.currentMonster?.frozenTimeLeft != null && gameState.currentMonster!.frozenTimeLeft > 0) ||
                                   gameState.currentMonster!.isJudged ||

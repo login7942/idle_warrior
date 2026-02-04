@@ -109,7 +109,84 @@ class PvPManager {
     }
   }
 
-  /// 랭킹 리스트 조회
+  /// 전역 Top 3 조회 (시상대용)
+  Future<List<PvPRankEntry>> getTop3() async {
+    return getTopRankings(limit: 3);
+  }
+
+  /// 특정 유저(나) 주변의 랭커 6명 조회 (상위 3명 + 나 + 하위 3명)
+  Future<List<PvPRankEntry>> getNearMe(String userId) async {
+    try {
+      // 1. 내 점수 확인
+      final meResponse = await _supabase
+          .from('pvp_rankings')
+          .select('score')
+          .eq('user_id', userId)
+          .maybeSingle(); // single() 대신 maybeSingle() 사용
+      
+      if (meResponse == null) {
+        // 내가 랭킹에 없으면 Top 10 반환
+        return getTopRankings(limit: 10);
+      }
+      
+      final int myScore = meResponse['score'];
+
+      // 2. 상위 3명
+      final higher = await _supabase
+          .from('pvp_rankings')
+          .select('*, pvp_snapshots!inner(username, combat_power)')
+          .gte('score', myScore)
+          .neq('user_id', userId)
+          .order('score', ascending: true)
+          .limit(3);
+
+      // 3. 하위 3명
+      final lower = await _supabase
+          .from('pvp_rankings')
+          .select('*, pvp_snapshots!inner(username, combat_power)')
+          .lt('score', myScore)
+          .order('score', ascending: false)
+          .limit(3);
+
+      // 4. 나 자신 정보
+      final mine = await _supabase
+          .from('pvp_rankings')
+          .select('*, pvp_snapshots!inner(username, combat_power)')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (mine == null) {
+        return getTopRankings(limit: 10);
+      }
+
+      // 결과 합치기 및 변환
+      List<dynamic> combined = [];
+      combined.addAll(higher);
+      combined.add(mine);
+      combined.addAll(lower);
+
+      // 점수 내림차순 정렬
+      combined.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+
+      return combined.map((data) {
+        final snapshot = data['pvp_snapshots'];
+        return PvPRankEntry(
+          userId: data['user_id'],
+          username: snapshot['username'],
+          score: data['score'],
+          wins: data['wins'],
+          losses: data['losses'],
+          rankTier: data['rank_tier'],
+          combatPower: snapshot['combat_power'],
+        );
+      }).toList();
+    } catch (e) {
+      print('주변 랭킹 조회 실패: $e');
+      return [];
+    }
+  }
+
+  /// 랭킹 리스트 조회 (범용)
   Future<List<PvPRankEntry>> getTopRankings({int limit = 50}) async {
     try {
       // rankings와 snapshots를 조인하여 유저 정보와 점수를 함께 가져옴

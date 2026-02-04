@@ -22,7 +22,8 @@ class RankingPanel extends StatefulWidget {
 
 class _RankingPanelState extends State<RankingPanel> {
   final PvPManager _pvpManager = PvPManager();
-  List<PvPRankEntry>? _rankings;
+  List<PvPRankEntry>? _top3;
+  List<PvPRankEntry>? _nearMe;
   bool _isLoading = true;
 
   @override
@@ -33,9 +34,20 @@ class _RankingPanelState extends State<RankingPanel> {
 
   Future<void> _loadRankings() async {
     setState(() => _isLoading = true);
-    final list = await _pvpManager.getTopRankings();
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    
+    final top3List = await _pvpManager.getTop3();
+    List<PvPRankEntry>? nearMeList;
+    
+    if (userId != null) {
+      nearMeList = await _pvpManager.getNearMe(userId);
+    } else {
+      nearMeList = await _pvpManager.getTopRankings(limit: 7);
+    }
+
     setState(() {
-      _rankings = list;
+      _top3 = top3List;
+      _nearMe = nearMeList;
       _isLoading = false;
     });
   }
@@ -51,9 +63,21 @@ class _RankingPanelState extends State<RankingPanel> {
           Expanded(
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
-              : (_rankings == null || _rankings!.isEmpty)
+              : (_top3 == null || _top3!.isEmpty)
                 ? _buildEmptyState()
-                : _buildRankingList(),
+                : SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _buildListSectionHeader('🏆 전설의 전당 (TOP 3)', isGold: true),
+                        const SizedBox(height: 12),
+                        _buildTop3Podium(),
+                        const SizedBox(height: 24),
+                        _buildListSectionHeader('⚔️ 실시간 라이벌 매칭 (내 주변)'),
+                        const SizedBox(height: 12),
+                        _buildNearMeList(),
+                      ],
+                    ),
+                  ),
           ),
           const SizedBox(height: 60), // 바텀 메뉴 여백
         ],
@@ -73,6 +97,7 @@ class _RankingPanelState extends State<RankingPanel> {
             Text('최강의 전사들이 이름을 올린 기록입니다.', style: TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ),
+        const Spacer(),
         // 🆕 내 정보 갱신 버튼 추가
         IconButton(
           tooltip: '내 정보 최신화',
@@ -124,15 +149,6 @@ class _RankingPanelState extends State<RankingPanel> {
     );
   }
 
-  Widget _buildRankingList() {
-    return ListView.builder(
-      itemCount: _rankings!.length,
-      itemBuilder: (context, index) {
-        final entry = _rankings![index];
-        return _buildRankItem(index + 1, entry);
-      },
-    );
-  }
 
   Widget _buildRankItem(int rank, PvPRankEntry entry) {
     final bool isMe = entry.userId == Supabase.instance.client.auth.currentUser?.id;
@@ -167,13 +183,45 @@ class _RankingPanelState extends State<RankingPanel> {
                 ),
               ),
               if (!isMe)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text('정보', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 정보 버튼 (상세 보기)
+                    GestureDetector(
+                      onTap: () => _showOpponentDetail(entry),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text('정보', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // 도전 버튼 (즉시 전투)
+                    GestureDetector(
+                      onTap: () async {
+                        setState(() => _isLoading = true);
+                        final snapshot = await _pvpManager.getSnapshot(entry.userId);
+                        setState(() => _isLoading = false);
+                        if (snapshot != null) {
+                          _challengeWithSnapshot(snapshot);
+                        } else {
+                          widget.onShowToast('유저 데이터를 불러올 수 없습니다.', isError: true);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: const Text('도전', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -182,22 +230,157 @@ class _RankingPanelState extends State<RankingPanel> {
     );
   }
 
-  Widget _buildRankBadge(int rank) {
-    Color color = Colors.white24;
-    if (rank == 1) color = Colors.amber;
-    if (rank == 2) color = Colors.grey;
-    if (rank == 3) color = Colors.brown;
+  Widget _buildListSectionHeader(String title, {bool isGold = false}) {
+    return Row(
+      children: [
+        Container(
+          width: 4, 
+          height: 18, 
+          decoration: BoxDecoration(
+            color: isGold ? Colors.amber : Colors.blueAccent, 
+            borderRadius: BorderRadius.circular(2),
+            boxShadow: [
+              BoxShadow(color: (isGold ? Colors.amber : Colors.blueAccent).withOpacity(0.5), blurRadius: 4),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title, 
+          style: TextStyle(
+            color: isGold ? Colors.amber : Colors.white70, 
+            fontSize: 14, 
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+          )
+        ),
+      ],
+    );
+  }
 
+  Widget _buildTop3Podium() {
+    if (_top3 == null || _top3!.isEmpty) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          if (_top3!.length > 1) Expanded(child: _buildSimpleTopCard(_top3![1], 2)),
+          const SizedBox(width: 8),
+          if (_top3!.isNotEmpty) Expanded(child: _buildSimpleTopCard(_top3![0], 1)),
+          const SizedBox(width: 8),
+          if (_top3!.length > 2) Expanded(child: _buildSimpleTopCard(_top3![2], 3)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleTopCard(PvPRankEntry entry, int rank) {
+    Color medalColor = Colors.amber;
+    String trophy = '🏆';
+    if (rank == 2) { medalColor = const Color(0xFFC0C0C0); trophy = '🥈'; }
+    if (rank == 3) { medalColor = const Color(0xFFCD7F32); trophy = '🥉'; }
+
+    return PressableScale(
+      onTap: () => _showOpponentDetail(entry),
+      child: GlassContainer(
+        padding: const EdgeInsets.all(12),
+        borderRadius: 16,
+        border: Border.all(color: medalColor.withValues(alpha: 0.3), width: 1.5),
+        color: medalColor.withValues(alpha: 0.05),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(trophy, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 4),
+            Text(
+              entry.username, 
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${entry.score} pts', 
+              style: TextStyle(color: medalColor.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            // 🆕 도전하기 버튼 추가
+            GestureDetector(
+              onTap: () async {
+                setState(() => _isLoading = true);
+                final snapshot = await _pvpManager.getSnapshot(entry.userId);
+                setState(() => _isLoading = false);
+                if (snapshot != null) {
+                  _challengeWithSnapshot(snapshot);
+                } else {
+                  widget.onShowToast('유저 데이터를 불러올 수 없습니다.', isError: true);
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                ),
+                child: const Text('도전하기', style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildNearMeList() {
+    if (_nearMe == null || _nearMe!.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        alignment: Alignment.center,
+        child: Column(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white10, size: 40),
+            const SizedBox(height: 12),
+            const Text('주변에 대전 가능한 유저가 없습니다.', style: TextStyle(color: Colors.white24, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: _nearMe!.asMap().entries.map((e) {
+        final index = e.key;
+        final entry = e.value;
+        // 실제 랭킹 숫자를 알기 어려우므로 라이벌 아이콘 표시
+        return _buildRankItem(0, entry); 
+      }).toList(),
+    );
+  }
+
+  Widget _buildRankBadge(int rank) {
+    // 리스트 아이템의 배지 수정 (rank가 0이면 점수 아이콘 표시)
+    if (rank == 0) {
+      return Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), shape: BoxShape.circle),
+        child: const Icon(Icons.person_search, color: Colors.blueAccent, size: 16),
+      );
+    }
+    
+    Color color = Colors.white54;
     return Container(
       width: 32,
       height: 32,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withOpacity(0.05),
         shape: BoxShape.circle,
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withOpacity(0.1)),
       ),
-      child: Text('$rank', style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+      child: Text('$rank', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -240,9 +423,14 @@ class _RankingPanelState extends State<RankingPanel> {
     // 🆕 대전 시작 전 내 정보 자동 최신화
     await _pvpManager.uploadSnapshot(gs.player);
     
-    gs.startPvPBattle(snapshot);
+    // 화면 전환 후 상태 변경
     widget.onNavigateToTab();
-    widget.onShowToast('${snapshot.username} 유저와 대전을 시작합니다!');
+
+    // 빌드 프레임 이후에 상태 업데이트 실행
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      gs.startPvPBattle(snapshot);
+      widget.onShowToast('${snapshot.username} 유저와 대전을 시작합니다!');
+    });
   }
 }
 

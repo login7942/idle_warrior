@@ -53,7 +53,9 @@ class GameLoop {
         }
       }
 
-      if (gameState.currentMonster == null || gameState.isProcessingVictory) return;
+      // [v2.7.5] PvP나 아레나 모드일 때는 몬스터가 없어도 로직이 진행되어야 함
+      bool isTargetRequired = !gameState.isPvPMode && !gameState.isArenaMode;
+      if ((isTargetRequired && gameState.currentMonster == null) || gameState.isProcessingVictory) return;
 
       // 🆕 로직 누적 (전투 로직은 60FPS에 가깝게 처리하도록 임계치 하향)
       _logicAccumulator += dt;
@@ -70,25 +72,37 @@ class GameLoop {
         
         gameState.pendingHits.removeFirst();
         
-        // 몬스터가 이미 죽었으면 스킵
-        if (gameState.currentMonster == null || gameState.currentMonster!.isDead) continue;
-        
-        // 타격 실행
-        gameState.damageMonster(
-          hit.damage,
-          false,
-          hit.isSkill,
-          ox: hit.offsetX,
-          oy: hit.offsetY,
-          shouldAnimate: hit.shouldAnimate,
-          skillIcon: hit.skillIcon, // 🆕 아이콘 전달
-          combo: hit.combo, // 🆕 콤보 정보 전달
-        );
+        if (gameState.isPvPMode) {
+          // PvP 모드: 방어자 타격
+          gameState.damageDefender(
+            hit.damage,
+            false,
+            hit.isSkill,
+            ox: hit.offsetX,
+            oy: hit.offsetY,
+            shouldAnimate: hit.shouldAnimate,
+            skillIcon: hit.skillIcon,
+            combo: hit.combo,
+          );
+        } else {
+          // 일반 모드: 몬스터 타격
+          gameState.damageMonster(
+            hit.damage,
+            false,
+            hit.isSkill,
+            ox: hit.offsetX,
+            oy: hit.offsetY,
+            shouldAnimate: hit.shouldAnimate,
+            skillIcon: hit.skillIcon, // 🆕 아이콘 전달
+            combo: hit.combo, // 🆕 콤보 정보 전달
+          );
+        }
       }
 
       // 1. 플레이어 공격 주기 처리 (v0.1.x 직렬화 적용)
       // 연타 스킬(pendingHits)이 남아있는 동안에는 다음 공격 턴 게이지를 쌓지 않음
-      if (gameState.pendingHits.isEmpty) {
+      // PvP 카운트다운 중에는 공격 불가
+      if (gameState.pendingHits.isEmpty && (!gameState.isPvPMode || gameState.pvpCountdown <= 0)) {
         _attackAccumulator += tCombat;
       }
 
@@ -102,14 +116,16 @@ class GameLoop {
 
       // 2. 몬스터 또는 PvP 방어자 공격 주기 처리
       if (gameState.isPvPMode) {
-        // PvP 모드: 방어자 공격 처리
-        _defenderAttackAccumulator += tCombat;
-        double defenderAttackInterval = 1.0 / (gameState.defenderSnapshot?.attackSpeed ?? 1.0);
-        if (defenderAttackInterval < 0.167) defenderAttackInterval = 0.167;
+        // PvP 모드: 방어자 공격 처리 (카운트다운 중엔 불가)
+        if (gameState.pvpCountdown <= 0) {
+          _defenderAttackAccumulator += tCombat;
+          double defenderAttackInterval = 1.0 / (gameState.defenderSnapshot?.attackSpeed ?? 1.0);
+          if (defenderAttackInterval < 0.167) defenderAttackInterval = 0.167;
 
-        if (_defenderAttackAccumulator >= defenderAttackInterval) {
-          gameState.processDefenderTurn();
-          _defenderAttackAccumulator = 0;
+          if (_defenderAttackAccumulator >= defenderAttackInterval) {
+            gameState.processDefenderTurn();
+            _defenderAttackAccumulator = 0;
+          }
         }
       } else {
         // 일반 모드: 몬스터 공격 처리

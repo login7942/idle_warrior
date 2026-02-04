@@ -134,7 +134,7 @@ enum OptionEffect {
   dmgReductionOnSkill,  // 스킬 사용 시 피해 감소
   addSpecificSkillCdr,  // 특정 스킬 쿨타임 감소
   addCritCdr,           // 치명타 시 쿨타임 감소 (50% 확률)
-  execute,             // 치명타 시 즉사 확률
+  reflect,              // 피격 시 피해 반사 (%)
   atkBuffOnKill,      // 처치 시 공격력 버프
   defBuffOnKill,      // 처치 시 방어력 버프
   atkBuffOnZone,      // 지역 이동 시 공격력 버프
@@ -169,7 +169,7 @@ extension OptionEffectExtension on OptionEffect {
       case OptionEffect.dmgReductionOnSkill: return '스킬 사용시 피해감소 확률';
       case OptionEffect.addSpecificSkillCdr: return '특정 스킬 쿨감';
       case OptionEffect.addCritCdr: return '치명타 시 쿨감';
-      case OptionEffect.execute: return '처형 확률';
+      case OptionEffect.reflect: return '가시 (피해 반사)';
       case OptionEffect.atkBuffOnKill: return '처치 시 공증';
       case OptionEffect.defBuffOnKill: return '처치 시 방증';
       case OptionEffect.atkBuffOnZone: return '지역 이동 시 공증';
@@ -268,7 +268,9 @@ class ItemOption {
 
     return ItemOption(
       trigger: OptionTrigger.values.firstWhere((e) => e.name == json['trigger']),
-      effect: OptionEffect.values.firstWhere((e) => e.name == json['effect']),
+      effect: OptionEffect.values.any((e) => e.name == json['effect'])
+          ? OptionEffect.values.firstWhere((e) => e.name == json['effect'])
+          : (json['effect'] == 'execute' ? OptionEffect.reflect : OptionEffect.addAtkPerc),
       values: (json['values'] as List).map((v) => (v as num).toDouble()).toList(),
       isLocked: json['isLocked'] ?? false,
       isSpecial: json['isSpecial'] ?? false,
@@ -298,8 +300,8 @@ class ItemOption {
       suffix = ' (30초)';
     } else if (effect == OptionEffect.dmgReductionOnSkill) {
       suffix = ' (3초)';
-    } else if (effect == OptionEffect.execute) {
-      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (치명타 시 & HP 20% 이하)';
+    } else if (effect == OptionEffect.reflect) {
+      return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (피격 시)';
     } else if (effect == OptionEffect.skillEcho) {
       return '$prefix${effect.label} ${value.toStringAsFixed(1)}% (시전 시)';
     } else if (effect == OptionEffect.gainShield) {
@@ -931,7 +933,7 @@ class Item {
       OptionEffect.addCritChance, 
       OptionEffect.addCritDamage, 
       OptionEffect.addCritCdr,
-      OptionEffect.execute,
+      OptionEffect.reflect,
       OptionEffect.doubleHit,
       OptionEffect.skillEcho,
       OptionEffect.gainShield,
@@ -1021,9 +1023,9 @@ class Item {
       maxVal = 0.3 + (tier * 0.1);
       val = minVal + (maxVal - minVal) * roll;
       break;
-    case OptionEffect.execute:
-      minVal = 1.0 + (tier * 1.0);
-      maxVal = 3.0 + (tier * 1.0);
+    case OptionEffect.reflect:
+      minVal = 5.0 + (tier * 2.0);
+      maxVal = 10.0 + (tier * 2.0);
       val = minVal + (maxVal - minVal) * roll;
       break;
     case OptionEffect.skillEcho:
@@ -1088,8 +1090,7 @@ class Item {
         OptionEffect.addFinalDamagePerc, 
         OptionEffect.addCdr,
         OptionEffect.addRegenCap,
-        OptionEffect.dmgReductionOnSkill,
-        OptionEffect.execute, // [v2.0] 처형은 특별 잠재에만 추가 저확률
+        OptionEffect.reflect,
       ];
       OptionEffect effect = specialPool[rand.nextInt(specialPool.length)];
       
@@ -1099,7 +1100,7 @@ class Item {
         case OptionEffect.addSkillLevel: val = 1.0; break;
         case OptionEffect.addRegenCap: val = 3.0; break; // 잠재 특별: 상한 +3%
         case OptionEffect.dmgReductionOnSkill: val = 7.5; break; // 잠재 특별: 감댐 15% -> 7.5%로 하향
-        case OptionEffect.execute: val = 1.0; break; // 잠재 특별: 처형 1%
+        case OptionEffect.reflect: val = 15.0; break; // 잠재 특별: 반사 15%
         default: val = 10.0; // FinalDmg, CDR 등
       }
       
