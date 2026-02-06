@@ -30,6 +30,13 @@ class GameLoop {
 
   void _onTick(Duration elapsed) {
     final double rawDt = (elapsed.inMicroseconds - _lastElapsed.inMicroseconds) / 1000000.0;
+    
+    // 🆕 [최적화] 타겟 FPS에 도달하지 않았으면 업데이트 건너뛰기
+    final double targetFrameTime = 1.0 / gameState.targetFps;
+    if (rawDt < targetFrameTime && _lastElapsed != Duration.zero) {
+      return; 
+    }
+
     _lastElapsed = elapsed;
 
     // 🆕 [v2.5.1] 게임 루프 dt 보정: 극심한 프레임 드랍 시 로직 폭주 방지
@@ -57,9 +64,9 @@ class GameLoop {
       bool isTargetRequired = !gameState.isPvPMode && !gameState.isArenaMode;
       if ((isTargetRequired && gameState.currentMonster == null) || gameState.isProcessingVictory) return;
 
-      // 🆕 로직 누적 (전투 로직은 60FPS에 가깝게 처리하도록 임계치 하향)
+      // 🆕 로직 누적 (전투 로직은 최소 60FPS에 가깝게 처리하도록 임계치 하향하되, 타켓 FPS보다는 느리지 않게)
       _logicAccumulator += dt;
-      if (_logicAccumulator < 0.016) return;
+      if (_logicAccumulator < (targetFrameTime < 0.016 ? 0.016 : targetFrameTime)) return;
 
       // 누적된 시간을 실제 전투 로직 처리 시간(tCombat)으로 사용
       double tCombat = _logicAccumulator;

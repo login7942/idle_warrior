@@ -65,6 +65,25 @@ class GameState extends ChangeNotifier {
   bool _suppressNotify = false;
   bool _needsNotify = false;
 
+  // --- [최적화] 성능 및 배터리 설정 ---
+  int _targetFps = 60; // 기본 60FPS
+  int get targetFps => _targetFps;
+  void setTargetFps(int val) {
+    if (_targetFps == val) return;
+    _targetFps = val;
+    notifyListeners();
+  }
+
+  bool _isPowerSaveMode = false;
+  bool get isPowerSaveMode => _isPowerSaveMode;
+  void setPowerSaveMode(bool val) {
+    if (_isPowerSaveMode == val) return;
+    _isPowerSaveMode = val;
+    // 절전 모드 시 FPS를 30으로 강제 하향
+    _targetFps = val ? 30 : 60;
+    notifyListeners();
+  }
+
   @override
   void notifyListeners() {
     if (_suppressNotify) {
@@ -252,6 +271,9 @@ class GameState extends ChangeNotifier {
     _defenderShield = val;
     notifyListeners();
   }
+
+  // 🆕 [최적화] 절전 모드 시 그래픽 간소화 게터
+  bool get shouldSimplifyGraphics => _isPowerSaveMode;
   DateTime? lastDefenderAttackTime;
   int _defenderSkillIndex = 0;
   int _defenderNormalCombo = 0;

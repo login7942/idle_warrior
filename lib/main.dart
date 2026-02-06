@@ -218,9 +218,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   Timer? _scrollStopTimer;
 
   late AnimationController _playerAttackController;
-  late AnimationController _playerHitController;
   late AnimationController _monsterAttackController;
-  late AnimationController _monsterHitController;
   late AnimationController _monsterSpawnController; // 몬스터 등장 연출
   late AnimationController _monsterDeathController; // 몬스터 사망 연출
   late AnimationController _playerDeathController; // 🆕 플레이어 사망 연출
@@ -233,10 +231,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   int _sessionExp = 0;
   
 
-  // 전리품 파티클 시스템
-  final List<LootParticle> _lootParticles = [];
-  final GlobalKey _battleSceneKey = GlobalKey(); // 🆕 배틀 장면 좌표 기준키
-  final GlobalKey _playerKey = GlobalKey(); // 🆕 플레이어 위치 기준키
+  // 🆕 배틀 장면 좌표 기준키
+  final GlobalKey _battleSceneKey = GlobalKey(); 
+  final GlobalKey _playerKey = GlobalKey(); 
   final GlobalKey _monsterKey = GlobalKey();
   
   // 관리자 모드
@@ -245,26 +242,16 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
   // 화면 모드 관리
   DisplayMode _displayMode = DisplayMode.normal;
-  // 세션 통합 통계 (절전 모드용)
-  static const int _sessionItems = 0; // Const as they are 0 and never changed in this class
-  static const int _sessionStones = 0;
-  static const int _sessionPowder = 0;
-  static const int _sessionReroll = 0;
-  static const int _sessionCube = 0;
-  static const int _sessionProtection = 0;
 
   // 스테이지 가속(점프) 시스템 관련
   DateTime _lastUiTick = DateTime.now(); // 🆕 30FPS 쓰로틀링용
   
   // 알림 중착 방지용
   OverlayEntry? _activeNotification;
-  bool _showJumpEffect = false; // [v0.0.79] 경량화된 점프 애니메이션 상태
+  bool _showJumpEffect = false; 
+  bool _showDefeatEffect = false; // 🆕 사망 연출 상태 추가
   Timer? _jumpEffectTimer;
-
-  // 🆕 화면 흔들림(Screen Shake) 관련 상태
-  double _shakeOffsetX = 0;
-  double _shakeOffsetY = 0;
-  Timer? _shakeTimer;
+  Timer? _defeatEffectTimer; // 🆕 사망 연출 타이머 추가
 
   // --- [신규 v0.0.60] 제작 시스템 상태 ---
   int _selectedCraftTier = 2; // 기본 선택 티어 (T2)
@@ -333,10 +320,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     final gameState = context.read<GameState>();
     _gameLoop = GameLoop(gameState);
     
-    _playerAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _playerHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _monsterAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _monsterHitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _playerAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _monsterAttackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     _monsterSpawnController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     // 🆕 [v2.2.1] 등장 애니메이션 종료 시점에 전투 시작 허용
     _monsterSpawnController.addStatusListener((status) {
@@ -351,18 +336,27 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     
     // 🆕 UI 갱신 (전리품 파티클, 데미지 매니저 업데이트용)
     DateTime lastFrameTime = DateTime.now();
+    // 🆕 [최적화] 통합 UI Ticker: 파티클, 데미지 숫자 등 프레임 기반 연산 처리
     final ticker = createTicker((elapsed) {
       final now = DateTime.now();
       double dt = now.difference(lastFrameTime).inMilliseconds / 1000.0;
       
+      // 🆕 [최적화] 타겟 FPS에 도달하지 않았으면 건너뛰기
+      final double targetFrameTime = 1.0 / gameState.targetFps;
+      if (dt < targetFrameTime && lastFrameTime != DateTime.fromMillisecondsSinceEpoch(0)) {
+        return; 
+      }
+
       // 🆕 [v2.5.1] Delta Time Capping 완화: 0.1초 이상의 극심한 멈춤 발생 시에만 보정
       if (dt > 0.1) dt = 0.1;
       
       lastFrameTime = now;
       
-      // 💡 최적화: 수동 16ms 제한 제거 (Flutter Ticker가 주사율에 맞춰 최적으로 호출함)
-      _updateParticles(); 
       damageManager.update(dt); 
+
+      // 🆕 [최적화] Ticker에서 수동으로 setState를 호출하지 않고, 
+      // 파티클이나 데미지가 있는 경우에만 CustomPaint가 다시 그려지도록 유도됨
+      // (CustomPaint의 shouldRepaint가 관여)
     });
     ticker.start();
     
@@ -396,13 +390,9 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
       if (shouldAnimate) {
         if (isPlayerTarget == true) {
-          // 플레이어 피격 (뒤로 밀림)
-          _playerHitController.forward(from: 0);
           // 몬스터/방어자 공격 (앞으로 튀어나감)
           _monsterAttackController.forward(from: 0);
         } else {
-          // 몬스터/방어자 피격 (뒤로 밀림)
-          _monsterHitController.forward(from: 0);
           // 플레이어 공격 (앞으로 튀어나감)
           _playerAttackController.forward(from: 0);
         }
@@ -426,8 +416,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     gameState.onPlayerDamageTaken = (damage, {isShield = false, shouldAnimate = true}) {
       if (!mounted) return;
       if (shouldAnimate) {
-        // 플레이어 피격 (뒤로 밀림)
-        _playerHitController.forward(from: 0);
         // 몬스터 공격 (앞으로 튀어나감)
         _monsterAttackController.forward(from: 0);
       }
@@ -490,7 +478,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       if (gameState.currentZone.id == ZoneId.tower) {
         _showTowerResultDialog(false);
       } else {
-        _showToast('사망하여 스테이지가 하락했습니다.', isError: true);
+        _triggerDefeatEffect(); // 🆕 전용 이미지 연출로 교체
       }
     };
 
@@ -530,8 +518,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
       _monsterSpawnController.forward(from: 0);
     }
     
-    // 🆕 분당 효율 계산 타이머 (2초마다 갱신으로 상향)
-    _efficiencyTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    // 🆕 분당 효율 계산 타이머 (5초마다 갱신으로 최적화)
+    _efficiencyTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -615,6 +603,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     // 1. 타이머 및 컨트롤러 정지
     _scrollStopTimer?.cancel();
     _jumpEffectTimer?.cancel();
+    _defeatEffectTimer?.cancel(); // 🆕
     _efficiencyTimer?.cancel();
     _towerTimer?.cancel();
     _optimalZoneHintTimer?.cancel();
@@ -637,9 +626,7 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
 
     // 4. 애니메이션 컨트롤러 해제
     _playerAttackController.dispose();
-    _playerHitController.dispose();
     _monsterAttackController.dispose();
-    _monsterHitController.dispose();
     _monsterSpawnController.dispose();
     _monsterDeathController.dispose();
     _playerDeathController.dispose();
@@ -663,55 +650,26 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
         case DisplayMode.normal:
           _displayMode = DisplayMode.stayAwake;
           WakelockPlus.enable();
+          gameState.setPowerSaveMode(false); // 일반 모드 유지
           _showToast('화면 유지 모드 활성화', isError: false);
           break;
         case DisplayMode.stayAwake:
           _displayMode = DisplayMode.powerSave;
           // 절전 모드에서도 화면은 계속 켜져 있어야 하므로 유지
+          gameState.setPowerSaveMode(true); // 🆕 [최적화] 절전 모드 활성화
           _showToast('절전 모드 진입', isError: false);
           break;
         case DisplayMode.powerSave:
           _displayMode = DisplayMode.normal;
           WakelockPlus.disable();
+          gameState.setPowerSaveMode(false); // 🆕 [최적화] 절전 모드 해제
           _showToast('일반 모드로 복귀', isError: false);
           break;
       }
     });
   }
 
-  void _spawnLootParticles(int gold, int exp, Offset startPos) {
-    if (!mounted) return;
-    final rand = Random();
-
-    // 골드 파티클 생성
-    for (int i = 0; i < 5; i++) {
-      _lootParticles.add(LootParticle(
-        startPos,
-        LootType.gold,
-        DateTime.now().add(Duration(milliseconds: i * 50)),
-        rand,
-      ));
-    }
-    // 경험치 파티클 생성
-    for (int i = 0; i < 3; i++) {
-      _lootParticles.add(LootParticle(
-        startPos,
-        LootType.exp,
-        DateTime.now().add(Duration(milliseconds: i * 70)),
-        rand,
-      ));
-    }
-    
-    // 파티클은 CustomPainter가 직접 그리므로 setState를 부르지 않거나 최소화
-  }
-
-  void _updateParticles() {
-    final now = DateTime.now();
-    if (!mounted || _lootParticles.isEmpty) return;
-    
-    // 1초 이상 된 파티클 제거
-    _lootParticles.removeWhere((p) => now.difference(p.startTime).inMilliseconds > 1200);
-  }
+  // 🆕 데미지 텍스트 추가 API (통합 관리)
 
 
   // 🆕 데미지 텍스트 추가 API (통합 관리)
@@ -811,33 +769,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     ));
   }
 
-  // 🆕 화면 흔들림 효과 유도함수
-  void _triggerScreenShake({double intensity = 5.0, int duration = 200}) {
-    if (_displayMode == DisplayMode.powerSave) return; // 절전 모드 시 스킵
-    
-    _shakeTimer?.cancel();
-    final endTime = DateTime.now().add(Duration(milliseconds: duration));
-    final rand = Random();
-    
-    _shakeTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      if (!mounted || DateTime.now().isAfter(endTime)) {
-        timer.cancel();
-        if (mounted) {
-          setState(() {
-            _shakeOffsetX = 0;
-            _shakeOffsetY = 0;
-          });
-        }
-        return;
-      }
-      
-      setState(() {
-        _shakeOffsetX = (rand.nextDouble() * 2 - 1) * intensity;
-        _shakeOffsetY = (rand.nextDouble() * 2 - 1) * intensity;
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -906,6 +837,8 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
           // --- 스테이지 점프 효과 (전투 탭에서만 표시) ---
         if (_showJumpEffect && _selectedIndex == 0)
           _buildJumpStageEffect(),
+        if (_showDefeatEffect && _selectedIndex == 0)
+          _buildDefeatEffect(),
         ],
       ),
     );
@@ -2077,10 +2010,21 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
   }
 
   // [v0.0.79] 경량화된 점프 애니메이션
+  // 🆕 사망 이미지 연출 실행
+  void _triggerDefeatEffect() {
+    if (_showDefeatEffect) return;
+    _defeatEffectTimer?.cancel();
+    setState(() => _showDefeatEffect = true);
+    _defeatEffectTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _showDefeatEffect = false);
+    });
+  }
+
+  // 🆕 이미지 기반 스테이지 점프 연출
   void _triggerJumpEffect() {
     _jumpEffectTimer?.cancel();
     setState(() => _showJumpEffect = true);
-    _jumpEffectTimer = Timer(const Duration(milliseconds: 1000), () {
+    _jumpEffectTimer = Timer(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _showJumpEffect = false);
     });
   }
@@ -2091,42 +2035,86 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     return Positioned.fill(
       child: IgnorePointer(
         child: Center(
-          child: AnimatedOpacity(
-            opacity: _showJumpEffect ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.amber.withValues(alpha: 0.6),
-                  width: 1.5,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut,
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: (value * 2).clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: 0.8 + (value * 0.2),
+                  child: child,
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.flash_on,
-                    color: Colors.amber,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'STAGE JUMP',
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
+              );
+            },
+            child: Image.asset(
+              'assets/images/ui/stagejump.png',
+              width: 180,
+              fit: BoxFit.contain,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // 🆕 사망 연출 위젯 (이미지 기반)
+  Widget _buildDefeatEffect() {
+    if (!_showDefeatEffect) return const SizedBox.shrink();
+    
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Stack(
+          children: [
+            // 배경 암전 효과
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 500),
+              builder: (context, value, child) => Container(
+                color: Colors.redAccent.withOpacity(value * 0.15).withBlue(0).withGreen(0),
+              ),
+            ),
+            Center(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 800),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value.clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      'assets/images/ui/defeat.png',
+                      width: 280,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                      ),
+                      child: const Text(
+                        '사망하여 스테이지가 하락했습니다',
+                        style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2170,18 +2158,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                 // 주요 획득 데이터 (한글화)
                 _buildPowerSaveRow('💰 골드', _formatNumber(_sessionGold)),
                 _buildPowerSaveRow('✨ 경험치', _formatNumber(_sessionExp)),
-                _buildPowerSaveRow('📦 획득 아이템', _formatNumber(_sessionItems)),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 100, vertical: 20),
-                  child: Divider(color: Colors.white10, height: 1),
-                ),
-                
-                // 재화 상세 데이터 (한글화)
-                _buildPowerSaveRow('💎 강화석', _formatNumber(_sessionStones)),
-                _buildPowerSaveRow('✨ 마법 가루', _formatNumber(_sessionPowder)),
-                _buildPowerSaveRow('🌀 재설정석', _formatNumber(_sessionReroll)),
-                _buildPowerSaveRow('🛡️ 보호석', _formatNumber(_sessionProtection)),
-                _buildPowerSaveRow('🔮 잠재력 큐브', _formatNumber(_sessionCube)),
                 
                 const Spacer(),
                 
@@ -2695,7 +2671,6 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                           gs.player.maxHp, 
                           'assets/images/warrior.png', 
                           _playerAttackController, 
-                          _playerHitController,
                           true,
                           shield: data.$2,
                           isStunned: data.$5,
@@ -2735,15 +2710,14 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
                               opacity: _monsterSpawnController,
                               child: ScaleTransition(
                                 scale: CurvedAnimation(parent: _monsterSpawnController, curve: Curves.easeOutBack),
-                                child: _buildActor(
-                                  isPvP ? gs.defenderSnapshot!.username : gs.currentMonster!.name, 
-                                  isPvP ? gs.defenderSnapshot!.level : gs.currentMonster!.level, 
-                                  data.$1, 
-                                  isPvP ? gs.defenderSnapshot!.maxHp : gs.currentMonster!.maxHp, 
-                                  isPvP ? 'assets/images/warrior.png' : gs.currentMonster!.imagePath, 
-                                  _monsterAttackController, 
-                                  _monsterHitController,
-                                  false,
+                                  child: _buildActor(
+                                    isPvP ? gs.defenderSnapshot!.username : gs.currentMonster!.name, 
+                                    isPvP ? gs.defenderSnapshot!.level : gs.currentMonster!.level, 
+                                    data.$1, 
+                                    isPvP ? gs.defenderSnapshot!.maxHp : gs.currentMonster!.maxHp, 
+                                    isPvP ? 'assets/images/warrior.png' : gs.currentMonster!.imagePath, 
+                                    _monsterAttackController, 
+                                    false,
                                   isFrozen: data.$2 > 0,
                                   isStunned: data.$3 > 0,
                                   isJudged: data.$4 > 0,
@@ -2828,25 +2802,25 @@ class _GameMainPageState extends State<GameMainPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, AnimationController hit, bool p, {int shield = 0, bool isFrozen = false, bool isStunned = false, bool isJudged = false, bool isBurned = false, bool isEnemyPlayer = false}) {
+  Widget _buildActor(String n, int lv, int h, int mh, String img, AnimationController atk, bool p, {int shield = 0, bool isFrozen = false, bool isStunned = false, bool isJudged = false, bool isBurned = false, bool isEnemyPlayer = false}) {
     double hpProgress = (h / mh).clamp(0, 1);
     double shieldProgress = (shield / mh).clamp(0, 1);
     final gs = context.read<GameState>();
 
     return AnimatedBuilder(
-      animation: Listenable.merge([atk, hit, _monsterSpawnController, _monsterDeathController]), 
+      animation: Listenable.merge([atk, _monsterSpawnController, _monsterDeathController]), 
       builder: (ctx, _) {
-        // 1. 공격 애니메이션 강화 (v0.5.24)
+        // 1. 공격 애니메이션 부드러움 개선 (v2.6.5)
         double attackWeight;
-        if (atk.value < 0.25) {
-          // 0~0.25 구간: Curves.easeOutBack으로 튀어나감
-          attackWeight = Curves.easeOutBack.transform(atk.value / 0.25);
+        if (atk.value < 0.4) {
+          // 0~0.4 구간: 앞으로 부드럽게 튀어나감 (easeOutCubic)
+          attackWeight = Curves.easeOutCubic.transform(atk.value / 0.4);
         } else {
-          // 0.25~1.0 구간: 부드럽게 복귀
-          attackWeight = 1.0 - Curves.easeIn.transform((atk.value - 0.25) / 0.75);
+          // 0.4~1.0 구간: 천천히 제자리로 복귀 (easeInOut)
+          attackWeight = 1.0 - Curves.easeInOut.transform((atk.value - 0.4) / 0.6);
         }
 
-        double lunge = attackWeight * 18; // 18px 전진
+        double lunge = attackWeight * 16; // 16px 전진
         double attackScale = 1.0 + (attackWeight * 0.1); // 1.1배 확대
         
         // 방향 결정 (플레이어는 오른쪽(+), 몬스터는 왼쪽(-)이 전진)
@@ -5147,8 +5121,15 @@ class DamagePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (texts.isEmpty) return;
+    
+    // 🆕 [최적화] 매우 낮은 FPS(절전 모드)일 경우 데미지 텍스트 렌더링 건너뜀 (가독성보다 배터리 우선)
+    // 혹은 빈도를 줄이는 식으로 처리 가능하나, 일단 전면 차단으로 성능 확보
+    // GameState를 직접 참조하기 어려우므로 text의 개수를 제한하거나 painter 외부에서 제어할 수도 있음.
+    // 여기서는 간단히 texts가 너무 많으면 상위 몇개만 그리도록 함.
+    final maxDraw = texts.length > 10 ? 10 : texts.length;
 
-    for (var ft in texts) {
+    for (var i = 0; i < maxDraw; i++) {
+      final ft = texts[i];
       final double progress = ft.lifeProgress;
       if (progress < 0 || progress >= 1.0) continue;
       
